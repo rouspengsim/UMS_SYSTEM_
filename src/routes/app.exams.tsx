@@ -5,8 +5,9 @@ import { Loader2, Printer } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { DEFAULT_SUBJECT_OPTIONS, readDemoSubjects, subjectRowsToOptions } from "@/lib/subjects";
 
 export const Route = createFileRoute("/app/exams")({
   head: () => ({ meta: [{ title: "Exams & Scores — RULE" }] }),
@@ -43,18 +44,7 @@ const SYNTHETIC_CLASS_PREFIX = "student-class:";
 const SEMESTER_OPTIONS = ["Semester 1", "Semester 2"];
 const WEEK_OPTIONS = Array.from({ length: 48 }, (_, index) => index + 1);
 const SCORE_MAX = 100;
-const SCORE_SUBJECT_OPTIONS = [
-  { code: "General_Culture", label: "General_Culture" },
-  { code: "C_Programming", label: "C_Programming" },
-  { code: "Multimedia_and_Design_1", label: "Multimedia_and_Design_1" },
-  { code: "Political_Economics", label: "Political Economics" },
-  { code: "Mathematics", label: "Mathematics" },
-  { code: "Statistics", label: "Statistics" },
-  { code: "Microsoft_Office", label: "Microsoft_Office" },
-  { code: "Multimedia_and_Design_2", label: "Multimedia_and_Design_2" },
-  { code: "English_1", label: "English_1" },
-  { code: "English_2", label: "English_2" },
-];
+const SCORE_SUBJECT_OPTIONS = DEFAULT_SUBJECT_OPTIONS;
 const SCORE_REPORT_SUBJECTS = [
   { code: "General_Culture", label: "ចំណេះដឹងទូទៅ" },
   { code: "C_Programming", label: "កម្មវិធី" },
@@ -166,12 +156,32 @@ function printDocument(title: string, html: string) {
 
 function ExamsPage() {
   const { t } = useI18n();
-  const { isDemo } = useAuth();
+  const { primaryRole, isDemo } = useAuth();
   const qc = useQueryClient();
   const [classId, setClassId] = useState("");
   const [semester, setSemester] = useState(SEMESTER_OPTIONS[0]);
   const [weekNumber, setWeekNumber] = useState(1);
   const [selectedScoreStudentId, setSelectedScoreStudentId] = useState("");
+  const isStudent = primaryRole === "student";
+
+  const { data: scoreSubjectOptions = SCORE_SUBJECT_OPTIONS } = useQuery({
+    queryKey: ["subject-options", isDemo ? "demo" : "remote"],
+    queryFn: async () => {
+      if (isDemo) return subjectRowsToOptions(readDemoSubjects());
+
+      const { data, error } = await supabase
+        .from("subjects")
+        .select("subject_id,subject_name,description")
+        .order("subject_id", { ascending: true });
+      if (error) return SCORE_SUBJECT_OPTIONS;
+      const options = (data ?? []).map((subject) => ({
+        code: subject.subject_id,
+        label: subject.subject_name || subject.subject_id,
+        description: subject.description,
+      }));
+      return options.length > 0 ? options : SCORE_SUBJECT_OPTIONS;
+    },
+  });
 
   const { data: exams = [], isLoading } = useQuery({
     queryKey: ["exams"],
@@ -191,25 +201,46 @@ function ExamsPage() {
     },
   });
   const { data: classes = [] } = useQuery({
-    queryKey: ["exam-result-classes", isDemo ? "demo" : "remote"],
+    queryKey: ["exam-result-classes", primaryRole, isDemo ? "demo" : "remote"],
     queryFn: async () => {
       if (isDemo) {
         const demoStudents = readDemoList<{ class_name?: string | null }>(
           "studentsphere.demo.students",
         );
-        return Array.from(
+        const demoClasses = Array.from(
           new Set(
             demoStudents
               .map((student) => student.class_name?.trim())
               .filter((name): name is string => !!name),
           ),
         ).map((name) => ({ id: syntheticClassId(name), name, isSynthetic: true }));
+        return isStudent && demoClasses.length > 0 ? [demoClasses[0]] : demoClasses;
       }
 
-      const { data } = await supabase.from("classes").select("id,name").order("name");
-      return (data ?? []) as ExamClass[];
+      const [classesResult, studentsResult] = await Promise.all([
+        supabase.from("classes").select("id,name").order("name"),
+        supabase.from("students").select("class_name").not("class_name", "is", null),
+      ]);
+      const ownClassNames = new Set(
+        (studentsResult.data ?? [])
+          .map((student) => student.class_name?.trim())
+          .filter((name): name is string => !!name),
+      );
+      const storedClasses = ((classesResult.data ?? []) as ExamClass[]).filter(
+        (item) => !isStudent || ownClassNames.has(item.name),
+      );
+      const storedNames = new Set(storedClasses.map((item) => item.name));
+      const syntheticClasses = Array.from(ownClassNames)
+        .filter((name) => !storedNames.has(name))
+        .map((name) => ({ id: syntheticClassId(name), name, isSynthetic: true }));
+      return [...storedClasses, ...syntheticClasses];
     },
   });
+  useEffect(() => {
+    if (isStudent && classes.length > 0 && !classes.some((item) => item.id === classId)) {
+      setClassId(classes[0].id);
+    }
+  }, [classId, classes, isStudent]);
   const { data: enrolled = [], isLoading: studentsLoading } = useQuery({
     queryKey: ["exam-result-students", classId, isDemo ? "demo" : "remote"],
     enabled: !!classId,
@@ -714,7 +745,7 @@ function ExamsPage() {
                   <h4 className="font-khmer text-sm font-black text-foreground">
                     មុខវិជ្ជាឯកទេសនិង ថ្នាក់ទី១
                   </h4>
-                  {SCORE_SUBJECT_OPTIONS.map((subject) => {
+                  {scoreSubjectOptions.map((subject) => {
                     const score = scoreFor(selectedScoreStudent.student_id, subject.code);
                     return (
                       <label key={subject.code} className="block">

@@ -4,6 +4,7 @@ import {
   Users,
   GraduationCap,
   School,
+  BookOpen,
   CalendarCheck,
   ClipboardList,
   CalendarDays,
@@ -15,6 +16,7 @@ import {
   Settings,
 } from "lucide-react";
 import { UNIVERSITY_LOGO_URL, UNIVERSITY_NAME_EN, UNIVERSITY_SHORT_NAME } from "@/lib/brand";
+import { useAuth, type Role } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +26,7 @@ export const navItems: NavItem[] = [
   { to: "/app/students", icon: Users, key: "students" },
   { to: "/app/teachers", icon: GraduationCap, key: "teachers" },
   { to: "/app/classes", icon: School, key: "classes" },
+  { to: "/app/subjects", icon: BookOpen, key: "subjects" },
   { to: "/app/attendance", icon: CalendarCheck, key: "attendance" },
   { to: "/app/exams", icon: ClipboardList, key: "exams" },
   { to: "/app/timetable", icon: CalendarDays, key: "timetable" },
@@ -34,9 +37,41 @@ export const navItems: NavItem[] = [
   { to: "/app/certificates", icon: Award, key: "certificates" },
 ];
 
+const roleNavKeys: Record<Role, Set<string>> = {
+  admin: new Set(navItems.map((item) => item.key)),
+  teacher: new Set([
+    "dashboard",
+    "students",
+    "classes",
+    "subjects",
+    "attendance",
+    "exams",
+    "timetable",
+    "notifications",
+  ]),
+  student: new Set([
+    "dashboard",
+    "students",
+    "classes",
+    "attendance",
+    "exams",
+    "timetable",
+    "payments",
+    "notifications",
+    "certificates",
+  ]),
+};
+
+function navItemsForRole(role: Role | null) {
+  const allowed = roleNavKeys[role ?? "student"];
+  return navItems.filter((item) => allowed.has(item.key));
+}
+
 export function Sidebar() {
   const { t } = useI18n();
+  const { primaryRole } = useAuth();
   const { pathname } = useLocation();
+  const visibleNavItems = navItemsForRole(primaryRole);
 
   return (
     <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
@@ -59,7 +94,7 @@ export function Sidebar() {
           {t("dashboard")}
         </p>
         <ul className="space-y-1">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const active = item.end ? pathname === item.to : pathname.startsWith(item.to);
             return (
@@ -107,8 +142,9 @@ export function Sidebar() {
 
 export function MobileNav() {
   const { t } = useI18n();
+  const { primaryRole } = useAuth();
   const { pathname } = useLocation();
-  const items = navItems.slice(0, 5);
+  const items = navItemsForRole(primaryRole).slice(0, 5);
   return (
     <nav className="lg:hidden fixed bottom-3 left-3 right-3 z-40 flex items-center justify-around rounded-2xl border border-border bg-surface/95 px-2 py-1.5 shadow-card backdrop-blur">
       {items.map((item) => {

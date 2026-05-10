@@ -31,6 +31,11 @@ const Ctx = createContext<AuthCtx | null>(null);
 const ROLE_PRIORITY: Role[] = ["admin", "teacher", "student"];
 const DEMO_AUTH_KEY = "studentsphere.demo.auth";
 
+function metadataRole(user: SupaUser | null): Role | null {
+  const role = user?.user_metadata?.role;
+  return role === "admin" || role === "teacher" || role === "student" ? role : null;
+}
+
 function createDemoUser(role: Role = "admin"): SupaUser {
   const email = role === "admin" ? "admin@gmail.com" : `${role}@demo.local`;
   return {
@@ -162,7 +167,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsDemo(false);
   };
 
-  const primaryRole = ROLE_PRIORITY.find((r) => roles.includes(r)) ?? null;
+  const requestedRole = metadataRole(user);
+  const primaryRole =
+    (requestedRole && roles.includes(requestedRole) ? requestedRole : null) ??
+    ROLE_PRIORITY.find((r) => roles.includes(r)) ??
+    null;
 
   return (
     <Ctx.Provider

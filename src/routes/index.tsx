@@ -36,7 +36,7 @@ export const Route = createFileRoute("/")({
 
 function LoginPage() {
   const { t, lang, setLang } = useI18n();
-  const { user, loading, refresh, signInDemo } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
   const router = useRouter();
 
@@ -193,14 +193,6 @@ function LoginPage() {
         await router.invalidate();
         navigate({ to: "/app" });
       } else {
-        if (email.trim().toLowerCase() === "admin@gmail.com" && password === "Admin@123") {
-          await signInDemo("admin");
-          toast.success("Demo admin mode enabled");
-          await router.invalidate();
-          navigate({ to: "/app" });
-          return;
-        }
-
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("Welcome back!");

@@ -221,6 +221,33 @@ export type Database = {
           },
         ];
       };
+      subjects: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          id: string;
+          subject_id: string;
+          subject_name: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          subject_id: string;
+          subject_name: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          subject_id?: string;
+          subject_name?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       enrollments: {
         Row: {
           class_id: string;
@@ -528,20 +555,32 @@ export type Database = {
       students: {
         Row: {
           address: string | null;
+          academic: string | null;
           avatar_url: string | null;
           class_name: string | null;
           created_at: string;
           date_of_birth: string | null;
           email: string | null;
           enrollment_year: number;
+          father_job: string | null;
+          father_name: string | null;
           full_name: string;
           full_name_en: string | null;
           full_name_km: string | null;
           gender: string | null;
           id: string;
+          mother_job: string | null;
+          mother_name: string | null;
+          nationality: string | null;
+          pay_year1: string;
+          pay_year2: string;
+          pay_year3: string;
+          pay_year4: string;
           phone: string | null;
+          place_of_birth: string | null;
           shift: string | null;
           status: Database["public"]["Enums"]["student_status"];
+          student_type: string | null;
           study_year: number | null;
           student_code: string;
           updated_at: string;
@@ -549,20 +588,32 @@ export type Database = {
         };
         Insert: {
           address?: string | null;
+          academic?: string | null;
           avatar_url?: string | null;
           class_name?: string | null;
           created_at?: string;
           date_of_birth?: string | null;
           email?: string | null;
           enrollment_year?: number;
+          father_job?: string | null;
+          father_name?: string | null;
           full_name: string;
           full_name_en?: string | null;
           full_name_km?: string | null;
           gender?: string | null;
           id?: string;
+          mother_job?: string | null;
+          mother_name?: string | null;
+          nationality?: string | null;
+          pay_year1?: string;
+          pay_year2?: string;
+          pay_year3?: string;
+          pay_year4?: string;
           phone?: string | null;
+          place_of_birth?: string | null;
           shift?: string | null;
           status?: Database["public"]["Enums"]["student_status"];
+          student_type?: string | null;
           study_year?: number | null;
           student_code: string;
           updated_at?: string;
@@ -570,20 +621,32 @@ export type Database = {
         };
         Update: {
           address?: string | null;
+          academic?: string | null;
           avatar_url?: string | null;
           class_name?: string | null;
           created_at?: string;
           date_of_birth?: string | null;
           email?: string | null;
           enrollment_year?: number;
+          father_job?: string | null;
+          father_name?: string | null;
           full_name?: string;
           full_name_en?: string | null;
           full_name_km?: string | null;
           gender?: string | null;
           id?: string;
+          mother_job?: string | null;
+          mother_name?: string | null;
+          nationality?: string | null;
+          pay_year1?: string;
+          pay_year2?: string;
+          pay_year3?: string;
+          pay_year4?: string;
           phone?: string | null;
+          place_of_birth?: string | null;
           shift?: string | null;
           status?: Database["public"]["Enums"]["student_status"];
+          student_type?: string | null;
           study_year?: number | null;
           student_code?: string;
           updated_at?: string;

@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FLAT_MAJOR_OPTIONS, MAJOR_OPTIONS } from "@/lib/academic-options";
+import { DEFAULT_SUBJECT_OPTIONS, readDemoSubjects, subjectRowsToOptions } from "@/lib/subjects";
 
 export const Route = createFileRoute("/app/classes")({
   head: () => ({ meta: [{ title: "Classes — RULE" }] }),
@@ -234,6 +235,7 @@ function ClassesPage() {
     students: ClassStudent[];
   } | null>(null);
   const isAdmin = primaryRole === "admin";
+  const isStudent = primaryRole === "student";
 
   const { data: classes = [], isLoading } = useQuery({
     queryKey: ["classes", isDemo ? "demo" : "remote"],
@@ -281,6 +283,11 @@ function ClassesPage() {
   const majorOptions = FLAT_MAJOR_OPTIONS;
 
   const displayClasses = useMemo(() => {
+    const studentClassNames = new Set(
+      classStudents
+        .map((student) => student.class_name)
+        .filter((className): className is string => !!className),
+    );
     const matchingClassNames = new Set(
       classStudents
         .filter(
@@ -321,6 +328,7 @@ function ClassesPage() {
 
     const combined = [...classes, ...syntheticClasses];
     return combined.filter((classRow) => {
+      if (isStudent && !studentClassNames.has(classRow.name)) return false;
       const matchesMajor =
         majorFilter === "all" || classRow.major === majorFilter || matchingClassNames.has(classRow.name);
       const classHasStudentInShift = classStudents.some(
@@ -330,7 +338,7 @@ function ClassesPage() {
         shiftFilter === "all" || classRow.shift === shiftFilter || classHasStudentInShift;
       return matchesMajor && matchesShift;
     });
-  }, [classes, classStudents, majorFilter, shiftFilter]);
+  }, [classes, classStudents, isStudent, majorFilter, shiftFilter]);
 
   const del = useMutation({
     mutationFn: async (id: string) => {
@@ -688,6 +696,24 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
       return data ?? [];
     },
   });
+  const { data: subjectOptions = DEFAULT_SUBJECT_OPTIONS } = useQuery({
+    queryKey: ["subject-options", isDemo ? "demo" : "remote"],
+    queryFn: async () => {
+      if (isDemo) return subjectRowsToOptions(readDemoSubjects());
+
+      const { data, error } = await supabase
+        .from("subjects")
+        .select("subject_id,subject_name,description")
+        .order("subject_id", { ascending: true });
+      if (error) return DEFAULT_SUBJECT_OPTIONS;
+      const options = (data ?? []).map((subject) => ({
+        code: subject.subject_id,
+        label: subject.subject_name || subject.subject_id,
+        description: subject.description,
+      }));
+      return options.length > 0 ? options : DEFAULT_SUBJECT_OPTIONS;
+    },
+  });
   const mut = useMutation({
     mutationFn: async () => {
       if (isDemo) {
@@ -761,10 +787,18 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
           </Field>
           <Field label={`${t("subject_code")} *`}>
             <input
+              list="class-subject-options"
               value={f.subject_code}
               onChange={(e) => setF({ ...f, subject_code: e.target.value })}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
             />
+            <datalist id="class-subject-options">
+              {subjectOptions.map((subject) => (
+                <option key={subject.code} value={subject.code}>
+                  {subject.label}
+                </option>
+              ))}
+            </datalist>
           </Field>
           <Field label={`${t("major")} *`}>
             <GroupedSelect

@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, SectionCard, StatusPill, Avatar } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
-import { Plus, Search, Filter, Printer, Trash2, X, Loader2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Plus, Search, Filter, Printer, Trash2, X, Loader2, Eye } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -25,7 +25,20 @@ type StudentRow = {
   date_of_birth: string | null;
   gender: string | null;
   address: string | null;
+  avatar_url: string | null;
+  nationality: string | null;
+  place_of_birth: string | null;
+  father_name: string | null;
+  father_job: string | null;
+  mother_name: string | null;
+  mother_job: string | null;
+  academic: string | null;
   major: string | null;
+  student_type: string | null;
+  pay_year1: string | null;
+  pay_year2: string | null;
+  pay_year3: string | null;
+  pay_year4: string | null;
   enrollment_year: number;
   study_year: number | null;
   class_name: string | null;
@@ -39,6 +52,14 @@ const SHIFT_OPTIONS = [
   { value: "morning", labelKey: "morning" },
   { value: "afternoon", labelKey: "afternoon" },
   { value: "evening", labelKey: "evening" },
+];
+const ACADEMIC_OPTIONS = MAJOR_OPTIONS.map((group) => group.group);
+const NATIONALITY_OPTIONS = ["Khmer", "Foreign"];
+const STUDENT_TYPE_OPTIONS = ["General Student", "Scholarship", "Transfer", "Exchange"];
+const PAY_YEAR_OPTIONS = [
+  { value: "not_yet", label: "Not yet" },
+  { value: "paid", label: "Paid" },
+  { value: "partial", label: "Partial" },
 ];
 
 function shiftLabel(value: string | null | undefined, t: (key: string) => string) {
@@ -70,7 +91,11 @@ function escapeHtml(value: string | number | null | undefined) {
     .replaceAll("'", "&#039;");
 }
 
-function printDocument(title: string, html: string, orientation: "portrait" | "landscape" = "portrait") {
+function printDocument(
+  title: string,
+  html: string,
+  orientation: "portrait" | "landscape" = "portrait",
+) {
   const printWindow = window.open("", "_blank", "width=1100,height=800");
   if (!printWindow) {
     toast.error("Allow pop-ups to print this report.");
@@ -178,7 +203,7 @@ function studentListReportHtml(students: StudentRow[], reportTitle: string) {
           <tr>
             <th style="width: 28px">ល.រ</th>
             <th style="width: 76px">អត្តលេខ</th>
-            <th class="name">គោត្តនាម និង​ នាម</th>
+            <th class="name">គោត្តនាម និង នាម</th>
             <th class="name">នាមជាអក្សរឡាតាំង</th>
             <th style="width: 34px">ភេទ</th>
             <th style="width: 72px">ថ្ងៃខែកំណើត</th>
@@ -214,6 +239,7 @@ function StudentsPage() {
   const [majorFilter, setMajorFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
   const [showAdd, setShowAdd] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<StudentRow | null>(null);
 
   const isAdmin = primaryRole === "admin";
 
@@ -471,16 +497,26 @@ function StudentsPage() {
                       <StatusPill status={s.status} />
                     </td>
                     <td className="py-3 text-right">
-                      {isAdmin && (
+                      <div className="flex justify-end gap-1.5">
                         <button
-                          onClick={() => {
-                            if (confirm(`Delete ${s.full_name}?`)) deleteMut.mutate(s.id);
-                          }}
-                          className="rounded-lg p-2 text-destructive opacity-0 transition-opacity hover:bg-destructive/10 group-hover:opacity-100"
+                          onClick={() => setSelectedStudent(s)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary hover:bg-primary/10"
+                          aria-label={`${t("view")} ${s.full_name}`}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </button>
-                      )}
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Delete ${s.full_name}?`)) deleteMut.mutate(s.id);
+                            }}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-destructive opacity-0 transition-opacity hover:bg-destructive/10 group-hover:opacity-100"
+                            aria-label={`${t("delete")} ${s.full_name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -495,6 +531,111 @@ function StudentsPage() {
       </SectionCard>
 
       {showAdd && <AddStudentModal isDemo={isDemo} onClose={() => setShowAdd(false)} />}
+      {selectedStudent && (
+        <StudentInfoModal student={selectedStudent} onClose={() => setSelectedStudent(null)} />
+      )}
+    </div>
+  );
+}
+
+function payYearLabel(value: string | null | undefined) {
+  return PAY_YEAR_OPTIONS.find((option) => option.value === value)?.label ?? value ?? "—";
+}
+
+function StudentInfoModal({ student, onClose }: { student: StudentRow; onClose: () => void }) {
+  const { t } = useI18n();
+  const fullName = student.full_name_en || student.full_name;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[88vh] w-full max-w-5xl flex-col rounded-2xl border border-border bg-card shadow-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+          <div className="flex min-w-0 items-center gap-4">
+            {student.avatar_url ? (
+              <img
+                src={student.avatar_url}
+                alt={fullName}
+                className="h-14 w-14 shrink-0 rounded-xl object-cover ring-1 ring-border"
+              />
+            ) : (
+              <Avatar name={fullName} className="h-14 w-14 text-base" />
+            )}
+            <div className="min-w-0">
+              <h3 className="truncate font-display text-lg font-bold">
+                {t("student_information")}
+              </h3>
+              <p className="mt-1 truncate text-sm font-semibold">{fullName}</p>
+              <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                {student.student_code}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <StatusPill status={student.status} />
+            <button onClick={onClose} className="rounded-lg p-2 hover:bg-muted">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto p-6">
+          <div className="grid gap-x-6 gap-y-4 md:grid-cols-3">
+            <InfoField label={t("student_id")} value={student.student_code} />
+            <InfoField label={t("name_in_khmer")} value={student.full_name_km} />
+            <InfoField
+              label={t("name_in_latin")}
+              value={student.full_name_en || student.full_name}
+            />
+            <InfoField label={t("gender")} value={student.gender} />
+            <InfoField label={t("nationality")} value={student.nationality} />
+            <InfoField label={t("dob")} value={student.date_of_birth} />
+            <InfoField label={t("place_of_birth")} value={student.place_of_birth} />
+            <InfoField label={t("father_name")} value={student.father_name} />
+            <InfoField label={t("father_job")} value={student.father_job} />
+            <InfoField label={t("mother_name")} value={student.mother_name} />
+            <InfoField label={t("mother_job")} value={student.mother_job} />
+            <InfoField label={t("phone")} value={student.phone} />
+          </div>
+
+          <div className="mt-6 border-t border-border pt-5">
+            <div className="grid gap-x-6 gap-y-4 md:grid-cols-3">
+              <InfoField label={t("academic")} value={student.academic} />
+              <InfoField label={t("major")} value={student.major} />
+              <InfoField label={t("type_of_student")} value={student.student_type} />
+              <InfoField label={t("class")} value={student.class_name} />
+              <InfoField label={t("shift")} value={shiftLabel(student.shift, t)} />
+              <InfoField label={t("year")} value={student.study_year ?? student.enrollment_year} />
+              <InfoField label={t("pay_year1")} value={payYearLabel(student.pay_year1)} />
+              <InfoField label={t("pay_year2")} value={payYearLabel(student.pay_year2)} />
+              <InfoField label={t("pay_year3")} value={payYearLabel(student.pay_year3)} />
+              <InfoField label={t("pay_year4")} value={payYearLabel(student.pay_year4)} />
+              <InfoField label={t("email")} value={student.email} />
+              <InfoField label={t("image")} value={student.avatar_url} />
+            </div>
+          </div>
+
+          <div className="mt-6 border-t border-border pt-5">
+            <InfoField label={t("address")} value={student.address} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoField({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 min-h-5 break-words text-sm font-medium text-foreground">{value || "—"}</p>
     </div>
   );
 }
@@ -508,10 +649,26 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
     full_name_en: "",
     gender: "male",
     date_of_birth: "",
+    nationality: "Khmer",
+    place_of_birth: ADDRESS_OPTIONS[0],
+    father_name: "",
+    father_job: "",
+    mother_name: "",
+    mother_job: "",
+    phone: "",
+    academic: ACADEMIC_OPTIONS[0],
     study_year: 1,
     major: MAJOR_OPTIONS[0].options[0].value,
+    student_type: STUDENT_TYPE_OPTIONS[0],
     class_name: "",
     shift: "morning",
+    pay_year1: "not_yet",
+    pay_year2: "not_yet",
+    pay_year3: "not_yet",
+    pay_year4: "not_yet",
+    email: "",
+    password: "",
+    avatar_url: "",
     address: ADDRESS_OPTIONS[0],
   });
 
@@ -524,14 +681,27 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
           full_name: form.full_name_en || form.full_name_km,
           full_name_km: form.full_name_km || null,
           full_name_en: form.full_name_en || null,
-          email: null,
-          phone: null,
+          email: form.email || null,
+          phone: form.phone || null,
           gender: form.gender || null,
           date_of_birth: form.date_of_birth || null,
+          avatar_url: form.avatar_url || null,
+          nationality: form.nationality || null,
+          place_of_birth: form.place_of_birth || null,
+          father_name: form.father_name || null,
+          father_job: form.father_job || null,
+          mother_name: form.mother_name || null,
+          mother_job: form.mother_job || null,
+          academic: form.academic || null,
           study_year: Number(form.study_year),
           major: form.major || null,
+          student_type: form.student_type || null,
           class_name: form.class_name || null,
           shift: form.shift || null,
+          pay_year1: form.pay_year1 || null,
+          pay_year2: form.pay_year2 || null,
+          pay_year3: form.pay_year3 || null,
+          pay_year4: form.pay_year4 || null,
           address: form.address || null,
           enrollment_year: new Date().getFullYear(),
           status: "active",
@@ -547,12 +717,27 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
         full_name: form.full_name_en || form.full_name_km,
         full_name_km: form.full_name_km || null,
         full_name_en: form.full_name_en || null,
+        email: form.email || null,
+        phone: form.phone || null,
         gender: form.gender || null,
         date_of_birth: form.date_of_birth || null,
+        avatar_url: form.avatar_url || null,
+        nationality: form.nationality || null,
+        place_of_birth: form.place_of_birth || null,
+        father_name: form.father_name || null,
+        father_job: form.father_job || null,
+        mother_name: form.mother_name || null,
+        mother_job: form.mother_job || null,
+        academic: form.academic || null,
         study_year: Number(form.study_year),
         major: form.major || null,
+        student_type: form.student_type || null,
         class_name: form.class_name || null,
         shift: form.shift || null,
+        pay_year1: form.pay_year1 || null,
+        pay_year2: form.pay_year2 || null,
+        pay_year3: form.pay_year3 || null,
+        pay_year4: form.pay_year4 || null,
         address: form.address || null,
         enrollment_year: new Date().getFullYear(),
         status: "active",
@@ -575,11 +760,14 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-card"
+        className="flex max-h-[88vh] w-full max-w-5xl flex-col rounded-2xl border border-border bg-card shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-display text-lg font-bold">{t("add_student")}</h3>
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div>
+            <h3 className="font-display text-lg font-bold">{t("student_information")}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">{t("add_student")}</p>
+          </div>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
@@ -594,81 +782,188 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
             if (!form.class_name.trim()) return toast.error(t("class"));
             mut.mutate();
           }}
-          className="grid gap-3 sm:grid-cols-2"
+          className="overflow-y-auto p-6"
         >
-          <Input
-            label={`${t("student_id")} *`}
-            placeholder="20260001"
-            value={form.student_code}
-            onChange={(v) => setForm({ ...form, student_code: v })}
-          />
-          <Input
-            label={`${t("name_in_khmer")} *`}
-            placeholder="ឈ្មោះជាភាសាខ្មែរ"
-            value={form.full_name_km}
-            onChange={(v) => setForm({ ...form, full_name_km: v })}
-          />
-          <Input
-            label={`${t("name_in_english")} *`}
-            placeholder="Sok Dara"
-            value={form.full_name_en}
-            onChange={(v) => setForm({ ...form, full_name_en: v })}
-          />
-          <Select
-            label={`${t("gender")} *`}
-            value={form.gender}
-            onChange={(v) => setForm({ ...form, gender: v })}
-            options={[
-              { value: "male", label: t("male") },
-              { value: "female", label: t("female") },
-              { value: "other", label: t("other") },
-            ]}
-          />
-          <Input
-            label={t("dob")}
-            type="date"
-            value={form.date_of_birth}
-            onChange={(v) => setForm({ ...form, date_of_birth: v })}
-          />
-          <Input
-            label={`${t("year")} *`}
-            type="number"
-            value={String(form.study_year)}
-            onChange={(v) => setForm({ ...form, study_year: Number(v) })}
-          />
-          <GroupedSelect
-            label={`${t("major")} *`}
-            value={form.major}
-            onChange={(v) => setForm({ ...form, major: v })}
-            groups={MAJOR_OPTIONS}
-          />
-          <Input
-            label={`${t("class")} *`}
-            placeholder="IT1A02"
-            value={form.class_name}
-            onChange={(v) => setForm({ ...form, class_name: v.toUpperCase() })}
-          />
-          <Select
-            label={`${t("shift")} *`}
-            value={form.shift}
-            onChange={(v) => setForm({ ...form, shift: v })}
-            options={SHIFT_OPTIONS.map((shift) => ({ value: shift.value, label: t(shift.labelKey) }))}
-          />
-          <div className="sm:col-span-2">
+          <div className="grid gap-3 md:grid-cols-3">
+            <Input
+              label={`${t("student_id")} *`}
+              placeholder="STD24-00048"
+              value={form.student_code}
+              onChange={(v) => setForm({ ...form, student_code: v })}
+            />
+            <Input
+              label={`${t("name_in_khmer")} *`}
+              placeholder="ឈ្មោះជាភាសាខ្មែរ"
+              value={form.full_name_km}
+              onChange={(v) => setForm({ ...form, full_name_km: v })}
+            />
+            <Input
+              label={`${t("name_in_latin")} *`}
+              placeholder="KEO SALITA"
+              value={form.full_name_en}
+              onChange={(v) => setForm({ ...form, full_name_en: v.toUpperCase() })}
+            />
             <Select
-              label={t("address")}
-              value={form.address}
-              onChange={(v) => setForm({ ...form, address: v })}
+              label={`${t("gender")} *`}
+              value={form.gender}
+              onChange={(v) => setForm({ ...form, gender: v })}
+              options={[
+                { value: "male", label: t("male") },
+                { value: "female", label: t("female") },
+                { value: "other", label: t("other") },
+              ]}
+            />
+            <Select
+              label={t("nationality")}
+              value={form.nationality}
+              onChange={(v) => setForm({ ...form, nationality: v })}
+              options={NATIONALITY_OPTIONS.map((nationality) => ({
+                value: nationality,
+                label: nationality,
+              }))}
+            />
+            <Input
+              label={t("dob")}
+              type="date"
+              value={form.date_of_birth}
+              onChange={(v) => setForm({ ...form, date_of_birth: v })}
+            />
+            <Select
+              label={t("place_of_birth")}
+              value={form.place_of_birth}
+              onChange={(v) => setForm({ ...form, place_of_birth: v })}
               options={ADDRESS_OPTIONS.map((address) => ({ value: address, label: address }))}
             />
+            <Input
+              label={t("father_name")}
+              value={form.father_name}
+              onChange={(v) => setForm({ ...form, father_name: v })}
+            />
+            <Input
+              label={t("father_job")}
+              value={form.father_job}
+              onChange={(v) => setForm({ ...form, father_job: v })}
+            />
+            <Input
+              label={t("mother_name")}
+              value={form.mother_name}
+              onChange={(v) => setForm({ ...form, mother_name: v })}
+            />
+            <Input
+              label={t("mother_job")}
+              value={form.mother_job}
+              onChange={(v) => setForm({ ...form, mother_job: v })}
+            />
+            <Input
+              label={t("phone")}
+              value={form.phone}
+              onChange={(v) => setForm({ ...form, phone: v })}
+            />
+            <Select
+              label={t("academic")}
+              value={form.academic}
+              onChange={(v) => setForm({ ...form, academic: v })}
+              options={ACADEMIC_OPTIONS.map((academic) => ({ value: academic, label: academic }))}
+            />
+            <GroupedSelect
+              label={`${t("major")} *`}
+              value={form.major}
+              onChange={(v) => setForm({ ...form, major: v })}
+              groups={MAJOR_OPTIONS}
+            />
+            <Select
+              label={t("type_of_student")}
+              value={form.student_type}
+              onChange={(v) => setForm({ ...form, student_type: v })}
+              options={STUDENT_TYPE_OPTIONS.map((type) => ({ value: type, label: type }))}
+            />
+            <Input
+              label={`${t("class")} *`}
+              placeholder="IT1A01"
+              value={form.class_name}
+              onChange={(v) => setForm({ ...form, class_name: v.toUpperCase() })}
+            />
+            <Select
+              label={`${t("shift")} *`}
+              value={form.shift}
+              onChange={(v) => setForm({ ...form, shift: v })}
+              options={SHIFT_OPTIONS.map((shift) => ({
+                value: shift.value,
+                label: t(shift.labelKey),
+              }))}
+            />
+            <Input
+              label={`${t("year")} *`}
+              type="number"
+              value={String(form.study_year)}
+              onChange={(v) => setForm({ ...form, study_year: Number(v) })}
+            />
+            <Select
+              label={t("pay_year1")}
+              value={form.pay_year1}
+              onChange={(v) => setForm({ ...form, pay_year1: v })}
+              options={PAY_YEAR_OPTIONS}
+            />
+            <Select
+              label={t("pay_year2")}
+              value={form.pay_year2}
+              onChange={(v) => setForm({ ...form, pay_year2: v })}
+              options={PAY_YEAR_OPTIONS}
+            />
+            <Select
+              label={t("pay_year3")}
+              value={form.pay_year3}
+              onChange={(v) => setForm({ ...form, pay_year3: v })}
+              options={PAY_YEAR_OPTIONS}
+            />
+            <Select
+              label={t("pay_year4")}
+              value={form.pay_year4}
+              onChange={(v) => setForm({ ...form, pay_year4: v })}
+              options={PAY_YEAR_OPTIONS}
+            />
+            <Input
+              label={t("email")}
+              type="email"
+              value={form.email}
+              onChange={(v) => setForm({ ...form, email: v })}
+            />
+            <Input
+              label={t("password")}
+              type="password"
+              value={form.password}
+              onChange={(v) => setForm({ ...form, password: v })}
+            />
+            <Input
+              label={t("image")}
+              value={form.avatar_url}
+              onChange={(v) => setForm({ ...form, avatar_url: v })}
+            />
+            <div className="md:col-span-3">
+              <Select
+                label={t("address")}
+                value={form.address}
+                onChange={(v) => setForm({ ...form, address: v })}
+                options={ADDRESS_OPTIONS.map((address) => ({ value: address, label: address }))}
+              />
+            </div>
           </div>
-          <button
-            type="submit"
-            disabled={mut.isPending}
-            className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl gradient-primary text-sm font-semibold text-primary-foreground shadow-soft hover:shadow-glow disabled:opacity-60 sm:col-span-2"
-          >
-            {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("save_student")}
-          </button>
+          <div className="mt-5 flex justify-end gap-2 border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-11 rounded-xl border border-border bg-surface px-4 text-sm font-semibold hover:bg-muted"
+            >
+              {t("cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={mut.isPending}
+              className="flex h-11 min-w-36 items-center justify-center gap-2 rounded-xl gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:shadow-glow disabled:opacity-60"
+            >
+              {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("save_student")}
+            </button>
+          </div>
         </form>
       </div>
     </div>

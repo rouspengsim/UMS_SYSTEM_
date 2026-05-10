@@ -2,7 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, StatCard, SectionCard, StatusPill, Avatar } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
-import { Users, GraduationCap, School, DollarSign, ArrowUpRight, RefreshCw } from "lucide-react";
+import {
+  Users,
+  GraduationCap,
+  School,
+  DollarSign,
+  ArrowUpRight,
+  RefreshCw,
+  BookOpen,
+  Percent,
+  ClipboardList,
+  Wallet,
+  Bell,
+  CalendarDays,
+} from "lucide-react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -61,7 +74,7 @@ function emptyRecentDays() {
 
 function Dashboard() {
   const { t } = useI18n();
-  const { profile, primaryRole, isDemo } = useAuth();
+  const { user, profile, primaryRole, isDemo } = useAuth();
   const today = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -70,6 +83,7 @@ function Dashboard() {
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats", isDemo ? "demo" : "remote"],
+    enabled: primaryRole !== "student",
     queryFn: async () => {
       if (isDemo) {
         const students = readDemoList<{ id: string }>("studentsphere.demo.students");
@@ -140,6 +154,7 @@ function Dashboard() {
 
   const { data: attendanceTrend = [] } = useQuery({
     queryKey: ["dashboard-attendance", isDemo ? "demo" : "remote"],
+    enabled: primaryRole !== "student",
     queryFn: async () => {
       if (isDemo) {
         const days = emptyRecentDays();
@@ -184,6 +199,7 @@ function Dashboard() {
 
   const { data: subjects = [] } = useQuery({
     queryKey: ["dashboard-subjects", isDemo ? "demo" : "remote"],
+    enabled: primaryRole !== "student",
     queryFn: async () => {
       if (isDemo) {
         const counts: Record<string, number> = {};
@@ -208,6 +224,7 @@ function Dashboard() {
 
   const { data: recentStudents = [] } = useQuery({
     queryKey: ["dashboard-recent-students", isDemo ? "demo" : "remote"],
+    enabled: primaryRole !== "student",
     queryFn: async () => {
       if (isDemo) {
         return readDemoList<{
@@ -232,6 +249,7 @@ function Dashboard() {
 
   const { data: recentPayments = [] } = useQuery({
     queryKey: ["dashboard-recent-payments", isDemo ? "demo" : "remote"],
+    enabled: primaryRole !== "student",
     queryFn: async () => {
       if (isDemo) {
         return readDemoList<{
@@ -255,6 +273,10 @@ function Dashboard() {
       return data ?? [];
     },
   });
+
+  if (primaryRole === "student") {
+    return <StudentDashboard userId={user?.id ?? ""} userEmail={user?.email ?? ""} />;
+  }
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "Friend";
 
@@ -483,7 +505,9 @@ function Dashboard() {
         <SectionCard title="Quick start">
           <div className="space-y-3 text-sm">
             <p className="text-muted-foreground">
-              {isDemo ? "Demo mode is active. Test the full workflow:" : "Your database is live. Start by:"}
+              {isDemo
+                ? "Demo mode is active. Test the full workflow:"
+                : "Your database is live. Start by:"}
             </p>
             <ol className="ml-5 list-decimal space-y-1.5">
               <li>
@@ -519,6 +543,336 @@ function Dashboard() {
         </SectionCard>
       </div>
     </div>
+  );
+}
+
+type StudentProfileSummary = {
+  id: string;
+  student_code: string;
+  full_name: string;
+  full_name_en?: string | null;
+  full_name_km?: string | null;
+  email?: string | null;
+  class_name?: string | null;
+  major?: string | null;
+  status?: string | null;
+};
+
+function scoreToGpa(score: number) {
+  return Math.min(4, Math.max(0, score / 25));
+}
+
+function StudentDashboard({ userId, userEmail }: { userId: string; userEmail: string }) {
+  const { t } = useI18n();
+  const { profile, isDemo } = useAuth();
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const dayKey = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date().getDay()];
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["student-dashboard", userId, userEmail, isDemo ? "demo" : "remote"],
+    queryFn: async () => {
+      if (isDemo) {
+        const students = readDemoList<StudentProfileSummary>("studentsphere.demo.students");
+        const student = students[0] ?? null;
+        const className = student?.class_name ?? "";
+        const attendance = readDemoList<{ student_id: string; status: string }>(
+          "studentsphere.demo.attendance",
+        ).filter((row) => !student || row.student_id === student.id);
+        const present = attendance.filter(
+          (row) => row.status === "present" || row.status === "late",
+        ).length;
+        const scores = readDemoList<{ student_id: string; score: number | null }>(
+          "studentsphere.demo.subject_scores",
+        ).filter((row) => !student || row.student_id === student.id);
+        const numericScores = scores
+          .map((row) => row.score)
+          .filter((score): score is number => typeof score === "number");
+        const payments = readDemoList<{ status: string; amount: number }>(
+          "studentsphere.demo.payments",
+        );
+        const notifications = readDemoList<{
+          id: string;
+          title: string;
+          body?: string | null;
+          created_at: string;
+        }>("studentsphere.demo.notifications").slice(0, 4);
+        const schedules = readDemoList<{
+          className: string;
+          rows: Array<{
+            start: string;
+            end: string;
+            cells: Record<string, { teacher: string; subject: string; room: string }>;
+          }>;
+        }>("studentsphere.manual.schedules");
+        const todaySchedule =
+          schedules
+            .find((schedule) => schedule.className === className)
+            ?.rows.map((row) => ({
+              time: `${row.start} - ${row.end}`,
+              ...row.cells[dayKey],
+            }))
+            .filter((slot) => slot.subject || slot.teacher || slot.room) ?? [];
+
+        return {
+          student,
+          className,
+          totalSubjects: new Set(
+            scores.map((row) => (row as { subject_code?: string }).subject_code),
+          ).size,
+          gpa:
+            numericScores.length === 0
+              ? null
+              : numericScores.reduce((sum, score) => sum + scoreToGpa(score), 0) /
+                numericScores.length,
+          attendancePercentage:
+            attendance.length === 0 ? null : Math.round((present / attendance.length) * 100),
+          upcomingExams: [],
+          feeStatus: payments.some((payment) => payment.status === "overdue")
+            ? "Overdue"
+            : payments.some((payment) => payment.status === "pending")
+              ? "Pending"
+              : payments.length > 0
+                ? "Paid"
+                : "No invoice",
+          notifications,
+          todaySchedule,
+        };
+      }
+
+      const studentQuery = supabase
+        .from("students")
+        .select("id,student_code,full_name,full_name_en,full_name_km,email,class_name,major,status")
+        .limit(1);
+      const { data: studentRows } = userEmail
+        ? await studentQuery.or(`user_id.eq.${userId},email.eq.${userEmail}`)
+        : await studentQuery.eq("user_id", userId);
+      const student = ((studentRows ?? [])[0] ?? null) as StudentProfileSummary | null;
+      const className = student?.class_name ?? "";
+
+      const [classesResult, attendanceResult, scoresResult, paymentsResult, notificationsResult] =
+        await Promise.all([
+          supabase.from("classes").select("id,name,subject_code").eq("name", className),
+          student
+            ? supabase.from("attendance").select("status").eq("student_id", student.id)
+            : Promise.resolve({ data: [] }),
+          student
+            ? supabase
+                .from("subject_scores")
+                .select("subject_code,score")
+                .eq("student_id", student.id)
+            : Promise.resolve({ data: [] }),
+          supabase.from("payments").select("status,amount,due_date,paid_date").order("created_at", {
+            ascending: false,
+          }),
+          supabase
+            .from("notifications")
+            .select("id,title,body,created_at")
+            .order("created_at", { ascending: false })
+            .limit(4),
+        ]);
+
+      const classIds = (classesResult.data ?? []).map((row) => row.id);
+      const [examsResult, timetableResult] = await Promise.all([
+        classIds.length > 0
+          ? supabase
+              .from("exams")
+              .select("id,name,exam_type,exam_date,classes(name)")
+              .in("class_id", classIds)
+              .gte("exam_date", todayIso)
+              .order("exam_date", { ascending: true })
+              .limit(4)
+          : Promise.resolve({ data: [] }),
+        classIds.length > 0
+          ? supabase
+              .from("timetable_slots")
+              .select(
+                "id,day,start_time,end_time,room,classes(name,subject_code,teachers(full_name))",
+              )
+              .in("class_id", classIds)
+              .eq("day", dayKey)
+              .order("start_time", { ascending: true })
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const attendance = attendanceResult.data ?? [];
+      const present = attendance.filter(
+        (row) => row.status === "present" || row.status === "late",
+      ).length;
+      const numericScores = (scoresResult.data ?? [])
+        .map((row) => row.score)
+        .filter((score): score is number => typeof score === "number");
+      const payments = paymentsResult.data ?? [];
+
+      return {
+        student,
+        className,
+        totalSubjects: new Set((scoresResult.data ?? []).map((row) => row.subject_code)).size,
+        gpa:
+          numericScores.length === 0
+            ? null
+            : numericScores.reduce((sum, score) => sum + scoreToGpa(score), 0) /
+              numericScores.length,
+        attendancePercentage:
+          attendance.length === 0 ? null : Math.round((present / attendance.length) * 100),
+        upcomingExams: examsResult.data ?? [],
+        feeStatus: payments.some((payment) => payment.status === "overdue")
+          ? "Overdue"
+          : payments.some((payment) => payment.status === "pending")
+            ? "Pending"
+            : payments.length > 0
+              ? "Paid"
+              : "No invoice",
+        notifications: notificationsResult.data ?? [],
+        todaySchedule: (timetableResult.data ?? []).map((slot) => ({
+          time: `${slot.start_time.slice(0, 5)} - ${slot.end_time.slice(0, 5)}`,
+          subject: slot.classes?.subject_code ?? "Subject",
+          teacher: slot.classes?.teachers?.full_name ?? "",
+          room: slot.room ?? "",
+        })),
+      };
+    },
+  });
+
+  const studentName =
+    data?.student?.full_name_en || data?.student?.full_name || profile?.full_name || "Student";
+
+  return (
+    <div>
+      <PageHeader
+        title={
+          <>
+            {t("good_morning")}, <span className="text-primary">{studentName}</span>
+          </>
+        }
+        subtitle={`${data?.className || "Your class"} · Student portal`}
+      />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Total subjects"
+          value={isLoading ? "…" : (data?.totalSubjects ?? 0)}
+          icon={<BookOpen className="h-5 w-5" />}
+          tone="primary"
+        />
+        <StatCard
+          label="GPA"
+          value={isLoading ? "…" : data?.gpa == null ? "—" : data.gpa.toFixed(2)}
+          icon={<GraduationCap className="h-5 w-5" />}
+          tone="success"
+        />
+        <StatCard
+          label="Attendance"
+          value={
+            isLoading
+              ? "…"
+              : data?.attendancePercentage == null
+                ? "—"
+                : `${data.attendancePercentage}%`
+          }
+          icon={<Percent className="h-5 w-5" />}
+          tone="info"
+        />
+        <StatCard
+          label="Fee status"
+          value={isLoading ? "…" : (data?.feeStatus ?? "—")}
+          icon={<Wallet className="h-5 w-5" />}
+          tone="warning"
+        />
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <SectionCard title="Today’s schedule" className="lg:col-span-2">
+          {(data?.todaySchedule.length ?? 0) === 0 ? (
+            <EmptyState label="No schedule for today." />
+          ) : (
+            <ul className="divide-y divide-border">
+              {data?.todaySchedule.map((slot, index) => (
+                <li
+                  key={`${slot.time}-${index}`}
+                  className="grid gap-2 py-3 sm:grid-cols-[120px_1fr_140px]"
+                >
+                  <p className="font-mono text-xs font-semibold">{slot.time}</p>
+                  <div>
+                    <p className="text-sm font-semibold">{slot.subject || "Subject"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {slot.teacher || "Lecturer TBA"}
+                    </p>
+                  </div>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {slot.room || "Room TBA"}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Upcoming exams">
+          {(data?.upcomingExams.length ?? 0) === 0 ? (
+            <EmptyState label="No upcoming exams." />
+          ) : (
+            <ul className="space-y-3">
+              {data?.upcomingExams.map((exam) => (
+                <li key={exam.id} className="rounded-xl border border-border bg-surface p-3">
+                  <div className="flex items-start gap-2">
+                    <ClipboardList className="mt-0.5 h-4 w-4 text-primary" />
+                    <div>
+                      <p className="text-sm font-semibold">{exam.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {exam.exam_type} · {exam.exam_date ?? "Date TBA"}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
+        <SectionCard title="Notifications" className="lg:col-span-2">
+          {(data?.notifications.length ?? 0) === 0 ? (
+            <EmptyState label="No notifications." />
+          ) : (
+            <ul className="divide-y divide-border">
+              {data?.notifications.map((item) => (
+                <li key={item.id} className="flex gap-3 py-3">
+                  <Bell className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <div>
+                    <p className="text-sm font-semibold">{item.title}</p>
+                    {item.body && <p className="text-xs text-muted-foreground">{item.body}</p>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Student options">
+          <div className="grid gap-2 text-sm">
+            <StudentLink href="/app/students" label="View / edit profile" />
+            <StudentLink href="/app/classes" label="My class and enrolled subjects" />
+            <StudentLink href="/app/attendance" label="Attendance history" />
+            <StudentLink href="/app/exams" label="Scores and transcript" />
+            <StudentLink href="/app/payments" label="Fees and receipts" />
+            <StudentLink href="/app/notifications" label="Announcements" />
+          </div>
+        </SectionCard>
+      </div>
+    </div>
+  );
+}
+
+function StudentLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2 font-medium hover:bg-muted"
+    >
+      {label}
+      <CalendarDays className="h-4 w-4 text-muted-foreground" />
+    </a>
   );
 }
 
