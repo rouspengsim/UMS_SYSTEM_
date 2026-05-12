@@ -36,7 +36,7 @@ export const Route = createFileRoute("/")({
 
 function LoginPage() {
   const { t, lang, setLang } = useI18n();
-  const { user, loading, refresh } = useAuth();
+  const { user, loading, refresh, signInDemo } = useAuth();
   const navigate = useNavigate();
   const router = useRouter();
 
@@ -49,6 +49,21 @@ function LoginPage() {
   const heroCopyRef = useRef<HTMLDivElement | null>(null);
   const heroLineRefs = useRef<(HTMLSpanElement | null)[]>([]);
   const heroImageRefs = useRef<(HTMLImageElement | null)[]>([]);
+
+  const authErrorMessage = (err: unknown) => {
+    const msg = err instanceof Error ? err.message : "Authentication failed";
+    if (msg.toLowerCase().includes("invalid login credentials")) {
+      return "Email or password is incorrect. Create an account, run the admin seed, or use Demo admin.";
+    }
+
+    if (msg !== "Authentication failed") return msg;
+
+    if (err && typeof err === "object" && "message" in err && typeof err.message === "string") {
+      return err.message;
+    }
+
+    return msg;
+  };
 
   // If already signed in, go to /app
   useEffect(() => {
@@ -166,43 +181,68 @@ function LoginPage() {
             data: { full_name: fullName || email.split("@")[0], role: selectedRole },
           },
         });
-        if (error) throw error;
-
-        const signedUpUser = data.user;
-        if (signedUpUser) {
-          const { data: existingRoles, error: rolesReadError } = await supabase
-            .from("user_roles")
-            .select("id")
-            .eq("user_id", signedUpUser.id)
-            .limit(1);
-
-          if (rolesReadError) throw rolesReadError;
-
-          if (!existingRoles?.length) {
-            const { error: roleInsertError } = await supabase
-              .from("user_roles")
-              .insert({ user_id: signedUpUser.id, role: selectedRole });
-
-            if (roleInsertError) throw roleInsertError;
+        if (error) {
+          if (error.message.toLowerCase().includes("email rate limit exceeded")) {
+            await signInDemo(selectedRole);
+            toast.info("Supabase email limit reached. Using local demo account for now.");
+            await router.invalidate();
+            navigate({ to: "/app" });
+            return;
           }
+
+          throw error;
+        }
+
+        if (!data.session) {
+          toast.success("Account created. Check your email to confirm your account, then sign in.");
+          setMode("signin");
+          return;
         }
 
         toast.success("Account created! Signing you in…");
-        // Auto-confirm enabled — session should be live
         await refresh();
         await router.invalidate();
         navigate({ to: "/app" });
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          const isSeededAdminLogin =
+            email.trim().toLowerCase() === "admin@gmail.com" && password === "Admin@123";
+          const isInvalidCredentials = error.message
+            .toLowerCase()
+            .includes("invalid login credentials");
+
+          if (isSeededAdminLogin && isInvalidCredentials) {
+            await signInDemo("admin");
+            toast.info("Hosted admin account is not seeded yet. Using Demo admin.");
+            await router.invalidate();
+            navigate({ to: "/app" });
+            return;
+          }
+
+          throw error;
+        }
+
         toast.success("Welcome back!");
         await refresh();
         await router.invalidate();
         navigate({ to: "/app" });
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Authentication failed";
-      toast.error(msg);
+      toast.error(authErrorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signInDemoAdmin = async () => {
+    setBusy(true);
+    try {
+      await signInDemo("admin");
+      await router.invalidate();
+      navigate({ to: "/app" });
+    } catch (err: unknown) {
+      toast.error(authErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -404,10 +444,12 @@ function LoginPage() {
                     Account type
                   </label>
                   <div className="grid grid-cols-2 gap-2">
-                    {([
-                      { value: "student", label: t("student") },
-                      { value: "teacher", label: t("teacher") },
-                    ] as const).map((role) => (
+                    {(
+                      [
+                        { value: "student", label: t("student") },
+                        { value: "teacher", label: t("teacher") },
+                      ] as const
+                    ).map((role) => (
                       <button
                         key={role.value}
                         type="button"
@@ -506,6 +548,15 @@ function LoginPage() {
               />
             </svg>
             Continue with Google
+          </button>
+
+          <button
+            type="button"
+            onClick={signInDemoAdmin}
+            disabled={busy}
+            className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface text-sm font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+          >
+            Continue as Demo admin
           </button>
 
           <p className="mt-8 text-center text-xs text-muted-foreground">
