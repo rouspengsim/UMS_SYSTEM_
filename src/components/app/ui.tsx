@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 import type { ReactNode } from "react";
 
 export function PageHeader({
@@ -75,24 +76,51 @@ export function SectionCard({ title, action, children, className }: { title?: Re
 }
 
 export function StatusPill({ status }: { status: string }) {
+  const { t } = useI18n();
   const map: Record<string, string> = {
     paid: "bg-success/15 text-success",
     unpaid: "bg-warning/15 text-warning",
+    pending: "bg-warning/15 text-warning",
     overdue: "bg-destructive/15 text-destructive",
+    cancelled: "bg-muted text-muted-foreground",
     active: "bg-success/15 text-success",
     inactive: "bg-muted text-muted-foreground",
+    graduated: "bg-info/15 text-info",
+    suspended: "bg-destructive/15 text-destructive",
     present: "bg-success/15 text-success",
     absent: "bg-destructive/15 text-destructive",
     late: "bg-warning/15 text-warning",
+    excused: "bg-info/15 text-info",
   };
   return (
     <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize", map[status] ?? "bg-muted text-muted-foreground")}>
-      {status}
+      {t(status)}
     </span>
   );
 }
 
-export function Avatar({ name, className }: { name: string; className?: string }) {
+export function Avatar({
+  name,
+  src,
+  className,
+}: {
+  name: string;
+  src?: string | null;
+  className?: string;
+}) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        className={cn(
+          "inline-flex h-9 w-9 rounded-full object-cover ring-1 ring-border",
+          className,
+        )}
+      />
+    );
+  }
+
   const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("");
   const colors = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"];
   const color = colors[name.charCodeAt(0) % colors.length];

@@ -2,7 +2,12 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 import appCss from "../styles.css?url";
 import { I18nProvider } from "@/lib/i18n";
 import { AuthProvider } from "@/lib/auth";
-import { UNIVERSITY_FULL_NAME, UNIVERSITY_NAME_EN, UNIVERSITY_SHORT_NAME } from "@/lib/brand";
+import {
+  UNIVERSITY_FULL_NAME,
+  UNIVERSITY_NAME_EN,
+  UNIVERSITY_SHORT_NAME,
+  UNIVERSITY_SYSTEM_NAME,
+} from "@/lib/brand";
 import { ThemeProvider } from "@/lib/theme";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
@@ -35,13 +40,13 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: `${UNIVERSITY_SHORT_NAME} — University Management System` },
+      { title: `${UNIVERSITY_SHORT_NAME} — ${UNIVERSITY_SYSTEM_NAME}` },
       {
         name: "description",
-        content: `${UNIVERSITY_NAME_EN} management platform for students, teachers, classes, attendance, exams, payments, certificates, and analytics.`,
+        content: `${UNIVERSITY_NAME_EN} ${UNIVERSITY_SYSTEM_NAME.toLowerCase()} for students, teachers, classes, attendance, exams, payments, certificates, and analytics.`,
       },
       { name: "author", content: UNIVERSITY_FULL_NAME },
-      { property: "og:title", content: `${UNIVERSITY_SHORT_NAME} — University Management System` },
+      { property: "og:title", content: `${UNIVERSITY_SHORT_NAME} — ${UNIVERSITY_SYSTEM_NAME}` },
       {
         property: "og:description",
         content: `${UNIVERSITY_NAME_EN} digital campus management portal.`,

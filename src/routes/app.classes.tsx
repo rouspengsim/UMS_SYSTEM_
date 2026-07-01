@@ -8,10 +8,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FLAT_MAJOR_OPTIONS, MAJOR_OPTIONS } from "@/lib/academic-options";
-import { DEFAULT_SUBJECT_OPTIONS, readDemoSubjects, subjectRowsToOptions } from "@/lib/subjects";
+import {
+  DEFAULT_SUBJECT_OPTIONS,
+  readDemoSubjects,
+  subjectRowsToOptions,
+  writeDemoSubjects,
+  type SubjectRecord,
+} from "@/lib/subjects";
+import { pageTitle } from "@/lib/brand";
+import { findTeacherClassScope } from "@/lib/teacher-scope";
 
 export const Route = createFileRoute("/app/classes")({
-  head: () => ({ meta: [{ title: "Classes — RULE" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Classes") }] }),
   component: ClassesPage,
 });
 
@@ -56,6 +64,14 @@ const CLASS_SHIFT_OPTIONS = [
 function shiftLabel(value: string | null | undefined, t: (key: string) => string) {
   const shift = CLASS_SHIFT_OPTIONS.find((option) => option.value === value);
   return shift ? t(shift.labelKey) : null;
+}
+
+function khmerGenderLabel(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return "-";
+  if (["male", "m", "ប្រុស"].includes(normalized)) return "ប្រុស";
+  if (["female", "f", "ស្រី"].includes(normalized)) return "ស្រី";
+  return value;
 }
 
 function readDemoClasses(): ClassRow[] {
@@ -160,7 +176,7 @@ function classStudentListReportHtml(classRow: ClassRow, students: ClassStudent[]
           <td style="width: 78px">${escapeHtml(student.student_code)}</td>
           <td class="name">${escapeHtml(student.full_name_km)}</td>
           <td class="name">${escapeHtml(student.full_name_en || student.full_name)}</td>
-          <td style="width: 38px">${escapeHtml(student.gender?.toLowerCase().startsWith("f") ? "F" : "M")}</td>
+          <td style="width: 38px">${escapeHtml(khmerGenderLabel(student.gender))}</td>
           <td style="width: 74px">${escapeHtml(student.date_of_birth)}</td>
           <td style="width: 54px">${escapeHtml(student.study_year)}</td>
           <td style="width: 82px">${escapeHtml(student.phone)}</td>
@@ -194,7 +210,7 @@ function classStudentListReportHtml(classRow: ClassRow, students: ClassStudent[]
       <table>
         <thead>
           <tr>
-            <th style="width: 32px">ល.រ</th>
+            <th style="width: 32px">លេខរៀង</th>
             <th style="width: 78px">អត្តលេខ</th>
             <th class="name">គោត្តនាម និង នាម</th>
             <th class="name">នាមជាអក្សរឡាតាំង</th>
@@ -225,7 +241,7 @@ function classStudentListReportHtml(classRow: ClassRow, students: ClassStudent[]
 
 function ClassesPage() {
   const { t } = useI18n();
-  const { primaryRole, isDemo } = useAuth();
+  const { user, primaryRole, isDemo } = useAuth();
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [majorFilter, setMajorFilter] = useState("all");
@@ -236,11 +252,47 @@ function ClassesPage() {
   } | null>(null);
   const isAdmin = primaryRole === "admin";
   const isStudent = primaryRole === "student";
+  const isTeacher = primaryRole === "teacher";
 
   const { data: classes = [], isLoading } = useQuery({
-    queryKey: ["classes", isDemo ? "demo" : "remote"],
+    queryKey: ["classes", primaryRole, user?.id, isDemo ? "demo" : "remote"],
     queryFn: async () => {
-      if (isDemo) return readDemoClasses();
+      if (isDemo) {
+        const rows = readDemoClasses();
+        if (isStudent) {
+          const ownStudent = readDemoStudents()[0];
+          return ownStudent
+            ? rows.filter((classRow) => classRow.name === ownStudent.class_name)
+            : [];
+        }
+        if (!isTeacher) return rows;
+        const teacher = readDemoTeachersMin()[0];
+        if (!teacher) return [];
+        return rows.filter((classRow) => classRow.teacher_id === teacher.id);
+      }
+
+      if (isStudent) {
+        const { data: student, error: studentError } = await supabase
+          .from("students")
+          .select("class_name")
+          .eq("user_id", user?.id ?? "")
+          .maybeSingle();
+        if (studentError) throw studentError;
+        if (!student?.class_name) return [];
+
+        const { data, error } = await supabase
+          .from("classes")
+          .select("id,name,subject_code,room,capacity,semester,teacher_id,teachers(full_name)")
+          .eq("name", student.class_name)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return (data ?? []) as unknown as ClassRow[];
+      }
+
+      if (isTeacher) {
+        const scope = await findTeacherClassScope(user);
+        return (scope?.classes ?? []) as unknown as ClassRow[];
+      }
 
       const { data, error } = await supabase
         .from("classes")
@@ -266,17 +318,50 @@ function ClassesPage() {
   });
 
   const { data: classStudents = [] } = useQuery({
-    queryKey: ["class-students", isDemo ? "demo" : "remote"],
+    queryKey: [
+      "class-students",
+      primaryRole,
+      user?.id,
+      classes.map((classRow) => classRow.name).join("|"),
+      isDemo ? "demo" : "remote",
+    ],
     queryFn: async () => {
-      if (isDemo) return readDemoStudents();
+      const assignedClassNames = new Set(classes.map((classRow) => classRow.name));
+      if (isDemo) {
+        const rows = readDemoStudents();
+        if (isStudent) {
+          const ownStudent = rows[0];
+          return ownStudent
+            ? rows.filter((student) => student.class_name === ownStudent.class_name)
+            : [];
+        }
+        if (isTeacher) {
+          if (assignedClassNames.size === 0) return [];
 
-      const { data, error } = await supabase
+          return rows.filter((student) => assignedClassNames.has(student.class_name ?? ""));
+        }
+        return rows;
+      }
+
+      if (isStudent) {
+        const { data, error } = await supabase.rpc("list_student_classmates");
+        if (error) throw error;
+        return (data ?? []) as unknown as ClassStudent[];
+      }
+
+      if (isTeacher && assignedClassNames.size === 0) return [];
+
+      let studentQuery = supabase
         .from("students")
         .select(
           "id,student_code,full_name,full_name_en,full_name_km,gender,date_of_birth,study_year,address,phone,email,status,major,class_name,shift",
         );
+      if (isTeacher) studentQuery = studentQuery.in("class_name", Array.from(assignedClassNames));
+
+      const { data, error } = await studentQuery;
       if (error) throw error;
-      return (data ?? []) as unknown as ClassStudent[];
+      const rows = (data ?? []) as unknown as ClassStudent[];
+      return isTeacher ? rows.filter((student) => assignedClassNames.has(student.class_name ?? "")) : rows;
     },
   });
 
@@ -374,48 +459,50 @@ function ClassesPage() {
           )
         }
       />
-      <SectionCard className="mb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("major")}
-            </label>
-            <select
-              value={majorFilter}
-              onChange={(e) => setMajorFilter(e.target.value)}
-              className="h-10 min-w-72 rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
-            >
-              <option value="all">{t("all_majors")}</option>
-              {majorOptions.map((major) => (
-                <option key={major.value} value={major.value}>
-                  {major.label}
-                </option>
-              ))}
-            </select>
+      {!isStudent && (
+        <SectionCard className="mb-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("major")}
+              </label>
+              <select
+                value={majorFilter}
+                onChange={(e) => setMajorFilter(e.target.value)}
+                className="h-10 min-w-72 rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+              >
+                <option value="all">{t("all_majors")}</option>
+                {majorOptions.map((major) => (
+                  <option key={major.value} value={major.value}>
+                    {major.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("shift")}
+              </label>
+              <select
+                value={shiftFilter}
+                onChange={(e) => setShiftFilter(e.target.value)}
+                className="h-10 min-w-44 rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+              >
+                <option value="all">{t("all_shifts")}</option>
+                {CLASS_SHIFT_OPTIONS.map((shift) => (
+                  <option key={shift.value} value={shift.value}>
+                    {t(shift.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Classes are matched by the student's class field. Example: a student with class IE4C02
+              appears inside class IE4C02.
+            </p>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("shift")}
-            </label>
-            <select
-              value={shiftFilter}
-              onChange={(e) => setShiftFilter(e.target.value)}
-              className="h-10 min-w-44 rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
-            >
-              <option value="all">{t("all_shifts")}</option>
-              {CLASS_SHIFT_OPTIONS.map((shift) => (
-                <option key={shift.value} value={shift.value}>
-                  {t(shift.labelKey)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Classes are matched by the student's class field. Example: a student with class IE4C02
-            appears inside class IE4C02.
-          </p>
-        </div>
-      </SectionCard>
+        </SectionCard>
+      )}
       {isLoading ? (
         <div className="flex h-40 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -550,6 +637,7 @@ function ClassesPage() {
         <ClassDetailsModal
           classRow={selectedClass.classRow}
           students={selectedClass.students}
+          isStudent={isStudent}
           onClose={() => setSelectedClass(null)}
         />
       )}
@@ -560,10 +648,12 @@ function ClassesPage() {
 function ClassDetailsModal({
   classRow,
   students,
+  isStudent,
   onClose,
 }: {
   classRow: ClassRow;
   students: ClassStudent[];
+  isStudent: boolean;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -624,30 +714,37 @@ function ClassDetailsModal({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-sm">
+              <table className={`w-full text-sm ${isStudent ? "min-w-[620px]" : "min-w-[860px]"}`}>
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <th className="w-14 py-3 pr-4">No</th>
                     <th className="py-3 pr-4">{t("student_id")}</th>
                     <th className="py-3 pr-4">{t("english_name")}</th>
                     <th className="py-3 pr-4">{t("khmer_name")}</th>
                     <th className="py-3 pr-4">{t("gender")}</th>
-                    <th className="py-3 pr-4">{t("dob")}</th>
                     <th className="py-3 pr-4">{t("year")}</th>
                     <th className="py-3 pr-4">{t("shift")}</th>
-                    <th className="py-3 pr-4">{t("address")}</th>
-                    <th className="py-3 pr-4">{t("phone")}</th>
+                    {!isStudent && (
+                      <>
+                        <th className="py-3 pr-4">{t("dob")}</th>
+                        <th className="py-3 pr-4">{t("address")}</th>
+                        <th className="py-3 pr-4">{t("phone")}</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => (
+                  {students.map((student, index) => (
                     <tr key={student.id} className="border-b border-border/60 hover:bg-muted/40">
+                      <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">
+                        {index + 1}
+                      </td>
                       <td className="py-3 pr-4 font-mono text-xs">{student.student_code}</td>
                       <td className="py-3 pr-4 font-semibold">
                         {student.full_name_en || student.full_name}
                       </td>
                       <td className="py-3 pr-4">{student.full_name_km || "-"}</td>
-                      <td className="py-3 pr-4 capitalize">{student.gender || "-"}</td>
-                      <td className="py-3 pr-4 whitespace-nowrap">{student.date_of_birth || "-"}</td>
+                      <td className="py-3 pr-4">{khmerGenderLabel(student.gender)}</td>
                       <td className="py-3 pr-4">{student.study_year || "-"}</td>
                       <td className="py-3 pr-4">
                         {student.shift ? (
@@ -658,10 +755,15 @@ function ClassDetailsModal({
                           "-"
                         )}
                       </td>
-                      <td className="max-w-56 py-3 pr-4 text-xs">
-                        <span className="line-clamp-2">{student.address || "-"}</span>
-                      </td>
-                      <td className="py-3 pr-4 whitespace-nowrap">{student.phone || "-"}</td>
+                      {!isStudent && (
+                        <>
+                          <td className="py-3 pr-4 whitespace-nowrap">{student.date_of_birth || "-"}</td>
+                          <td className="max-w-56 py-3 pr-4 text-xs">
+                            <span className="line-clamp-2">{student.address || "-"}</span>
+                          </td>
+                          <td className="py-3 pr-4 whitespace-nowrap">{student.phone || "-"}</td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -677,9 +779,13 @@ function ClassDetailsModal({
 function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void }) {
   const { t } = useI18n();
   const qc = useQueryClient();
+  const [addNewSubject, setAddNewSubject] = useState(false);
   const [f, setF] = useState({
     name: "",
-    subject_code: "",
+    subject_code: DEFAULT_SUBJECT_OPTIONS[0]?.code ?? "",
+    new_subject_id: "",
+    new_subject_name: "",
+    new_subject_description: "",
     major: FLAT_MAJOR_OPTIONS[0]?.value ?? "",
     shift: "morning",
     room: "",
@@ -714,14 +820,45 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
       return options.length > 0 ? options : DEFAULT_SUBJECT_OPTIONS;
     },
   });
+
+  function normalizedNewSubjectId() {
+    const source = f.new_subject_id || f.new_subject_name;
+    return source.trim().replace(/\s+/g, "_");
+  }
+
   const mut = useMutation({
     mutationFn: async () => {
+      const subjectCode = addNewSubject ? normalizedNewSubjectId() : f.subject_code;
+
+      if (addNewSubject && !subjectCode) {
+        throw new Error(t("subject_id"));
+      }
+
+      if (addNewSubject && !f.new_subject_name.trim()) {
+        throw new Error(t("subject_name"));
+      }
+
       if (isDemo) {
+        if (addNewSubject) {
+          const newSubject: SubjectRecord = {
+            id: `demo-subject-${Date.now()}`,
+            subject_id: subjectCode,
+            subject_name: f.new_subject_name.trim(),
+            description: f.new_subject_description.trim() || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          const existingSubjects = readDemoSubjects().filter(
+            (subject) => subject.subject_id !== subjectCode,
+          );
+          writeDemoSubjects([newSubject, ...existingSubjects]);
+        }
+
         const teacher = teachers.find((tc) => tc.id === f.teacher_id);
         const newClass: ClassRow = {
           id: `demo-class-${Date.now()}`,
           name: f.name,
-          subject_code: f.subject_code,
+          subject_code: subjectCode,
           major: f.major || null,
           shift: f.shift || null,
           room: f.room || null,
@@ -734,11 +871,23 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
         return;
       }
 
+      if (addNewSubject) {
+        const { error: subjectError } = await supabase.from("subjects").upsert(
+          {
+            subject_id: subjectCode,
+            subject_name: f.new_subject_name.trim(),
+            description: f.new_subject_description.trim() || null,
+          },
+          { onConflict: "subject_id" },
+        );
+        if (subjectError) throw subjectError;
+      }
+
       const { error } = await supabase
         .from("classes")
         .insert({
           name: f.name,
-          subject_code: f.subject_code,
+          subject_code: subjectCode,
           room: f.room || null,
           capacity: Number(f.capacity),
           semester: f.semester || null,
@@ -748,6 +897,8 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["classes", isDemo ? "demo" : "remote"] });
+      qc.invalidateQueries({ queryKey: ["subjects"] });
+      qc.invalidateQueries({ queryKey: ["subject-options"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["dashboard-subjects"] });
       toast.success(isDemo ? "Demo class created" : "Class created");
@@ -773,7 +924,12 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!f.name || !f.subject_code) return toast.error(`${t("class_name")} & ${t("subject_code")}`);
+            const subjectCode = addNewSubject ? normalizedNewSubjectId() : f.subject_code;
+            if (!f.name || !subjectCode) {
+              return toast.error(`${t("class_name")} & ${t("subject_code")}`);
+            }
+            if (!f.teacher_id) return toast.error(t("teacher"));
+            if (addNewSubject && !f.new_subject_name.trim()) return toast.error(t("subject_name"));
             mut.mutate();
           }}
           className="space-y-3"
@@ -785,21 +941,67 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
             />
           </Field>
-          <Field label={`${t("subject_code")} *`}>
-            <input
-              list="class-subject-options"
-              value={f.subject_code}
-              onChange={(e) => setF({ ...f, subject_code: e.target.value })}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
-            />
-            <datalist id="class-subject-options">
-              {subjectOptions.map((subject) => (
-                <option key={subject.code} value={subject.code}>
-                  {subject.label}
-                </option>
-              ))}
-            </datalist>
+          <Field label={`${t("subject")} *`}>
+            <div className="grid gap-2">
+              <select
+                value={addNewSubject ? "__new__" : f.subject_code}
+                onChange={(e) => {
+                  if (e.target.value === "__new__") {
+                    setAddNewSubject(true);
+                    return;
+                  }
+                  setAddNewSubject(false);
+                  setF({ ...f, subject_code: e.target.value });
+                }}
+                className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+              >
+                {subjectOptions.map((subject) => (
+                  <option key={subject.code} value={subject.code}>
+                    {subject.label} ({subject.code})
+                  </option>
+                ))}
+                <option value="__new__">+ {t("add_subject")}</option>
+              </select>
+              {!addNewSubject && (
+                <p className="text-[11px] text-muted-foreground">
+                  {subjectOptions.find((subject) => subject.code === f.subject_code)?.description ||
+                    t("select_subject")}
+                </p>
+              )}
+            </div>
           </Field>
+          {addNewSubject && (
+            <div className="rounded-xl border border-border bg-muted/30 p-3">
+              <div className="grid gap-3">
+                <Field label={`${t("subject_name")} *`}>
+                  <input
+                    value={f.new_subject_name}
+                    onChange={(e) => setF({ ...f, new_subject_name: e.target.value })}
+                    placeholder="Database Systems"
+                    className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+                  />
+                </Field>
+                <Field label={t("subject_id")}>
+                  <input
+                    value={f.new_subject_id}
+                    onChange={(e) =>
+                      setF({ ...f, new_subject_id: e.target.value.trim().replace(/\s+/g, "_") })
+                    }
+                    placeholder={normalizedNewSubjectId() || "Database_Systems"}
+                    className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+                  />
+                </Field>
+                <Field label={t("description")}>
+                  <textarea
+                    value={f.new_subject_description}
+                    onChange={(e) => setF({ ...f, new_subject_description: e.target.value })}
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                  />
+                </Field>
+              </div>
+            </div>
+          )}
           <Field label={`${t("major")} *`}>
             <GroupedSelect
               value={f.major}
@@ -843,13 +1045,15 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
             />
           </Field>
-          <Field label={t("teacher")}>
+          <Field label={`${t("teacher")} *`}>
             <select
               value={f.teacher_id}
               onChange={(e) => setF({ ...f, teacher_id: e.target.value })}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
             >
-              <option value="">— {t("unassigned")} —</option>
+              <option value="" disabled>
+                — {t("teacher")} —
+              </option>
               {teachers.map((tc) => (
                 <option key={tc.id} value={tc.id}>
                   {tc.full_name}

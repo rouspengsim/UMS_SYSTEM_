@@ -1,5 +1,5 @@
 {
-  "name": "tanstack_start_ts",
+  "name": "personal-school-management-system",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "repair:admin": "node scripts/repair-admin-auth.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

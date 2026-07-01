@@ -2,14 +2,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, SectionCard } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
-import { Loader2, Plus } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Loader2, LockKeyhole, Plus, X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useMemo, useState } from "react";
+import { pageTitle } from "@/lib/brand";
+import { updateUserPassword } from "@/lib/user-accounts";
 
 export const Route = createFileRoute("/app/roles")({
-  head: () => ({ meta: [{ title: "Roles & Permissions — RULE" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Roles & Permissions") }] }),
   component: RolesPage,
 });
 
@@ -34,6 +36,7 @@ function RolesPage() {
   const qc = useQueryClient();
   const isAdmin = primaryRole === "admin";
   const [page, setPage] = useState(1);
+  const [passwordUser, setPasswordUser] = useState<RoleRow | null>(null);
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["user-roles", isDemo ? "demo" : "remote"],
@@ -127,7 +130,8 @@ function RolesPage() {
                     <th className="px-3 py-2">User Name</th>
                     <th className="px-3 py-2">Email</th>
                     <th className="px-3 py-2">Role as</th>
-                    {isAdmin && <th className="w-32 px-3 py-2">Actions</th>}
+                    {isAdmin && <th className="w-36 px-3 py-2">Password</th>}
+                    {isAdmin && <th className="w-24 px-3 py-2">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -146,10 +150,23 @@ function RolesPage() {
                         {isAdmin && (
                           <td className="px-3 py-2">
                             <button
+                              type="button"
+                              onClick={() => setPasswordUser(r)}
+                              disabled={isDemo}
+                              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <KeyRound className="h-3.5 w-3.5" />
+                              Update
+                            </button>
+                          </td>
+                        )}
+                        {isAdmin && (
+                          <td className="px-3 py-2">
+                            <button
                               onClick={() => {
                                 if (confirm("Remove this role?")) del.mutate(r.id);
                               }}
-                              disabled={isDemo || del.isPending}
+                              disabled={isDemo || del.isPending || r.role === "admin"}
                               className="rounded-md bg-destructive px-2.5 py-1 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               Delete
@@ -186,13 +203,149 @@ function RolesPage() {
           </>
         )}
       </SectionCard>
+      {passwordUser && (
+        <UpdatePasswordModal user={passwordUser} onClose={() => setPasswordUser(null)} />
+      )}
+    </div>
+  );
+}
+
+function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => void }) {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  const updatePassword = useMutation({
+    mutationFn: async () => {
+      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
+      if (password !== confirmPassword) throw new Error("Passwords do not match.");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Your admin session expired. Please log in again.");
+      }
+
+      return updateUserPassword({
+        data: {
+          accessToken: session.access_token,
+          userId: user.user_id,
+          password,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Password updated");
+      onClose();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-card"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h3 className="font-display text-lg font-bold">Update password</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {user.profiles?.full_name ?? "User"} · {roleLabel(user.role)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+          <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
+          Existing passwords cannot be viewed because Supabase stores them securely as hashes.
+        </div>
+
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            updatePassword.mutate();
+          }}
+        >
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+              New password
+            </span>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(event) => setPassword(event.currentTarget.value)}
+                autoComplete="new-password"
+                minLength={6}
+                required
+                className="h-10 w-full rounded-lg border border-border bg-background px-3 pr-10 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((visible) => !visible)}
+                className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-muted"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+              Confirm password
+            </span>
+            <input
+              type={showPassword ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.currentTarget.value)}
+              autoComplete="new-password"
+              minLength={6}
+              required
+              className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+            />
+          </label>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-9 rounded-lg border border-border px-4 text-sm font-semibold hover:bg-muted"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updatePassword.isPending}
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            >
+              {updatePassword.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Update password
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
 
 function AssignRoleButton({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ user_id: "", role: "teacher" as "admin" | "teacher" | "student" });
+  const [f, setF] = useState({ user_id: "", role: "teacher" as "teacher" | "student" });
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-min"],
     enabled: open,
@@ -271,7 +424,6 @@ function AssignRoleButton({ onAdded }: { onAdded: () => void }) {
               onChange={(e) => setF({ ...f, role: e.target.value as typeof f.role })}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm"
             >
-              <option value="admin">Admin</option>
               <option value="teacher">Teacher</option>
               <option value="student">Student</option>
             </select>

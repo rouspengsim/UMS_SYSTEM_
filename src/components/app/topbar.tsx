@@ -7,6 +7,28 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { decodeNotificationContent } from "@/lib/notification-content";
+
+type TopbarNotification = {
+  id: string;
+  title: string;
+  body: string | null;
+  kind: string;
+  is_read: boolean;
+  created_at: string;
+};
+
+const DEMO_NOTIFICATIONS_KEY = "studentsphere.demo.notifications";
+
+function readDemoNotifications(): TopbarNotification[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(DEMO_NOTIFICATIONS_KEY);
+    return raw ? (JSON.parse(raw) as TopbarNotification[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 export function Topbar() {
   const { t, lang, setLang } = useI18n();
@@ -26,9 +48,11 @@ export function Topbar() {
     .toUpperCase();
 
   const { data: notifs = [] } = useQuery({
-    queryKey: ["topbar-notifications", user?.id],
-    enabled: !!user && !isDemo,
+    queryKey: ["topbar-notifications", user?.id, isDemo ? "demo" : "remote"],
+    enabled: !!user,
     queryFn: async () => {
+      if (isDemo) return readDemoNotifications().slice(0, 5);
+
       const { data } = await supabase
         .from("notifications")
         .select("id,title,body,kind,is_read,created_at")
@@ -149,7 +173,11 @@ export function Topbar() {
                   {notifs.map((n) => (
                     <li key={n.id} className="rounded-xl px-3 py-2 text-sm hover:bg-muted">
                       <p className="font-medium leading-tight">{n.title}</p>
-                      {n.body && <p className="truncate text-xs text-muted-foreground">{n.body}</p>}
+                      {decodeNotificationContent(n.body).description && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {decodeNotificationContent(n.body).description}
+                        </p>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -174,9 +202,17 @@ export function Topbar() {
             }}
             className="flex h-10 items-center gap-2 rounded-xl border border-border bg-surface pl-1 pr-2.5 text-left text-sm transition-colors hover:bg-muted"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary text-xs font-bold text-primary-foreground">
-              {initials}
-            </span>
+            {profile?.avatar_url ? (
+              <img
+                src={profile.avatar_url}
+                alt={displayName}
+                className="h-8 w-8 rounded-lg object-cover ring-1 ring-border"
+              />
+            ) : (
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary text-xs font-bold text-primary-foreground">
+                {initials}
+              </span>
+            )}
             <span className="hidden sm:flex flex-col leading-tight">
               <span className="text-xs font-semibold">{displayName}</span>
               <span className="text-[10px] capitalize text-muted-foreground">
@@ -193,8 +229,23 @@ export function Topbar() {
           {openProfile && (
             <div className="absolute right-0 top-12 w-56 overflow-hidden rounded-2xl border border-border bg-popover shadow-card">
               <div className="border-b border-border bg-muted/50 px-4 py-3">
-                <p className="text-sm font-semibold">{displayName}</p>
-                <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+                <div className="flex items-center gap-3">
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={displayName}
+                      className="h-10 w-10 rounded-lg object-cover ring-1 ring-border"
+                    />
+                  ) : (
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg gradient-primary text-xs font-bold text-primary-foreground">
+                      {initials}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{displayName}</p>
+                    <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                </div>
               </div>
               <button
                 onClick={async () => {

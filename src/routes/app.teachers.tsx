@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { PageHeader, SectionCard, Avatar } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
@@ -13,19 +13,28 @@ import {
   IdCard,
   Eye,
   Pencil,
+  KeyRound,
+  CalendarDays,
 } from "lucide-react";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { generateDemoAccountId, generateSchoolAccountId } from "@/lib/account-ids";
+import { pageTitle } from "@/lib/brand";
+import { createTeacherAccount } from "@/lib/teacher-accounts";
+import { ResetPasswordModal } from "@/components/app/reset-password-modal";
+import { DEFAULT_SUBJECT_OPTIONS, readDemoSubjects, subjectRowsToOptions } from "@/lib/subjects";
+import { decodeTimetableCell } from "@/lib/timetable-cell";
 
 export const Route = createFileRoute("/app/teachers")({
-  head: () => ({ meta: [{ title: "Teachers — RULE" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Teachers") }] }),
   component: TeachersPage,
 });
 
 type TeacherRow = {
   id: string;
+  user_id?: string | null;
   staff_code: string;
   full_name: string;
   full_name_km: string | null;
@@ -39,6 +48,62 @@ type TeacherRow = {
 };
 
 const DEMO_TEACHERS_KEY = "studentsphere.demo.teachers";
+
+const dayLabels: Record<string, string> = {
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+  sun: "Sun",
+};
+
+type TeacherScheduleSlot = {
+  id: string;
+  class_id: string;
+  day: string;
+  start_time: string;
+  end_time: string;
+  room: string | null;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
+  teacher_phone?: string | null;
+  subject_code?: string | null;
+  subject_name?: string | null;
+  classes?: { name: string; subject_code?: string | null } | null;
+};
+
+function normalizeMatchValue(value: string | null | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function teacherMatchValues(teacher: TeacherRow) {
+  return new Set(
+    [
+      teacher.id,
+      teacher.staff_code,
+      teacher.full_name,
+      teacher.full_name_en,
+      teacher.full_name_km,
+      teacher.email,
+    ]
+      .map(normalizeMatchValue)
+      .filter(Boolean),
+  );
+}
+
+function slotMatchesTeacher(slot: TeacherScheduleSlot, teacher: TeacherRow) {
+  const values = teacherMatchValues(teacher);
+  const payload = decodeTimetableCell(slot.room);
+  return [slot.teacher_id, slot.teacher_name, payload.teacherId, payload.teacher].some((value) =>
+    values.has(normalizeMatchValue(value)),
+  );
+}
+
+function formatTime(value: string) {
+  return value.slice(0, 5);
+}
 
 function readDemoTeachers(): TeacherRow[] {
   if (typeof window === "undefined") return [];
@@ -108,6 +173,7 @@ function TeachersPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [viewTeacher, setViewTeacher] = useState<TeacherRow | null>(null);
   const [editTeacher, setEditTeacher] = useState<TeacherRow | null>(null);
+  const [passwordTeacher, setPasswordTeacher] = useState<TeacherRow | null>(null);
   const isAdmin = primaryRole === "admin";
 
   const { data: teachers = [], isLoading } = useQuery({
@@ -240,6 +306,23 @@ function TeachersPage() {
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
+                        <Link
+                          to="/app/timetable"
+                          search={{ teacherId: tc.id }}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
+                          aria-label="View teacher schedule"
+                          title="View schedule"
+                        >
+                          <CalendarDays className="h-3.5 w-3.5" />
+                        </Link>
+                        <button
+                          onClick={() => setPasswordTeacher(tc)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-warning transition-colors hover:bg-warning/10"
+                          aria-label="Reset teacher password"
+                          title="Reset password"
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                        </button>
                         <button
                           onClick={() => {
                             if (confirm("Remove teacher?")) del.mutate(tc.id);
@@ -266,7 +349,22 @@ function TeachersPage() {
           onClose={() => setEditTeacher(null)}
         />
       )}
-      {viewTeacher && <TeacherViewModal teacher={viewTeacher} onClose={() => setViewTeacher(null)} />}
+      {viewTeacher && (
+        <TeacherViewModal
+          teacher={viewTeacher}
+          isAdmin={isAdmin}
+          onClose={() => setViewTeacher(null)}
+        />
+      )}
+      {passwordTeacher && (
+        <ResetPasswordModal
+          title="Reset teacher password"
+          subtitle={`${passwordTeacher.full_name_en || passwordTeacher.full_name} · ${passwordTeacher.staff_code}`}
+          userId={passwordTeacher.user_id}
+          isDemo={isDemo}
+          onClose={() => setPasswordTeacher(null)}
+        />
+      )}
     </div>
   );
 }
@@ -281,16 +379,37 @@ function TeacherFormModal({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const { session } = useAuth();
   const isEdit = !!teacher;
-  const [f, setF] = useState({
+  const [f, setF] = useState(() => ({
     full_name_en: teacher?.full_name_en ?? teacher?.full_name ?? "",
     full_name_km: teacher?.full_name_km ?? "",
-    staff_code: teacher?.staff_code ?? "",
+    staff_code: teacher?.staff_code ?? generateSchoolAccountId("teacher"),
     avatar_url: teacher?.avatar_url ?? "",
     email: teacher?.email ?? "",
     phone: teacher?.phone ?? "",
     faculty: teacher?.faculty ?? teacher?.department ?? "",
     specialization: teacher?.specialization ?? "",
+    password: "",
+  }));
+
+  const { data: subjectOptions = DEFAULT_SUBJECT_OPTIONS } = useQuery({
+    queryKey: ["subject-options", isDemo ? "demo" : "remote"],
+    queryFn: async () => {
+      if (isDemo) return subjectRowsToOptions(readDemoSubjects());
+
+      const { data, error } = await supabase
+        .from("subjects")
+        .select("subject_id,subject_name,description")
+        .order("subject_id", { ascending: true });
+      if (error) return DEFAULT_SUBJECT_OPTIONS;
+      const options = (data ?? []).map((subject) => ({
+        code: subject.subject_id,
+        label: subject.subject_name || subject.subject_id,
+        description: subject.description,
+      }));
+      return options.length > 0 ? options : DEFAULT_SUBJECT_OPTIONS;
+    },
   });
 
   const handleImageUpload = async (file: File | null) => {
@@ -311,12 +430,14 @@ function TeacherFormModal({
   const mut = useMutation({
     mutationFn: async () => {
       if (isDemo) {
+        const teacherCode = f.staff_code.trim() || generateDemoAccountId("teacher");
         const nextTeacher: TeacherRow = {
           id: teacher?.id ?? `demo-teacher-${Date.now()}`,
+          user_id: teacher?.user_id ?? `demo-teacher-user-${Date.now()}`,
           full_name: f.full_name_en || f.full_name_km,
           full_name_en: f.full_name_en || null,
           full_name_km: f.full_name_km || null,
-          staff_code: f.staff_code || `STAFF-${Date.now().toString().slice(-5)}`,
+          staff_code: teacherCode,
           avatar_url: f.avatar_url || null,
           email: f.email || null,
           phone: f.phone || null,
@@ -333,18 +454,48 @@ function TeacherFormModal({
         return;
       }
 
+      const userId = teacher?.user_id ?? null;
+      const staffCode = f.staff_code.trim();
+
+      if (!isEdit) {
+        if (!session?.access_token) {
+          throw new Error("Your admin session expired. Please log in again.");
+        }
+
+        await createTeacherAccount({
+          data: {
+            accessToken: session.access_token,
+            teacher: {
+              password: f.password,
+              staff_code: staffCode,
+              full_name: f.full_name_en || f.full_name_km,
+              full_name_en: f.full_name_en || null,
+              full_name_km: f.full_name_km || null,
+              avatar_url: f.avatar_url || null,
+              email: f.email || null,
+              phone: f.phone || null,
+              faculty: f.faculty || null,
+              department: f.faculty || null,
+              specialization: f.specialization || null,
+            },
+          },
+        });
+        return;
+      }
+
       const payload = {
-          full_name: f.full_name_en || f.full_name_km,
-          full_name_en: f.full_name_en || null,
-          full_name_km: f.full_name_km || null,
-          staff_code: f.staff_code || `STAFF-${Date.now().toString().slice(-5)}`,
-          avatar_url: f.avatar_url || null,
-          email: f.email || null,
-          phone: f.phone || null,
-          faculty: f.faculty || null,
-          department: f.faculty || null,
-          specialization: f.specialization || null,
-        };
+        user_id: userId,
+        full_name: f.full_name_en || f.full_name_km,
+        full_name_en: f.full_name_en || null,
+        full_name_km: f.full_name_km || null,
+        staff_code: staffCode,
+        avatar_url: f.avatar_url || null,
+        email: f.email || null,
+        phone: f.phone || null,
+        faculty: f.faculty || null,
+        department: f.faculty || null,
+        specialization: f.specialization || null,
+      };
       const { error } = isEdit
         ? await supabase.from("teachers").update(payload).eq("id", teacher.id)
         : await supabase.from("teachers").insert(payload);
@@ -386,12 +537,13 @@ function TeacherFormModal({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!f.staff_code.trim()) return toast.error("Teacher ID required");
             if (!f.full_name_en.trim()) return toast.error("English name required");
             if (!f.full_name_km.trim()) return toast.error("Khmer name required");
+            if (!f.staff_code.trim()) return toast.error("Teacher ID required");
             if (!f.phone.trim()) return toast.error("Phone number required");
             if (!f.faculty.trim()) return toast.error("Faculty required");
             if (!f.specialization.trim()) return toast.error("Teaching subject required");
+            if (!isEdit && !f.password.trim()) return toast.error("Password required");
             mut.mutate();
           }}
           className="grid gap-3 sm:grid-cols-2"
@@ -428,12 +580,11 @@ function TeacherFormModal({
           </div>
           {(
             [
-              ["Teacher ID *", "staff_code"],
+              ["Teacher ID", "staff_code"],
               ["Name in English *", "full_name_en"],
               ["Name in Khmer *", "full_name_km"],
               ["Phone number *", "phone"],
               ["Faculty *", "faculty"],
-              ["Teaches / Subject *", "specialization"],
               ["Email", "email"],
             ] as const
           ).map(([label, key]) => (
@@ -443,11 +594,56 @@ function TeacherFormModal({
               </label>
               <input
                 value={f[key]}
-                onChange={(e) => setF({ ...f, [key]: e.target.value })}
-                className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+                onChange={(e) =>
+                  setF({
+                    ...f,
+                    [key]: key === "staff_code" ? e.target.value.toUpperCase() : e.target.value,
+                  })
+                }
+                placeholder={key === "staff_code" && !isEdit ? "RULE-TH123" : undefined}
+                autoComplete={key === "staff_code" ? "off" : undefined}
+                readOnly={key === "staff_code" && !isEdit}
+                className={
+                  "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary " +
+                  (key === "staff_code" && !isEdit ? "cursor-default text-muted-foreground" : "")
+                }
               />
             </div>
           ))}
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Teaches / Subject *
+            </label>
+            <select
+              value={f.specialization}
+              onChange={(e) => setF({ ...f, specialization: e.target.value })}
+              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+            >
+              <option value="">Select subject</option>
+              {subjectOptions.map((subject) => (
+                <option key={subject.code} value={subject.label}>
+                  {subject.label} ({subject.code})
+                </option>
+              ))}
+              {f.specialization &&
+                !subjectOptions.some((subject) => subject.label === f.specialization) && (
+                  <option value={f.specialization}>{f.specialization}</option>
+                )}
+            </select>
+          </div>
+          {!isEdit && (
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Password *
+              </label>
+              <input
+                type="password"
+                value={f.password}
+                onChange={(e) => setF({ ...f, password: e.target.value })}
+                className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+              />
+            </div>
+          )}
           <button
             type="submit"
             disabled={mut.isPending}
@@ -467,14 +663,68 @@ function TeacherFormModal({
   );
 }
 
-function TeacherViewModal({ teacher, onClose }: { teacher: TeacherRow; onClose: () => void }) {
+function TeacherViewModal({
+  teacher,
+  isAdmin,
+  onClose,
+}: {
+  teacher: TeacherRow;
+  isAdmin: boolean;
+  onClose: () => void;
+}) {
+  const {
+    data: scheduleSlots = [],
+    isLoading: scheduleLoading,
+    isError: scheduleError,
+    error: scheduleLoadError,
+  } = useQuery({
+    queryKey: ["teacher-profile-schedule", teacher.id],
+    queryFn: async () => {
+      let { data, error } = await supabase
+        .from("timetable_slots")
+        .select(
+          "id,class_id,day,start_time,end_time,room,teacher_id,teacher_name,teacher_phone,subject_code,subject_name,classes(name,subject_code)",
+        )
+        .order("day", { ascending: true })
+        .order("start_time", { ascending: true });
+
+      if (
+        error &&
+        (error.message.includes("schema cache") ||
+          error.message.includes("column") ||
+          error.message.includes("Could not find"))
+      ) {
+        const fallback = await supabase
+          .from("timetable_slots")
+          .select("id,class_id,day,start_time,end_time,room,classes(name,subject_code)")
+          .order("day", { ascending: true })
+          .order("start_time", { ascending: true });
+        data = fallback.data as typeof data;
+        error = fallback.error;
+      }
+
+      if (error) throw error;
+      return ((data ?? []) as unknown as TeacherScheduleSlot[]).filter((slot) =>
+        slotMatchesTeacher(slot, teacher),
+      );
+    },
+  });
+
+  const scheduleByClass = Array.from(
+    scheduleSlots.reduce((groups, slot) => {
+      const className = slot.classes?.name || "Class";
+      groups.set(className, [...(groups.get(className) ?? []), slot]);
+      return groups;
+    }, new Map<string, TeacherScheduleSlot[]>()),
+  );
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-[2rem] border border-border bg-card p-4 shadow-card"
+        className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] border border-border bg-card p-4 shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-end">
@@ -509,6 +759,79 @@ function TeacherViewModal({ teacher, onClose }: { teacher: TeacherRow; onClose: 
           <InfoRow label="Phone" value={teacher.phone || "—"} />
           <InfoRow label="Email" value={teacher.email || "—"} />
         </div>
+        <div className="mt-4 rounded-2xl border border-border bg-surface p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h4 className="inline-flex items-center gap-2 text-sm font-bold">
+              <BookOpen className="h-4 w-4 text-primary" />
+              Classes & schedule
+            </h4>
+            <span className="text-xs font-semibold text-muted-foreground">
+              {scheduleSlots.length} lesson{scheduleSlots.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          {scheduleLoading ? (
+            <div className="flex h-20 items-center justify-center">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            </div>
+          ) : scheduleError ? (
+            <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm text-destructive">
+              Could not load teacher schedule:{" "}
+              {scheduleLoadError instanceof Error ? scheduleLoadError.message : "Unknown error"}
+            </p>
+          ) : scheduleByClass.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+              No class schedule assigned to this teacher yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {scheduleByClass.map(([className, slots]) => (
+                <div key={className} className="rounded-xl border border-border bg-background p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="font-semibold">{className}</p>
+                    <span className="text-xs text-muted-foreground">
+                      {slots.length} lesson{slots.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {slots.map((slot) => {
+                      const payload = decodeTimetableCell(slot.room);
+                      const subject =
+                        slot.subject_name ||
+                        payload.subject ||
+                        slot.subject_code ||
+                        payload.subjectCode ||
+                        slot.classes?.subject_code ||
+                        "Subject";
+                      const room = payload.room || "";
+                      return (
+                        <div
+                          key={slot.id}
+                          className="rounded-lg border border-border/70 bg-card px-3 py-2 text-xs"
+                        >
+                          <div className="font-semibold text-foreground">
+                            {dayLabels[slot.day] ?? slot.day.toUpperCase()} ·{" "}
+                            {formatTime(slot.start_time)}-{formatTime(slot.end_time)}
+                          </div>
+                          <div className="mt-1 text-muted-foreground">{subject}</div>
+                          {room && <div className="mt-1 text-muted-foreground">Room {room}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {isAdmin && (
+          <Link
+            to="/app/timetable"
+            search={{ teacherId: teacher.id }}
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl gradient-primary text-sm font-semibold text-primary-foreground shadow-soft"
+          >
+            <CalendarDays className="h-4 w-4" /> View schedule
+          </Link>
+        )}
       </div>
     </div>
   );

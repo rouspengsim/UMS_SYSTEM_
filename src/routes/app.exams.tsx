@@ -8,9 +8,11 @@ import { useAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DEFAULT_SUBJECT_OPTIONS, readDemoSubjects, subjectRowsToOptions } from "@/lib/subjects";
+import { pageTitle } from "@/lib/brand";
+import { findTeacherClassScope } from "@/lib/teacher-scope";
 
 export const Route = createFileRoute("/app/exams")({
-  head: () => ({ meta: [{ title: "Exams & Scores — RULE" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Exams & Scores") }] }),
   component: ExamsPage,
 });
 
@@ -42,7 +44,6 @@ type DemoSubjectScoreRow = SubjectScoreRow & {
 const DEMO_SUBJECT_SCORES_KEY = "studentsphere.demo.subject_scores";
 const SYNTHETIC_CLASS_PREFIX = "student-class:";
 const SEMESTER_OPTIONS = ["Semester 1", "Semester 2"];
-const WEEK_OPTIONS = Array.from({ length: 48 }, (_, index) => index + 1);
 const SCORE_MAX = 100;
 const SCORE_SUBJECT_OPTIONS = DEFAULT_SUBJECT_OPTIONS;
 const SCORE_REPORT_SUBJECTS = [
@@ -86,6 +87,15 @@ function syntheticClassId(className: string) {
 
 function classNameFromId(classId: string, classes: ExamClass[]) {
   return classes.find((c) => c.id === classId)?.name ?? classId.replace(SYNTHETIC_CLASS_PREFIX, "");
+}
+
+function uniqueExamClasses(classes: ExamClass[]) {
+  const byId = new Map<string, ExamClass>();
+  classes.forEach((classRow) => {
+    if (!classRow.id || !classRow.name) return;
+    byId.set(classRow.id, classRow);
+  });
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function escapeHtml(value: string | number | null | undefined) {
@@ -156,18 +166,59 @@ function printDocument(title: string, html: string) {
 
 function ExamsPage() {
   const { t } = useI18n();
-  const { primaryRole, isDemo } = useAuth();
+  const { user, primaryRole, isDemo } = useAuth();
   const qc = useQueryClient();
   const [classId, setClassId] = useState("");
   const [semester, setSemester] = useState(SEMESTER_OPTIONS[0]);
-  const [weekNumber, setWeekNumber] = useState(1);
   const [selectedScoreStudentId, setSelectedScoreStudentId] = useState("");
+  const weekNumber = 1;
   const isStudent = primaryRole === "student";
+  const isTeacher = primaryRole === "teacher";
 
   const { data: scoreSubjectOptions = SCORE_SUBJECT_OPTIONS } = useQuery({
-    queryKey: ["subject-options", isDemo ? "demo" : "remote"],
+    queryKey: ["subject-options", primaryRole, user?.id, isDemo ? "demo" : "remote"],
     queryFn: async () => {
-      if (isDemo) return subjectRowsToOptions(readDemoSubjects());
+      if (isDemo) {
+        const rows = readDemoSubjects();
+        if (!isTeacher) return subjectRowsToOptions(rows);
+
+        const teacher = readDemoList<{ id: string }>("studentsphere.demo.teachers")[0];
+        const subjectCodes = new Set(
+          readDemoList<{ teacher_id?: string | null; subject_code?: string | null }>(
+            "studentsphere.demo.classes",
+          )
+            .filter((classRow) => !teacher || classRow.teacher_id === teacher.id)
+            .map((classRow) => classRow.subject_code?.trim())
+            .filter((code): code is string => !!code),
+        );
+        return subjectRowsToOptions(rows.filter((subject) => subjectCodes.has(subject.subject_id)));
+      }
+
+      if (isTeacher) {
+        const scope = await findTeacherClassScope(user);
+        const subjectCodes = scope?.subjectCodes ?? [];
+        if (subjectCodes.length === 0) return SCORE_SUBJECT_OPTIONS;
+
+        const { data, error } = await supabase
+          .from("subjects")
+          .select("subject_id,subject_name,description")
+          .in("subject_id", subjectCodes)
+          .order("subject_id", { ascending: true });
+        if (error) return subjectCodes.map((code) => ({ code, label: code }));
+
+        const found = (data ?? []).map((subject) => ({
+          code: subject.subject_id,
+          label: subject.subject_name || subject.subject_id,
+          description: subject.description,
+        }));
+        const foundCodes = new Set(found.map((subject) => subject.code));
+        return [
+          ...found,
+          ...subjectCodes
+            .filter((code) => !foundCodes.has(code))
+            .map((code) => ({ code, label: code })),
+        ];
+      }
 
       const { data, error } = await supabase
         .from("subjects")
@@ -184,12 +235,21 @@ function ExamsPage() {
   });
 
   const { data: exams = [], isLoading } = useQuery({
-    queryKey: ["exams"],
+    queryKey: ["exams", primaryRole, user?.id, isDemo ? "demo" : "remote"],
     queryFn: async () => {
-      const { data } = await supabase
+      let classIds: string[] | null = null;
+      if (isTeacher) {
+        const scope = await findTeacherClassScope(user);
+        classIds = scope?.classIds ?? [];
+        if (classIds.length === 0) return [];
+      }
+
+      let query = supabase
         .from("exams")
         .select("id,name,exam_type,exam_date,max_score,classes(name,subject_code)")
         .order("exam_date", { ascending: false });
+      if (classIds) query = query.in("class_id", classIds);
+      const { data } = await query;
       return (data ?? []) as unknown as Array<{
         id: string;
         name: string;
@@ -201,26 +261,60 @@ function ExamsPage() {
     },
   });
   const { data: classes = [] } = useQuery({
-    queryKey: ["exam-result-classes", primaryRole, isDemo ? "demo" : "remote"],
+    queryKey: ["exam-result-classes", primaryRole, user?.id, isDemo ? "demo" : "remote"],
     queryFn: async () => {
       if (isDemo) {
+        const teacher = readDemoList<{ id: string }>("studentsphere.demo.teachers")[0];
+        const assignedClassNames = new Set(
+          readDemoList<{ name: string; teacher_id?: string | null }>("studentsphere.demo.classes")
+            .filter((classRow) => !isTeacher || !teacher || classRow.teacher_id === teacher.id)
+            .map((classRow) => classRow.name),
+        );
         const demoStudents = readDemoList<{ class_name?: string | null }>(
           "studentsphere.demo.students",
         );
+        const visibleDemoStudents =
+          isStudent && demoStudents.length > 0
+            ? demoStudents.filter((student) => student.class_name === demoStudents[0]?.class_name)
+            : isTeacher
+              ? demoStudents.filter((student) => assignedClassNames.has(student.class_name ?? ""))
+            : demoStudents;
         const demoClasses = Array.from(
           new Set(
-            demoStudents
+            visibleDemoStudents
               .map((student) => student.class_name?.trim())
               .filter((name): name is string => !!name),
           ),
         ).map((name) => ({ id: syntheticClassId(name), name, isSynthetic: true }));
-        return isStudent && demoClasses.length > 0 ? [demoClasses[0]] : demoClasses;
+        return demoClasses;
       }
 
+      const scope = isTeacher ? await findTeacherClassScope(user) : null;
+      const scopedClasses = uniqueExamClasses(
+        (scope?.classes ?? []).map((classRow) => ({
+          id: classRow.id,
+          name: classRow.name,
+        })),
+      );
+      if (isTeacher && scopedClasses.length > 0) return scopedClasses;
+
+      const studentClassesQuery = isStudent
+        ? supabase.rpc("list_student_classmates")
+        : supabase.from("students").select("class_name").not("class_name", "is", null);
+      let classesQuery = supabase.from("classes").select("id,name").order("name");
+      if (isTeacher) {
+        if (!scope || scope.classIds.length === 0) return scopedClasses;
+        classesQuery = classesQuery.in("id", scope.classIds);
+      }
       const [classesResult, studentsResult] = await Promise.all([
-        supabase.from("classes").select("id,name").order("name"),
-        supabase.from("students").select("class_name").not("class_name", "is", null),
+        classesQuery,
+        studentClassesQuery,
       ]);
+      if (classesResult.error) {
+        if (isTeacher) return scopedClasses;
+        throw classesResult.error;
+      }
+      if (studentsResult.error) throw studentsResult.error;
       const ownClassNames = new Set(
         (studentsResult.data ?? [])
           .map((student) => student.class_name?.trim())
@@ -232,22 +326,27 @@ function ExamsPage() {
       const storedNames = new Set(storedClasses.map((item) => item.name));
       const syntheticClasses = Array.from(ownClassNames)
         .filter((name) => !storedNames.has(name))
+        .filter(() => !isTeacher)
         .map((name) => ({ id: syntheticClassId(name), name, isSynthetic: true }));
-      return [...storedClasses, ...syntheticClasses];
+      return uniqueExamClasses([...storedClasses, ...scopedClasses, ...syntheticClasses]);
     },
   });
   useEffect(() => {
-    if (isStudent && classes.length > 0 && !classes.some((item) => item.id === classId)) {
+    if (
+      (isStudent || isTeacher) &&
+      classes.length > 0 &&
+      !classes.some((item) => item.id === classId)
+    ) {
       setClassId(classes[0].id);
     }
-  }, [classId, classes, isStudent]);
+  }, [classId, classes, isStudent, isTeacher]);
   const { data: enrolled = [], isLoading: studentsLoading } = useQuery({
     queryKey: ["exam-result-students", classId, isDemo ? "demo" : "remote"],
     enabled: !!classId,
     queryFn: async () => {
       const selectedClassName = classNameFromId(classId, classes);
       if (isDemo) {
-        return readDemoList<{
+        const demoStudents = readDemoList<{
           id: string;
           student_code: string;
           full_name: string;
@@ -257,7 +356,12 @@ function ExamsPage() {
           date_of_birth?: string | null;
           address?: string | null;
           class_name?: string | null;
-        }>("studentsphere.demo.students")
+        }>("studentsphere.demo.students");
+        const visibleDemoStudents =
+          isStudent && demoStudents.length > 0
+            ? demoStudents.filter((student) => student.class_name === demoStudents[0]?.class_name)
+            : demoStudents;
+        return visibleDemoStudents
           .filter((student) => student.class_name === selectedClassName)
           .map((student) => ({
             student_id: student.id,
@@ -271,6 +375,27 @@ function ExamsPage() {
               address: student.address,
               class_name: student.class_name,
             },
+          })) as ExamStudentRow[];
+      }
+
+      if (isStudent) {
+        const { data, error } = await supabase.rpc("list_student_classmates");
+        if (error) throw error;
+        return ((data ?? []) as Array<{
+          id: string;
+          student_code: string;
+          full_name: string;
+          full_name_km?: string | null;
+          gender?: string | null;
+          date_of_birth?: string | null;
+          address?: string | null;
+          class_name?: string | null;
+          status?: string | null;
+        }>)
+          .filter((student) => student.class_name === selectedClassName && student.status === "active")
+          .map((student) => ({
+            student_id: student.id,
+            students: student,
           })) as ExamStudentRow[];
       }
 
@@ -455,7 +580,7 @@ function ExamsPage() {
           <div></div>
         </section>
         <div class="meta">
-          ក្រុម ${escapeHtml(selectedClassLabel)} · ${escapeHtml(semester)} · សប្តាហ៍ ${weekNumber}<br />
+          ក្រុម ${escapeHtml(selectedClassLabel)} · ${escapeHtml(semester)}<br />
           កាលបរិច្ឆេទ ${escapeHtml(today)} · ចំនួននិស្សិត ${enrolled.length} នាក់
         </div>
         <table>
@@ -538,7 +663,7 @@ function ExamsPage() {
           <div></div>
         </section>
         <div class="meta">
-          ក្រុម ${escapeHtml(selectedClassLabel)} · ${escapeHtml(semester)} · សប្តាហ៍ ${weekNumber}<br />
+          ក្រុម ${escapeHtml(selectedClassLabel)} · ${escapeHtml(semester)}<br />
           កាលបរិច្ឆេទ ${escapeHtml(today)} · ចំនួននិស្សិត ${enrolled.length} នាក់
         </div>
         <table>
@@ -588,17 +713,17 @@ function ExamsPage() {
 
   return (
     <div>
-      <PageHeader title={t("exams")} subtitle="All scheduled exams across classes" />
-      <SectionCard title="Result List" className="mb-6">
-        <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_120px_auto] lg:items-end">
+      <PageHeader title={t("exams")} subtitle={t("exams_subtitle")} />
+      <SectionCard title={t("result_list")} className="mb-6">
+        <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_auto] lg:items-end">
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-muted-foreground">Class</span>
+            <span className="mb-1 block text-xs font-semibold text-muted-foreground">{t("class")}</span>
             <select
               value={classId}
               onChange={(event) => setClassId(event.currentTarget.value)}
               className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
             >
-              <option value="">Select class</option>
+              <option value="">{t("select_class")}</option>
               {classes.map((classRow) => (
                 <option key={classRow.id} value={classRow.id}>
                   {classRow.name}
@@ -607,7 +732,7 @@ function ExamsPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-muted-foreground">Semester</span>
+            <span className="mb-1 block text-xs font-semibold text-muted-foreground">{t("semester")}</span>
             <select
               value={semester}
               onChange={(event) => setSemester(event.currentTarget.value)}
@@ -616,20 +741,6 @@ function ExamsPage() {
               {SEMESTER_OPTIONS.map((item) => (
                 <option key={item} value={item}>
                   {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-muted-foreground">Week</span>
-            <select
-              value={weekNumber}
-              onChange={(event) => setWeekNumber(Number(event.currentTarget.value))}
-              className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-            >
-              {WEEK_OPTIONS.map((week) => (
-                <option key={week} value={week}>
-                  Week {week}
                 </option>
               ))}
             </select>
@@ -660,7 +771,7 @@ function ExamsPage() {
                   Student Score Form
                 </p>
                 <p className="text-xs font-semibold text-muted-foreground">
-                  {semester} · Week {weekNumber} · Scores out of {SCORE_MAX}
+                  {semester} · Scores out of {SCORE_MAX}
                 </p>
               </div>
               <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -701,19 +812,19 @@ function ExamsPage() {
               <div className="space-y-5 p-4">
                 <div className="grid gap-x-6 gap-y-2 md:grid-cols-3">
                   <ScoreInfoField
-                    label="student id"
+                    label={t("student_id")}
                     value={selectedScoreStudent.students.student_code}
                   />
                   <ScoreInfoField
-                    label="Khmer Name"
+                    label={t("khmer_name")}
                     value={
                       selectedScoreStudent.students.full_name_km ||
                       selectedScoreStudent.students.full_name
                     }
                   />
-                  <ScoreInfoField label="Latin Name" value={selectedScoreStudent.students.full_name} />
+                  <ScoreInfoField label={t("name_in_latin")} value={selectedScoreStudent.students.full_name} />
                   <ScoreInfoField
-                    label="Gender"
+                    label={t("gender")}
                     value={
                       selectedScoreStudent.students.gender?.toLowerCase().startsWith("f")
                         ? "F"
@@ -723,16 +834,16 @@ function ExamsPage() {
                     }
                   />
                   <ScoreInfoField
-                    label="Date of Birth"
+                    label={t("dob")}
                     value={selectedScoreStudent.students.date_of_birth ?? ""}
                   />
                   <ScoreInfoField
-                    label="group"
+                    label={t("group")}
                     value={selectedScoreStudent.students.class_name ?? selectedClassLabel}
                   />
                   <div className="md:col-span-2">
                     <ScoreInfoField
-                      label="Place of Birth"
+                      label={t("place_of_birth")}
                       value={selectedScoreStudent.students.address ?? ""}
                     />
                   </div>
@@ -795,18 +906,18 @@ function ExamsPage() {
             <table className="w-full min-w-[1180px] text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/35 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="px-3 py-3 text-center">Rank</th>
-                  <th className="px-3 py-3">ID</th>
-                  <th className="px-3 py-3">Student</th>
-                  <th className="px-3 py-3 text-center">Gender</th>
-                  <th className="px-3 py-3 text-center">DOB</th>
+                  <th className="px-3 py-3 text-center">{t("rank")}</th>
+                  <th className="px-3 py-3">{t("id")}</th>
+                  <th className="px-3 py-3">{t("student")}</th>
+                  <th className="px-3 py-3 text-center">{t("gender")}</th>
+                  <th className="px-3 py-3 text-center">{t("dob")}</th>
                   {RESULT_REPORT_SUBJECTS.map((subject) => (
                     <th key={subject.code} className="px-2 py-3 text-center" title={subject.label}>
                       {subject.short}
                     </th>
                   ))}
-                  <th className="px-3 py-3 text-center">Average</th>
-                  <th className="px-3 py-3 text-center">Total</th>
+                  <th className="px-3 py-3 text-center">{t("average")}</th>
+                  <th className="px-3 py-3 text-center">{t("total")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -860,11 +971,11 @@ function ExamsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="py-3 pr-4">Exam</th>
-                <th className="py-3 pr-4">Class</th>
-                <th className="py-3 pr-4">Type</th>
-                <th className="py-3 pr-4">Date</th>
-                <th className="py-3">Max</th>
+                <th className="py-3 pr-4">{t("exam")}</th>
+                <th className="py-3 pr-4">{t("class")}</th>
+                <th className="py-3 pr-4">{t("exam_type")}</th>
+                <th className="py-3 pr-4">{t("date")}</th>
+                <th className="py-3">{t("max_score")}</th>
               </tr>
             </thead>
             <tbody>

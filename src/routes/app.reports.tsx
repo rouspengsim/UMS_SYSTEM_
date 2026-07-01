@@ -7,9 +7,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { pageTitle } from "@/lib/brand";
 
 export const Route = createFileRoute("/app/reports")({
-  head: () => ({ meta: [{ title: "Reports — RULE" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Reports") }] }),
   component: ReportsPage,
 });
 

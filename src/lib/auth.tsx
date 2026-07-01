@@ -21,7 +21,6 @@ type AuthCtx = {
   primaryRole: Role | null;
   loading: boolean;
   isDemo: boolean;
-  signInDemo: (role?: Role) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -29,42 +28,10 @@ type AuthCtx = {
 const Ctx = createContext<AuthCtx | null>(null);
 
 const ROLE_PRIORITY: Role[] = ["admin", "teacher", "student"];
-const DEMO_AUTH_KEY = "studentsphere.demo.auth";
 
 function metadataRole(user: SupaUser | null): Role | null {
   const role = user?.user_metadata?.role;
   return role === "admin" || role === "teacher" || role === "student" ? role : null;
-}
-
-function createDemoUser(role: Role = "admin"): SupaUser {
-  const email = role === "admin" ? "admin@gmail.com" : `${role}@demo.local`;
-  return {
-    id: `demo-${role}`,
-    aud: "authenticated",
-    role: "authenticated",
-    email,
-    email_confirmed_at: new Date().toISOString(),
-    phone: "",
-    confirmed_at: new Date().toISOString(),
-    last_sign_in_at: new Date().toISOString(),
-    app_metadata: { provider: "demo", providers: ["demo"] },
-    user_metadata: { full_name: `Demo ${role[0].toUpperCase()}${role.slice(1)}`, role },
-    identities: [],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    is_anonymous: false,
-  } as SupaUser;
-}
-
-function createDemoProfile(role: Role = "admin"): Profile {
-  return {
-    id: `demo-profile-${role}`,
-    user_id: `demo-${role}`,
-    full_name: `Demo ${role[0].toUpperCase()}${role.slice(1)}`,
-    email: role === "admin" ? "admin@gmail.com" : `${role}@demo.local`,
-    avatar_url: null,
-    phone: null,
-  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -75,37 +42,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
 
-  const setDemoAuth = (role: Role = "admin") => {
-    setSession(null);
-    setUser(createDemoUser(role));
-    setProfile(createDemoProfile(role));
-    setRoles([role]);
-    setIsDemo(true);
-  };
-
-  const loadAuxData = async (uid: string) => {
+  const loadAuxData = async (uid: string, fallbackRole: Role | null = null) => {
     const [{ data: prof }, { data: roleRows }] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", uid).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", uid),
     ]);
+    const loadedRoles = ((roleRows ?? []) as { role: Role }[]).map((r) => r.role);
     setProfile((prof as Profile | null) ?? null);
-    setRoles(((roleRows ?? []) as { role: Role }[]).map((r) => r.role));
+    setRoles(loadedRoles.length > 0 ? loadedRoles : fallbackRole ? [fallbackRole] : []);
   };
 
   const refresh = async () => {
-    const savedDemoRole =
-      typeof window !== "undefined" ? (localStorage.getItem(DEMO_AUTH_KEY) as Role | null) : null;
-    if (savedDemoRole === "admin" || savedDemoRole === "teacher" || savedDemoRole === "student") {
-      setDemoAuth(savedDemoRole);
-      return;
-    }
-
     const { data } = await supabase.auth.getSession();
     setIsDemo(false);
     setSession(data.session);
     setUser(data.session?.user ?? null);
     if (data.session?.user) {
-      await loadAuxData(data.session.user.id);
+      await loadAuxData(data.session.user.id, metadataRole(data.session.user));
     } else {
       setProfile(null);
       setRoles([]);
@@ -113,14 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const savedDemoRole =
-      typeof window !== "undefined" ? (localStorage.getItem(DEMO_AUTH_KEY) as Role | null) : null;
-    if (savedDemoRole === "admin" || savedDemoRole === "teacher" || savedDemoRole === "student") {
-      setDemoAuth(savedDemoRole);
-      setLoading(false);
-      return;
-    }
-
     // Set up listener FIRST
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setIsDemo(false);
@@ -129,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (newSession?.user) {
         // Defer to avoid deadlocks
         setTimeout(() => {
-          loadAuxData(newSession.user.id);
+          loadAuxData(newSession.user.id, metadataRole(newSession.user));
         }, 0);
       } else {
         setProfile(null);
@@ -142,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setUser(data.session?.user ?? null);
       if (data.session?.user) {
-        await loadAuxData(data.session.user.id);
+        await loadAuxData(data.session.user.id, metadataRole(data.session.user));
       }
       setLoading(false);
     });
@@ -152,14 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signInDemo = async (role: Role = "admin") => {
-    if (typeof window !== "undefined") localStorage.setItem(DEMO_AUTH_KEY, role);
-    setDemoAuth(role);
-  };
-
   const signOut = async () => {
-    if (typeof window !== "undefined") localStorage.removeItem(DEMO_AUTH_KEY);
-    if (!isDemo) await supabase.auth.signOut();
+    await supabase.auth.signOut();
     setSession(null);
     setUser(null);
     setProfile(null);
@@ -183,7 +122,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         primaryRole,
         loading,
         isDemo,
-        signInDemo,
         signOut,
         refresh,
       }}

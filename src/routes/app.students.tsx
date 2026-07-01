@@ -2,20 +2,43 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, SectionCard, StatusPill, Avatar } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
-import { Plus, Search, Filter, Printer, Trash2, X, Loader2, Eye } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Filter,
+  Printer,
+  Trash2,
+  X,
+  Loader2,
+  Eye,
+  Pencil,
+  Users,
+  Mars,
+  Venus,
+  Camera,
+  Upload,
+  KeyRound,
+} from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ADDRESS_OPTIONS, FLAT_MAJOR_OPTIONS, MAJOR_OPTIONS } from "@/lib/academic-options";
+import { generateSchoolAccountId } from "@/lib/account-ids";
+import { pageTitle } from "@/lib/brand";
+import { createStudentAccount } from "@/lib/student-accounts";
+import { uploadStudentAvatar } from "@/lib/user-accounts";
+import { ResetPasswordModal } from "@/components/app/reset-password-modal";
+import { findTeacherClassScope } from "@/lib/teacher-scope";
 
 export const Route = createFileRoute("/app/students")({
-  head: () => ({ meta: [{ title: "Students — RULE" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Students") }] }),
   component: StudentsPage,
 });
 
 type StudentRow = {
   id: string;
+  user_id?: string | null;
   student_code: string;
   full_name: string;
   full_name_km: string | null;
@@ -80,6 +103,70 @@ function readDemoStudents(): StudentRow[] {
 function writeDemoStudents(students: StudentRow[]) {
   if (typeof window === "undefined") return;
   localStorage.setItem(DEMO_STUDENTS_KEY, JSON.stringify(students));
+}
+
+function compressAvatar(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      reject(new Error("Please choose an image file."));
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      reject(new Error("Image must be smaller than 10 MB."));
+      return;
+    }
+
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const size = Math.min(900, Math.max(image.width, image.height));
+      const scale = Math.min(1, size / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * scale));
+      const height = Math.max(1, Math.round(image.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("Could not process image."));
+        return;
+      }
+      context.drawImage(image, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Could not compress image."))),
+        "image/webp",
+        0.82,
+      );
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read image."));
+    };
+    image.src = objectUrl;
+  });
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result);
+      resolve(value.slice(value.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(new Error("Could not read image."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function readDemoList<T>(key: string): T[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 function escapeHtml(value: string | number | null | undefined) {
@@ -232,7 +319,7 @@ function studentListReportHtml(students: StudentRow[], reportTitle: string) {
 
 function StudentsPage() {
   const { t } = useI18n();
-  const { primaryRole, isDemo } = useAuth();
+  const { user, primaryRole, isDemo } = useAuth();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
@@ -240,13 +327,58 @@ function StudentsPage() {
   const [classFilter, setClassFilter] = useState("all");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<StudentRow | null>(null);
+  const [editingStudent, setEditingStudent] = useState<StudentRow | null>(null);
+  const [avatarStudent, setAvatarStudent] = useState<StudentRow | null>(null);
+  const [passwordStudent, setPasswordStudent] = useState<StudentRow | null>(null);
 
   const isAdmin = primaryRole === "admin";
+  const isStudent = primaryRole === "student";
 
   const { data: students = [], isLoading } = useQuery({
-    queryKey: ["students", isDemo ? "demo" : "remote"],
+    queryKey: ["students", primaryRole, user?.id, isDemo ? "demo" : "remote"],
     queryFn: async () => {
-      if (isDemo) return readDemoStudents();
+      if (isDemo) {
+        const rows = readDemoStudents();
+        if (primaryRole === "student") {
+          const ownStudent = rows[0];
+          return ownStudent
+            ? rows.filter((student) => student.class_name === ownStudent.class_name)
+            : [];
+        }
+        if (primaryRole === "teacher") {
+          const teacher = readDemoList<{ id: string }>("studentsphere.demo.teachers")[0];
+          const classes = readDemoList<{ teacher_id?: string | null; name: string }>(
+            "studentsphere.demo.classes",
+          );
+          const assignedClassNames = new Set(
+            classes
+              .filter((classRow) => !teacher || classRow.teacher_id === teacher.id)
+              .map((classRow) => classRow.name),
+          );
+          return rows.filter((student) => assignedClassNames.has(student.class_name ?? ""));
+        }
+        return rows;
+      }
+
+      if (primaryRole === "student") {
+        const { data, error } = await supabase.rpc("list_student_classmates");
+        if (error) throw error;
+        return (data ?? []) as StudentRow[];
+      }
+
+      if (primaryRole === "teacher") {
+        const scope = await findTeacherClassScope(user);
+        const classNames = scope?.classNames ?? [];
+        if (classNames.length === 0) return [];
+
+        const { data, error } = await supabase
+          .from("students")
+          .select("*")
+          .in("class_name", classNames)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return (data ?? []) as StudentRow[];
+      }
 
       const { data, error } = await supabase
         .from("students")
@@ -294,6 +426,8 @@ function StudentsPage() {
 
   const printTitle =
     classFilter === "all" ? "បញ្ជីរាយនាមនិស្សិត" : `បញ្ជីរាយនាមនិស្សិត ថ្នាក់ ${classFilter}`;
+
+  const isOwnStudent = (student: StudentRow) => student.user_id === user?.id;
 
   const summary = useMemo(() => {
     return {
@@ -351,6 +485,32 @@ function StudentsPage() {
         }
       />
 
+      {isStudent && (
+        <div className="mb-5 grid grid-cols-3 gap-3">
+          <StudentSummaryCard
+            label={t("total")}
+            value={summary.total}
+            note="ក្នុងថ្នាក់"
+            icon={<Users className="h-4 w-4" />}
+            tone="primary"
+          />
+          <StudentSummaryCard
+            label={t("male")}
+            value={summary.male}
+            note="និស្សិតប្រុស"
+            icon={<Mars className="h-4 w-4" />}
+            tone="info"
+          />
+          <StudentSummaryCard
+            label={t("female")}
+            value={summary.female}
+            note="និស្សិតស្រី"
+            icon={<Venus className="h-4 w-4" />}
+            tone="success"
+          />
+        </div>
+      )}
+
       <SectionCard>
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">
@@ -378,49 +538,53 @@ function StudentsPage() {
               </button>
             ))}
           </div>
-          <button className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm hover:bg-muted">
-            <Filter className="h-4 w-4" /> {t("filter")}
-          </button>
+          {!isStudent && (
+            <button className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm hover:bg-muted">
+              <Filter className="h-4 w-4" /> {t("filter")}
+            </button>
+          )}
         </div>
-        <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(160px,220px)_repeat(3,minmax(120px,160px))]">
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Sort / filter by major
-            </label>
-            <select
-              value={majorFilter}
-              onChange={(event) => setMajorFilter(event.target.value)}
-              className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-            >
-              <option value="all">{t("all_majors")}</option>
-              {FLAT_MAJOR_OPTIONS.map((major) => (
-                <option key={major.value} value={major.value}>
-                  {major.label}
-                </option>
-              ))}
-            </select>
+        {!isStudent && (
+          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(160px,220px)_repeat(3,minmax(120px,160px))]">
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("sort_filter_major")}
+              </label>
+              <select
+                value={majorFilter}
+                onChange={(event) => setMajorFilter(event.target.value)}
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+              >
+                <option value="all">{t("all_majors")}</option>
+                {FLAT_MAJOR_OPTIONS.map((major) => (
+                  <option key={major.value} value={major.value}>
+                    {major.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("filter_by_class")}
+              </label>
+              <select
+                value={classFilter}
+                onChange={(event) => setClassFilter(event.target.value)}
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+              >
+                <option value="all">{t("all_classes")}</option>
+                {classOptions.map((className) => (
+                  <option key={className} value={className}>
+                    {className}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <SummaryCard label={t("total")} value={summary.total} />
+            <SummaryCard label={t("male")} value={summary.male} />
+            <SummaryCard label={t("female")} value={summary.female} />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Filter by class
-            </label>
-            <select
-              value={classFilter}
-              onChange={(event) => setClassFilter(event.target.value)}
-              className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-            >
-              <option value="all">All classes</option>
-              {classOptions.map((className) => (
-                <option key={className} value={className}>
-                  {className}
-                </option>
-              ))}
-            </select>
-          </div>
-          <SummaryCard label={t("total")} value={summary.total} />
-          <SummaryCard label={t("male")} value={summary.male} />
-          <SummaryCard label={t("female")} value={summary.female} />
-        </div>
+        )}
 
         {isLoading ? (
           <div className="flex h-40 items-center justify-center">
@@ -457,69 +621,101 @@ function StudentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((s) => (
-                  <tr
-                    key={s.id}
-                    className="group border-b border-border/60 transition-colors hover:bg-muted/40"
-                  >
-                    <td className="py-3 pr-4 font-mono text-xs">{s.student_code}</td>
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar name={s.full_name} />
-                        <div>
-                          <p className="font-semibold leading-tight">
-                            {s.full_name_en || s.full_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {s.full_name_km || t("khmer_name")}
-                          </p>
+                {filtered.map((s) => {
+                  const canViewDetails = primaryRole !== "student" || isOwnStudent(s);
+                  return (
+                    <tr
+                      key={s.id}
+                      className="group border-b border-border/60 transition-colors hover:bg-muted/40"
+                    >
+                      <td className="py-3 pr-4 font-mono text-xs">{s.student_code}</td>
+                      <td className="py-3 pr-4">
+                        <div className="flex items-center gap-3">
+                          <Avatar name={s.full_name_en || s.full_name} src={s.avatar_url} />
+                          <div>
+                            <p className="font-semibold leading-tight">
+                              {s.full_name_en || s.full_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {s.full_name_km || t("khmer_name")}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-3 pr-4 capitalize">{s.gender ?? "—"}</td>
-                    <td className="py-3 pr-4 whitespace-nowrap text-xs">
-                      {s.date_of_birth ?? "—"}
-                    </td>
-                    <td className="py-3 pr-4">{s.study_year ?? s.enrollment_year}</td>
-                    <td className="max-w-64 py-3 pr-4 text-xs">
-                      <span className="line-clamp-2">{s.major ?? "—"}</span>
-                    </td>
-                    <td className="py-3 pr-4 font-semibold">{s.class_name ?? "—"}</td>
-                    <td className="py-3 pr-4">
-                      <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
-                        {shiftLabel(s.shift, t)}
-                      </span>
-                    </td>
-                    <td className="max-w-48 py-3 pr-4 text-xs">
-                      <span className="line-clamp-2">{s.address ?? "—"}</span>
-                    </td>
-                    <td className="py-3 pr-4">
-                      <StatusPill status={s.status} />
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="flex justify-end gap-1.5">
-                        <button
-                          onClick={() => setSelectedStudent(s)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary hover:bg-primary/10"
-                          aria-label={`${t("view")} ${s.full_name}`}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        {isAdmin && (
-                          <button
-                            onClick={() => {
-                              if (confirm(`Delete ${s.full_name}?`)) deleteMut.mutate(s.id);
-                            }}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-destructive opacity-0 transition-opacity hover:bg-destructive/10 group-hover:opacity-100"
-                            aria-label={`${t("delete")} ${s.full_name}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3 pr-4 capitalize">{s.gender ?? "—"}</td>
+                      <td className="py-3 pr-4 whitespace-nowrap text-xs">
+                        {s.date_of_birth ?? "—"}
+                      </td>
+                      <td className="py-3 pr-4">{s.study_year ?? s.enrollment_year}</td>
+                      <td className="max-w-64 py-3 pr-4 text-xs">
+                        <span className="line-clamp-2">{s.major ?? "—"}</span>
+                      </td>
+                      <td className="py-3 pr-4 font-semibold">{s.class_name ?? "—"}</td>
+                      <td className="py-3 pr-4">
+                        <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
+                          {shiftLabel(s.shift, t)}
+                        </span>
+                      </td>
+                      <td className="max-w-48 py-3 pr-4 text-xs">
+                        <span className="line-clamp-2">{s.address ?? "—"}</span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <StatusPill status={s.status} />
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex justify-end gap-1.5">
+                          {canViewDetails && (
+                            <button
+                              onClick={() => setSelectedStudent(s)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary hover:bg-primary/10"
+                              aria-label={`${t("view")} ${s.full_name}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                          )}
+                          {(isAdmin || isOwnStudent(s)) && (
+                            <button
+                              onClick={() => setAvatarStudent(s)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-success hover:bg-success/10"
+                              aria-label={`${t("upload_profile_image")} ${s.full_name}`}
+                              title={t("upload_profile_image")}
+                            >
+                              <Camera className="h-4 w-4" />
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <>
+                              <button
+                                onClick={() => setEditingStudent(s)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-info opacity-0 transition-opacity hover:bg-info/10 group-hover:opacity-100"
+                                aria-label={`Update ${s.full_name}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => setPasswordStudent(s)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-warning opacity-0 transition-opacity hover:bg-warning/10 group-hover:opacity-100"
+                                aria-label={`Reset password for ${s.full_name}`}
+                                title="Reset password"
+                              >
+                                <KeyRound className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Delete ${s.full_name}?`)) deleteMut.mutate(s.id);
+                                }}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-destructive opacity-0 transition-opacity hover:bg-destructive/10 group-hover:opacity-100"
+                                aria-label={`${t("delete")} ${s.full_name}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -531,9 +727,169 @@ function StudentsPage() {
       </SectionCard>
 
       {showAdd && <AddStudentModal isDemo={isDemo} onClose={() => setShowAdd(false)} />}
+      {editingStudent && (
+        <EditStudentModal
+          student={editingStudent}
+          isDemo={isDemo}
+          onClose={() => setEditingStudent(null)}
+        />
+      )}
       {selectedStudent && (
         <StudentInfoModal student={selectedStudent} onClose={() => setSelectedStudent(null)} />
       )}
+      {avatarStudent && (
+        <StudentAvatarModal
+          student={avatarStudent}
+          isDemo={isDemo}
+          onClose={() => setAvatarStudent(null)}
+        />
+      )}
+      {passwordStudent && (
+        <ResetPasswordModal
+          title="Reset student password"
+          subtitle={`${passwordStudent.full_name_en || passwordStudent.full_name} · ${passwordStudent.student_code}`}
+          userId={passwordStudent.user_id}
+          isDemo={isDemo}
+          onClose={() => setPasswordStudent(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function StudentAvatarModal({
+  student,
+  isDemo,
+  onClose,
+}: {
+  student: StudentRow;
+  isDemo: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const { session, refresh } = useAuth();
+  const qc = useQueryClient();
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState(student.avatar_url ?? "");
+
+  const uploadAvatar = useMutation({
+    mutationFn: async () => {
+      if (!file) throw new Error(t("choose_image"));
+      const blob = await compressAvatar(file);
+
+      if (isDemo) {
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error(t("choose_image")));
+          reader.readAsDataURL(blob);
+        });
+        writeDemoStudents(
+          readDemoStudents().map((row) =>
+            row.id === student.id ? { ...row, avatar_url: dataUrl } : row,
+          ),
+        );
+        return;
+      }
+
+      if (!session?.access_token) {
+        throw new Error(t("session_expired_login"));
+      }
+
+      await uploadStudentAvatar({
+        data: {
+          accessToken: session.access_token,
+          studentId: student.id,
+          imageBase64: await blobToBase64(blob),
+        },
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["students"] });
+      qc.invalidateQueries({ queryKey: ["student-dashboard"] });
+      void refresh();
+      toast.success(t("profile_image_updated"));
+      onClose();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-card"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display text-lg font-bold">{t("upload_profile_image")}</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {student.full_name_en || student.full_name} · {student.student_code}
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-md p-2 hover:bg-muted" aria-label={t("close")}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex flex-col items-center">
+          {preview ? (
+            <img
+              src={preview}
+              alt={t("upload_profile_image")}
+              className="h-32 w-32 rounded-xl object-cover ring-1 ring-border"
+            />
+          ) : (
+            <Avatar
+              name={student.full_name_en || student.full_name}
+              className="h-32 w-32 rounded-xl text-2xl"
+            />
+          )}
+          <label className="mt-5 inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-semibold hover:bg-muted">
+            <Camera className="h-4 w-4" />
+            {t("choose_image")}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              onChange={(event) => {
+                const selected = event.currentTarget.files?.[0] ?? null;
+                setFile(selected);
+                if (selected) setPreview(URL.createObjectURL(selected));
+              }}
+            />
+          </label>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            {t("image_upload_hint")}
+          </p>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 rounded-lg border border-border px-4 text-sm font-semibold hover:bg-muted"
+          >
+            {t("cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={() => uploadAvatar.mutate()}
+            disabled={!file || uploadAvatar.isPending}
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {uploadAvatar.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
+            {t("upload")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -642,42 +998,52 @@ function InfoField({ label, value }: { label: string; value: ReactNode }) {
 
 function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => void }) {
   const { t } = useI18n();
+  const { session } = useAuth();
   const qc = useQueryClient();
-  const [form, setForm] = useState({
-    student_code: "",
-    full_name_km: "",
-    full_name_en: "",
-    gender: "male",
-    date_of_birth: "",
-    nationality: "Khmer",
-    place_of_birth: ADDRESS_OPTIONS[0],
-    father_name: "",
-    father_job: "",
-    mother_name: "",
-    mother_job: "",
-    phone: "",
-    academic: ACADEMIC_OPTIONS[0],
-    study_year: 1,
-    major: MAJOR_OPTIONS[0].options[0].value,
-    student_type: STUDENT_TYPE_OPTIONS[0],
-    class_name: "",
-    shift: "morning",
-    pay_year1: "not_yet",
-    pay_year2: "not_yet",
-    pay_year3: "not_yet",
-    pay_year4: "not_yet",
-    email: "",
-    password: "",
-    avatar_url: "",
-    address: ADDRESS_OPTIONS[0],
+  const [form, setForm] = useState(() => {
+    const enrollmentYear = new Date().getFullYear();
+    return {
+      student_code: generateSchoolAccountId("student", enrollmentYear),
+      full_name_km: "",
+      full_name_en: "",
+      gender: "male",
+      date_of_birth: "",
+      nationality: "Khmer",
+      place_of_birth: ADDRESS_OPTIONS[0],
+      father_name: "",
+      father_job: "",
+      mother_name: "",
+      mother_job: "",
+      phone: "",
+      academic: ACADEMIC_OPTIONS[0],
+      enrollment_year: enrollmentYear,
+      study_year: 1,
+      major: MAJOR_OPTIONS[0].options[0].value,
+      student_type: STUDENT_TYPE_OPTIONS[0],
+      class_name: "",
+      shift: "morning",
+      pay_year1: "not_yet",
+      pay_year2: "not_yet",
+      pay_year3: "not_yet",
+      pay_year4: "not_yet",
+      email: "",
+      password: "",
+      avatar_url: "",
+      address: ADDRESS_OPTIONS[0],
+    };
   });
 
   const mut = useMutation({
     mutationFn: async () => {
       if (isDemo) {
+        const enrollmentYear = Number(form.enrollment_year) || new Date().getFullYear();
+        const studentCode =
+          form.student_code.trim().toUpperCase().replaceAll(".", "-") ||
+          generateSchoolAccountId("student", enrollmentYear);
         const newStudent: StudentRow = {
           id: `demo-student-${Date.now()}`,
-          student_code: form.student_code,
+          user_id: `demo-student-user-${Date.now()}`,
+          student_code: studentCode,
           full_name: form.full_name_en || form.full_name_km,
           full_name_km: form.full_name_km || null,
           full_name_en: form.full_name_en || null,
@@ -703,7 +1069,7 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
           pay_year3: form.pay_year3 || null,
           pay_year4: form.pay_year4 || null,
           address: form.address || null,
-          enrollment_year: new Date().getFullYear(),
+          enrollment_year: enrollmentYear,
           status: "active",
           created_at: new Date().toISOString(),
         };
@@ -712,40 +1078,48 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
         return;
       }
 
-      const { error } = await supabase.from("students").insert({
-        student_code: form.student_code,
-        full_name: form.full_name_en || form.full_name_km,
-        full_name_km: form.full_name_km || null,
-        full_name_en: form.full_name_en || null,
-        email: form.email || null,
-        phone: form.phone || null,
-        gender: form.gender || null,
-        date_of_birth: form.date_of_birth || null,
-        avatar_url: form.avatar_url || null,
-        nationality: form.nationality || null,
-        place_of_birth: form.place_of_birth || null,
-        father_name: form.father_name || null,
-        father_job: form.father_job || null,
-        mother_name: form.mother_name || null,
-        mother_job: form.mother_job || null,
-        academic: form.academic || null,
-        study_year: Number(form.study_year),
-        major: form.major || null,
-        student_type: form.student_type || null,
-        class_name: form.class_name || null,
-        shift: form.shift || null,
-        pay_year1: form.pay_year1 || null,
-        pay_year2: form.pay_year2 || null,
-        pay_year3: form.pay_year3 || null,
-        pay_year4: form.pay_year4 || null,
-        address: form.address || null,
-        enrollment_year: new Date().getFullYear(),
-        status: "active",
+      if (!session?.access_token) {
+        throw new Error("Your admin session expired. Please log in again.");
+      }
+
+      await createStudentAccount({
+        data: {
+          accessToken: session.access_token,
+          student: {
+            password: form.password,
+            student_code: form.student_code.trim().replaceAll(".", "-"),
+            enrollment_year: Number(form.enrollment_year) || new Date().getFullYear(),
+            full_name: form.full_name_en || form.full_name_km,
+            full_name_km: form.full_name_km || null,
+            full_name_en: form.full_name_en || null,
+            email: form.email || null,
+            phone: form.phone || null,
+            gender: form.gender || null,
+            date_of_birth: form.date_of_birth || null,
+            avatar_url: form.avatar_url || null,
+            nationality: form.nationality || null,
+            place_of_birth: form.place_of_birth || null,
+            father_name: form.father_name || null,
+            father_job: form.father_job || null,
+            mother_name: form.mother_name || null,
+            mother_job: form.mother_job || null,
+            academic: form.academic || null,
+            study_year: Number(form.study_year),
+            major: form.major || null,
+            student_type: form.student_type || null,
+            class_name: form.class_name || null,
+            shift: form.shift || null,
+            pay_year1: form.pay_year1 || null,
+            pay_year2: form.pay_year2 || null,
+            pay_year3: form.pay_year3 || null,
+            pay_year4: form.pay_year4 || null,
+            address: form.address || null,
+          },
+        },
       });
-      if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["students", isDemo ? "demo" : "remote"] });
+      qc.invalidateQueries({ queryKey: ["students"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["dashboard-recent-students"] });
       toast.success(isDemo ? "Demo student added" : "Student added");
@@ -775,21 +1149,24 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!form.student_code.trim()) return toast.error(t("student_id"));
             if (!form.full_name_km.trim()) return toast.error(t("khmer_name"));
             if (!form.full_name_en.trim()) return toast.error(t("english_name"));
             if (!form.major.trim()) return toast.error(t("major"));
             if (!form.class_name.trim()) return toast.error(t("class"));
+            if (!form.password.trim()) return toast.error(t("password"));
             mut.mutate();
           }}
           className="overflow-y-auto p-6"
         >
           <div className="grid gap-3 md:grid-cols-3">
             <Input
-              label={`${t("student_id")} *`}
-              placeholder="STD24-00048"
+              label={t("student_id")}
+              placeholder={`Auto: RULE${String(form.enrollment_year).slice(-2)}-1234`}
               value={form.student_code}
-              onChange={(v) => setForm({ ...form, student_code: v })}
+              onChange={(v) => setForm({ ...form, student_code: v.toUpperCase() })}
+              autoComplete="off"
+              name="student-code"
+              readOnly
             />
             <Input
               label={`${t("name_in_khmer")} *`}
@@ -865,6 +1242,21 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
               onChange={(v) => setForm({ ...form, academic: v })}
               options={ACADEMIC_OPTIONS.map((academic) => ({ value: academic, label: academic }))}
             />
+            <Input
+              label="Enrollment year *"
+              type="number"
+              value={String(form.enrollment_year)}
+              onChange={(v) =>
+                setForm({
+                  ...form,
+                  enrollment_year: Number(v) || new Date().getFullYear(),
+                  student_code: generateSchoolAccountId(
+                    "student",
+                    Number(v) || new Date().getFullYear(),
+                  ),
+                })
+              }
+            />
             <GroupedSelect
               label={`${t("major")} *`}
               value={form.major}
@@ -929,7 +1321,7 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
               onChange={(v) => setForm({ ...form, email: v })}
             />
             <Input
-              label={t("password")}
+              label={`${t("password")} *`}
               type="password"
               value={form.password}
               onChange={(v) => setForm({ ...form, password: v })}
@@ -962,6 +1354,328 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
               className="flex h-11 min-w-36 items-center justify-center gap-2 rounded-xl gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:shadow-glow disabled:opacity-60"
             >
               {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("save_student")}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditStudentModal({
+  student,
+  isDemo,
+  onClose,
+}: {
+  student: StudentRow;
+  isDemo: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const qc = useQueryClient();
+  const [form, setForm] = useState(() => ({
+    student_code: student.student_code,
+    full_name_km: student.full_name_km ?? "",
+    full_name_en: student.full_name_en ?? student.full_name,
+    gender: student.gender ?? "male",
+    date_of_birth: student.date_of_birth ?? "",
+    nationality: student.nationality ?? "Khmer",
+    place_of_birth: student.place_of_birth ?? ADDRESS_OPTIONS[0],
+    father_name: student.father_name ?? "",
+    father_job: student.father_job ?? "",
+    mother_name: student.mother_name ?? "",
+    mother_job: student.mother_job ?? "",
+    phone: student.phone ?? "",
+    academic: student.academic ?? ACADEMIC_OPTIONS[0],
+    enrollment_year: student.enrollment_year,
+    study_year: student.study_year ?? 1,
+    major: student.major ?? MAJOR_OPTIONS[0].options[0].value,
+    student_type: student.student_type ?? STUDENT_TYPE_OPTIONS[0],
+    class_name: student.class_name ?? "",
+    shift: student.shift ?? "morning",
+    pay_year1: student.pay_year1 ?? "not_yet",
+    pay_year2: student.pay_year2 ?? "not_yet",
+    pay_year3: student.pay_year3 ?? "not_yet",
+    pay_year4: student.pay_year4 ?? "not_yet",
+    email: student.email ?? "",
+    avatar_url: student.avatar_url ?? "",
+    address: student.address ?? ADDRESS_OPTIONS[0],
+    status: student.status,
+  }));
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        student_code: form.student_code.trim().toUpperCase().replaceAll(".", "-"),
+        full_name: form.full_name_en || form.full_name_km,
+        full_name_km: form.full_name_km || null,
+        full_name_en: form.full_name_en || null,
+        email: form.email || null,
+        phone: form.phone || null,
+        gender: form.gender || null,
+        date_of_birth: form.date_of_birth || null,
+        avatar_url: form.avatar_url || null,
+        nationality: form.nationality || null,
+        place_of_birth: form.place_of_birth || null,
+        father_name: form.father_name || null,
+        father_job: form.father_job || null,
+        mother_name: form.mother_name || null,
+        mother_job: form.mother_job || null,
+        academic: form.academic || null,
+        enrollment_year: Number(form.enrollment_year) || new Date().getFullYear(),
+        study_year: Number(form.study_year) || null,
+        major: form.major || null,
+        student_type: form.student_type || null,
+        class_name: form.class_name || null,
+        shift: form.shift || null,
+        pay_year1: form.pay_year1 || null,
+        pay_year2: form.pay_year2 || null,
+        pay_year3: form.pay_year3 || null,
+        pay_year4: form.pay_year4 || null,
+        address: form.address || null,
+        status: form.status,
+      };
+
+      if (isDemo) {
+        writeDemoStudents(
+          readDemoStudents().map((row) =>
+            row.id === student.id
+              ? {
+                  ...row,
+                  ...payload,
+                  created_at: row.created_at,
+                }
+              : row,
+          ),
+        );
+        return;
+      }
+
+      const { error } = await supabase.from("students").update(payload).eq("id", student.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["students"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-recent-students"] });
+      toast.success("Student information updated");
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[88vh] w-full max-w-5xl flex-col rounded-2xl border border-border bg-card shadow-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div>
+            <h3 className="font-display text-lg font-bold">Update student information</h3>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">{student.student_code}</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!form.full_name_km.trim()) return toast.error(t("khmer_name"));
+            if (!form.full_name_en.trim()) return toast.error(t("english_name"));
+            if (!form.major.trim()) return toast.error(t("major"));
+            if (!form.class_name.trim()) return toast.error(t("class"));
+            mut.mutate();
+          }}
+          className="overflow-y-auto p-6"
+        >
+          <div className="grid gap-3 md:grid-cols-3">
+            <Input
+              label={t("student_id")}
+              value={form.student_code}
+              onChange={(v) => setForm({ ...form, student_code: v.toUpperCase() })}
+              autoComplete="off"
+              name="edit-student-code"
+            />
+            <Input
+              label={`${t("name_in_khmer")} *`}
+              value={form.full_name_km}
+              onChange={(v) => setForm({ ...form, full_name_km: v })}
+            />
+            <Input
+              label={`${t("name_in_latin")} *`}
+              value={form.full_name_en}
+              onChange={(v) => setForm({ ...form, full_name_en: v.toUpperCase() })}
+            />
+            <Select
+              label={`${t("gender")} *`}
+              value={form.gender}
+              onChange={(v) => setForm({ ...form, gender: v })}
+              options={[
+                { value: "male", label: t("male") },
+                { value: "female", label: t("female") },
+                { value: "other", label: t("other") },
+              ]}
+            />
+            <Select
+              label={t("nationality")}
+              value={form.nationality}
+              onChange={(v) => setForm({ ...form, nationality: v })}
+              options={NATIONALITY_OPTIONS.map((nationality) => ({
+                value: nationality,
+                label: nationality,
+              }))}
+            />
+            <Input
+              label={t("dob")}
+              type="date"
+              value={form.date_of_birth}
+              onChange={(v) => setForm({ ...form, date_of_birth: v })}
+            />
+            <Select
+              label={t("place_of_birth")}
+              value={form.place_of_birth}
+              onChange={(v) => setForm({ ...form, place_of_birth: v })}
+              options={ADDRESS_OPTIONS.map((address) => ({ value: address, label: address }))}
+            />
+            <Input
+              label={t("father_name")}
+              value={form.father_name}
+              onChange={(v) => setForm({ ...form, father_name: v })}
+            />
+            <Input
+              label={t("father_job")}
+              value={form.father_job}
+              onChange={(v) => setForm({ ...form, father_job: v })}
+            />
+            <Input
+              label={t("mother_name")}
+              value={form.mother_name}
+              onChange={(v) => setForm({ ...form, mother_name: v })}
+            />
+            <Input
+              label={t("mother_job")}
+              value={form.mother_job}
+              onChange={(v) => setForm({ ...form, mother_job: v })}
+            />
+            <Input label={t("phone")} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+            <Select
+              label={t("academic")}
+              value={form.academic}
+              onChange={(v) => setForm({ ...form, academic: v })}
+              options={ACADEMIC_OPTIONS.map((academic) => ({ value: academic, label: academic }))}
+            />
+            <Input
+              label="Enrollment year *"
+              type="number"
+              value={String(form.enrollment_year)}
+              onChange={(v) => setForm({ ...form, enrollment_year: Number(v) || new Date().getFullYear() })}
+            />
+            <GroupedSelect
+              label={`${t("major")} *`}
+              value={form.major}
+              onChange={(v) => setForm({ ...form, major: v })}
+              groups={MAJOR_OPTIONS}
+            />
+            <Select
+              label={t("type_of_student")}
+              value={form.student_type}
+              onChange={(v) => setForm({ ...form, student_type: v })}
+              options={STUDENT_TYPE_OPTIONS.map((type) => ({ value: type, label: type }))}
+            />
+            <Input
+              label={`${t("class")} *`}
+              value={form.class_name}
+              onChange={(v) => setForm({ ...form, class_name: v.toUpperCase() })}
+            />
+            <Select
+              label={`${t("shift")} *`}
+              value={form.shift}
+              onChange={(v) => setForm({ ...form, shift: v })}
+              options={SHIFT_OPTIONS.map((shift) => ({
+                value: shift.value,
+                label: t(shift.labelKey),
+              }))}
+            />
+            <Input
+              label={`${t("year")} *`}
+              type="number"
+              value={String(form.study_year)}
+              onChange={(v) => setForm({ ...form, study_year: Number(v) })}
+            />
+            <Select
+              label={t("pay_year1")}
+              value={form.pay_year1}
+              onChange={(v) => setForm({ ...form, pay_year1: v })}
+              options={PAY_YEAR_OPTIONS}
+            />
+            <Select
+              label={t("pay_year2")}
+              value={form.pay_year2}
+              onChange={(v) => setForm({ ...form, pay_year2: v })}
+              options={PAY_YEAR_OPTIONS}
+            />
+            <Select
+              label={t("pay_year3")}
+              value={form.pay_year3}
+              onChange={(v) => setForm({ ...form, pay_year3: v })}
+              options={PAY_YEAR_OPTIONS}
+            />
+            <Select
+              label={t("pay_year4")}
+              value={form.pay_year4}
+              onChange={(v) => setForm({ ...form, pay_year4: v })}
+              options={PAY_YEAR_OPTIONS}
+            />
+            <Input
+              label={t("email")}
+              type="email"
+              value={form.email}
+              onChange={(v) => setForm({ ...form, email: v })}
+            />
+            <Input
+              label={t("image")}
+              value={form.avatar_url}
+              onChange={(v) => setForm({ ...form, avatar_url: v })}
+            />
+            <Select
+              label={t("status")}
+              value={form.status}
+              onChange={(v) => setForm({ ...form, status: v as StudentRow["status"] })}
+              options={[
+                { value: "active", label: t("active") },
+                { value: "inactive", label: t("inactive") },
+                { value: "graduated", label: "Graduated" },
+                { value: "suspended", label: "Suspended" },
+              ]}
+            />
+            <div className="md:col-span-3">
+              <Select
+                label={t("address")}
+                value={form.address}
+                onChange={(v) => setForm({ ...form, address: v })}
+                options={ADDRESS_OPTIONS.map((address) => ({ value: address, label: address }))}
+              />
+            </div>
+          </div>
+          <div className="mt-5 flex justify-end gap-2 border-t border-border pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-11 rounded-xl border border-border bg-surface px-4 text-sm font-semibold hover:bg-muted"
+            >
+              {t("cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={mut.isPending}
+              className="flex h-11 min-w-36 items-center justify-center gap-2 rounded-xl gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:shadow-glow disabled:opacity-60"
+            >
+              {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update student"}
             </button>
           </div>
         </form>
@@ -1012,6 +1726,41 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
   );
 }
 
+function StudentSummaryCard({
+  label,
+  value,
+  note,
+  icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  note: string;
+  icon: ReactNode;
+  tone: "primary" | "info" | "success";
+}) {
+  const tones = {
+    primary: "bg-primary/10 text-primary",
+    info: "bg-info/10 text-info",
+    success: "bg-success/10 text-success",
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-3.5 sm:p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-muted-foreground">{label}</p>
+          <p className="mt-1 font-display text-xl font-bold text-foreground sm:text-2xl">{value}</p>
+          <p className="mt-1 hidden text-[11px] text-muted-foreground sm:block">{note}</p>
+        </div>
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${tones[tone]}`}>
+          {icon}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function GroupedSelect({
   label,
   value,
@@ -1053,12 +1802,18 @@ function Input({
   onChange,
   type = "text",
   placeholder,
+  autoComplete,
+  name,
+  readOnly = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
   placeholder?: string;
+  autoComplete?: string;
+  name?: string;
+  readOnly?: boolean;
 }) {
   return (
     <div>
@@ -1067,10 +1822,16 @@ function Input({
       </label>
       <input
         type={type}
+        name={name}
         value={value}
         placeholder={placeholder}
+        autoComplete={autoComplete}
+        readOnly={readOnly}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+        className={
+          "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary " +
+          (readOnly ? "cursor-default text-muted-foreground" : "")
+        }
       />
     </div>
   );

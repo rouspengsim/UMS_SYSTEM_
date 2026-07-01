@@ -13,9 +13,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { pageTitle } from "@/lib/brand";
+import { findTeacherClassScope } from "@/lib/teacher-scope";
 
 export const Route = createFileRoute("/app/subjects")({
-  head: () => ({ meta: [{ title: "Subjects — RULE" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Subjects") }] }),
   component: SubjectsPage,
 });
 
@@ -35,20 +37,70 @@ function normalizeSubjectId(value: string) {
   return value.trim().replace(/\s+/g, "_");
 }
 
+function readDemoList<T>(key: string): T[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 function SubjectsPage() {
   const { t } = useI18n();
-  const { primaryRole, isDemo } = useAuth();
+  const { user, primaryRole, isDemo } = useAuth();
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<SubjectRecord | null>(null);
   const [query, setQuery] = useState("");
   const isAdmin = primaryRole === "admin";
+  const isTeacher = primaryRole === "teacher";
 
-  const queryKey = ["subjects", isDemo ? "demo" : "remote"];
+  const queryKey = ["subjects", primaryRole, user?.id, isDemo ? "demo" : "remote"];
   const { data: subjects = [], isLoading } = useQuery({
     queryKey,
     queryFn: async () => {
-      if (isDemo) return readDemoSubjects();
+      if (isDemo) {
+        const rows = readDemoSubjects();
+        if (!isTeacher) return rows;
+
+        const teacher = readDemoList<{ id: string }>("studentsphere.demo.teachers")[0];
+        const classSubjectCodes = new Set(
+          readDemoList<{ teacher_id?: string | null; subject_code?: string | null }>(
+            "studentsphere.demo.classes",
+          )
+            .filter((classRow) => !teacher || classRow.teacher_id === teacher.id)
+            .map((classRow) => classRow.subject_code?.trim())
+            .filter((code): code is string => !!code),
+        );
+        return rows.filter((subject) => classSubjectCodes.has(subject.subject_id));
+      }
+
+      if (isTeacher) {
+        const scope = await findTeacherClassScope(user);
+        const subjectCodes = scope?.subjectCodes ?? [];
+        if (subjectCodes.length === 0) return [];
+
+        const { data, error } = await supabase
+          .from("subjects")
+          .select("id,subject_id,subject_name,description,created_at,updated_at")
+          .in("subject_id", subjectCodes)
+          .order("subject_id", { ascending: true });
+        if (error) throw error;
+
+        const found = (data ?? []) as SubjectRecord[];
+        const foundCodes = new Set(found.map((subject) => subject.subject_id));
+        const missing = subjectCodes
+          .filter((code) => !foundCodes.has(code))
+          .map((code) => ({
+            id: `teacher-subject-${code}`,
+            subject_id: code,
+            subject_name: code,
+            description: null,
+          }));
+        return [...found, ...missing];
+      }
 
       const { data, error } = await supabase
         .from("subjects")

@@ -336,6 +336,9 @@ export type Database = {
           id: string;
           is_read: boolean;
           kind: Database["public"]["Enums"]["notification_kind"];
+          media_type: string | null;
+          media_url: string | null;
+          target_role: Database["public"]["Enums"]["app_role"] | null;
           target_user_id: string | null;
           title: string;
         };
@@ -346,6 +349,9 @@ export type Database = {
           id?: string;
           is_read?: boolean;
           kind?: Database["public"]["Enums"]["notification_kind"];
+          media_type?: string | null;
+          media_url?: string | null;
+          target_role?: Database["public"]["Enums"]["app_role"] | null;
           target_user_id?: string | null;
           title: string;
         };
@@ -356,6 +362,9 @@ export type Database = {
           id?: string;
           is_read?: boolean;
           kind?: Database["public"]["Enums"]["notification_kind"];
+          media_type?: string | null;
+          media_url?: string | null;
+          target_role?: Database["public"]["Enums"]["app_role"] | null;
           target_user_id?: string | null;
           title?: string;
         };
@@ -772,12 +781,52 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      admin_create_school_auth_account: {
+        Args: {
+          p_contact_email?: string | null;
+          p_enrollment_year?: number | null;
+          p_full_name: string;
+          p_login_code?: string | null;
+          p_password: string;
+          p_role: Database["public"]["Enums"]["app_role"];
+        };
+        Returns: {
+          user_id: string;
+          login_code: string;
+          login_email: string;
+        }[];
+      };
+      generate_school_login_code: {
+        Args: {
+          p_enrollment_year?: number | null;
+          p_role: Database["public"]["Enums"]["app_role"];
+        };
+        Returns: string;
+      };
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"];
           _user_id: string;
         };
         Returns: boolean;
+      };
+      list_student_classmates: {
+        Args: Record<PropertyKey, never>;
+        Returns: Database["public"]["Tables"]["students"]["Row"][];
+      };
+      set_student_avatar: {
+        Args: {
+          p_avatar_url: string;
+          p_student_id: string;
+        };
+        Returns: undefined;
+      };
+      school_account_login_email: {
+        Args: {
+          p_login_code: string;
+          p_role: Database["public"]["Enums"]["app_role"];
+        };
+        Returns: string;
       };
     };
     Enums: {
