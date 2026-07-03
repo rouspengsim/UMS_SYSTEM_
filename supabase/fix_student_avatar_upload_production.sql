@@ -1,4 +1,12 @@
--- Student profile images: students manage their own image, admins manage any student image.
+-- Production student avatar upload fix.
+-- Run this by itself in the hosted Supabase SQL Editor when image upload says:
+-- "new row violates row-level security policy".
+
+ALTER TABLE public.students
+  ADD COLUMN IF NOT EXISTS avatar_url text;
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS avatar_url text;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -20,18 +28,24 @@ DROP POLICY IF EXISTS "Student avatars update" ON storage.objects;
 DROP POLICY IF EXISTS "Student avatars delete" ON storage.objects;
 
 CREATE POLICY "Student avatars read"
-  ON storage.objects FOR SELECT TO authenticated
+  ON storage.objects
+  FOR SELECT
+  TO authenticated
   USING (bucket_id = 'student-avatars');
 
 CREATE POLICY "Student avatars insert"
-  ON storage.objects FOR INSERT TO authenticated
+  ON storage.objects
+  FOR INSERT
+  TO authenticated
   WITH CHECK (
     bucket_id = 'student-avatars'
     AND (storage.foldername(name))[1] = auth.uid()::text
   );
 
 CREATE POLICY "Student avatars update"
-  ON storage.objects FOR UPDATE TO authenticated
+  ON storage.objects
+  FOR UPDATE
+  TO authenticated
   USING (
     bucket_id = 'student-avatars'
     AND (storage.foldername(name))[1] = auth.uid()::text
@@ -42,7 +56,9 @@ CREATE POLICY "Student avatars update"
   );
 
 CREATE POLICY "Student avatars delete"
-  ON storage.objects FOR DELETE TO authenticated
+  ON storage.objects
+  FOR DELETE
+  TO authenticated
   USING (
     bucket_id = 'student-avatars'
     AND (storage.foldername(name))[1] = auth.uid()::text
@@ -91,3 +107,22 @@ $$;
 GRANT EXECUTE ON FUNCTION public.set_student_avatar(uuid, text) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
+
+SELECT
+  EXISTS (
+    SELECT 1
+    FROM storage.buckets
+    WHERE id = 'student-avatars'
+      AND public = true
+  ) AS student_avatars_bucket_ready,
+  count(*) FILTER (
+    WHERE policyname IN (
+      'Student avatars read',
+      'Student avatars insert',
+      'Student avatars update',
+      'Student avatars delete'
+    )
+  ) AS student_avatar_policy_count
+FROM pg_policies
+WHERE schemaname = 'storage'
+  AND tablename = 'objects';

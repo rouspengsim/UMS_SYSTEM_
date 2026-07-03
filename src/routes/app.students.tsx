@@ -27,7 +27,6 @@ import { ADDRESS_OPTIONS, FLAT_MAJOR_OPTIONS, MAJOR_OPTIONS } from "@/lib/academ
 import { generateSchoolAccountId } from "@/lib/account-ids";
 import { pageTitle } from "@/lib/brand";
 import { createStudentAccount } from "@/lib/student-accounts";
-import { uploadStudentAvatar } from "@/lib/user-accounts";
 import { ResetPasswordModal } from "@/components/app/reset-password-modal";
 import { findTeacherClassScope } from "@/lib/teacher-scope";
 
@@ -147,13 +146,10 @@ function compressAvatar(file: File): Promise<Blob> {
   });
 }
 
-function blobToBase64(blob: Blob): Promise<string> {
+function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      const value = String(reader.result);
-      resolve(value.slice(value.indexOf(",") + 1));
-    };
+    reader.onload = () => resolve(String(reader.result));
     reader.onerror = () => reject(new Error("Could not read image."));
     reader.readAsDataURL(blob);
   });
@@ -776,14 +772,9 @@ function StudentAvatarModal({
     mutationFn: async () => {
       if (!file) throw new Error(t("choose_image"));
       const blob = await compressAvatar(file);
+      const dataUrl = await blobToDataUrl(blob);
 
       if (isDemo) {
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = () => reject(new Error(t("choose_image")));
-          reader.readAsDataURL(blob);
-        });
         writeDemoStudents(
           readDemoStudents().map((row) =>
             row.id === student.id ? { ...row, avatar_url: dataUrl } : row,
@@ -792,17 +783,26 @@ function StudentAvatarModal({
         return;
       }
 
-      if (!session?.access_token) {
+      if (!session?.access_token || !session.user?.id) {
         throw new Error(t("session_expired_login"));
       }
 
-      await uploadStudentAvatar({
-        data: {
-          accessToken: session.access_token,
-          studentId: student.id,
-          imageBase64: await blobToBase64(blob),
-        },
+      const { error: avatarError } = await supabase.rpc("set_student_avatar", {
+        p_student_id: student.id,
+        p_avatar_url: dataUrl,
       });
+      if (avatarError) {
+        const missingRpc =
+          avatarError.code === "PGRST202" ||
+          avatarError.message.toLowerCase().includes("schema cache");
+        if (!missingRpc) throw avatarError;
+
+        const { error: updateError } = await supabase
+          .from("students")
+          .update({ avatar_url: dataUrl })
+          .eq("id", student.id);
+        if (updateError) throw updateError;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["students"] });

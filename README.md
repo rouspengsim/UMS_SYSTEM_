@@ -68,7 +68,7 @@ Required environment variables:
 ```sh
 SUPABASE_URL="https://your-project.supabase.co"
 SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
-SUPABASE_SERVICE_ROLE_KEY="your-service-role-key-for-local-repair-only"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
 VITE_SUPABASE_URL="https://your-project.supabase.co"
 VITE_SUPABASE_PUBLISHABLE_KEY="your-publishable-key"
 VITE_SUPABASE_PROJECT_ID="your-project-id"
@@ -80,7 +80,9 @@ If the seeded admin account returns `Database error querying schema`, add the se
 npm run repair:admin
 ```
 
-Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser/client deployment variables.
+Keep `SUPABASE_SERVICE_ROLE_KEY` server-only. It is required for trusted server
+actions such as student avatar uploads and admin account management, but it must
+never be referenced from browser/client code.
 
 ## Production Build
 
@@ -95,4 +97,14 @@ This app is configured for TanStack Start on Vercel with Nitro.
 1. Push the project to GitHub.
 2. Import the repository in Vercel.
 3. Add all Supabase and `VITE_*` branding environment variables.
+   Required Supabase variables in Vercel:
+   - `SUPABASE_URL`
+   - `SUPABASE_PUBLISHABLE_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+   - `VITE_SUPABASE_PROJECT_ID`
+   
+   `SUPABASE_SERVICE_ROLE_KEY` must be added as a normal server environment
+   variable in Vercel, not with a `VITE_` prefix. Redeploy after adding it.
 4. Deploy with the default project settings. Vercel runs `npm install` and `npm run build`.
