@@ -1,7 +1,6 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { decodeTimetableCell } from "@/lib/timetable-cell";
-import { getTeacherClassScope } from "@/lib/teacher-scope-server";
 
 export type CurrentTeacher = {
   id: string;
@@ -37,7 +36,10 @@ function metadataLoginCode(user: SupabaseUser | null | undefined) {
 }
 
 function generatedTeacherLoginPrefix(staffCode: string) {
-  const normalized = staffCode.trim().toLowerCase().replace(/[^a-z0-9]+/g, ".");
+  const normalized = staffCode
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".");
   return `teacher.${normalized}@`;
 }
 
@@ -47,7 +49,13 @@ function normalizeMatchValue(value: string | null | undefined) {
 
 function teacherMatchValues(teacher: CurrentTeacher | null | undefined) {
   return new Set(
-    [teacher?.id, teacher?.staff_code, teacher?.full_name, teacher?.full_name_en, teacher?.full_name_km]
+    [
+      teacher?.id,
+      teacher?.staff_code,
+      teacher?.full_name,
+      teacher?.full_name_en,
+      teacher?.full_name_km,
+    ]
       .map(normalizeMatchValue)
       .filter(Boolean),
   );
@@ -60,6 +68,13 @@ type TimetableScopeSlot = {
   teacher_name?: string | null;
   subject_code?: string | null;
   classes?: CurrentTeacherClassRow | null;
+};
+
+type CurrentTeacherClassesRpcClient = {
+  rpc(functionName: "current_teacher_classes"): Promise<{
+    data: CurrentTeacherClassRow[] | null;
+    error: unknown;
+  }>;
 };
 
 function slotMatchesTeacher(slot: TimetableScopeSlot, teacher: CurrentTeacher | null | undefined) {
@@ -75,7 +90,8 @@ function slotMatchesTeacher(slot: TimetableScopeSlot, teacher: CurrentTeacher | 
 function normalizeClassRow(classRow: CurrentTeacherClassRow): CurrentTeacherClassRow {
   return {
     ...classRow,
-    teachers: classRow.teachers ?? (classRow.teacher_name ? { full_name: classRow.teacher_name } : null),
+    teachers:
+      classRow.teachers ?? (classRow.teacher_name ? { full_name: classRow.teacher_name } : null),
   };
 }
 
@@ -114,33 +130,20 @@ export async function findCurrentTeacher(user: SupabaseUser | null | undefined) 
     .select("id,staff_code,full_name,full_name_en,full_name_km");
   if (teachersError) throw teachersError;
 
-  return (
-    (teachers ?? []).find(
-      (teacher) =>
-        teacher.staff_code && email.startsWith(generatedTeacherLoginPrefix(teacher.staff_code)),
-    ) ?? null
-  ) as CurrentTeacher | null;
+  return ((teachers ?? []).find(
+    (teacher) =>
+      teacher.staff_code && email.startsWith(generatedTeacherLoginPrefix(teacher.staff_code)),
+  ) ?? null) as CurrentTeacher | null;
 }
 
 export async function findTeacherClassScope(user: SupabaseUser | null | undefined) {
-  if (typeof window !== "undefined") {
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (accessToken) {
-        const serverScope = await getTeacherClassScope({ data: { accessToken } });
-        if (serverScope?.teacher) return serverScope;
-      }
-    } catch {
-      // Fall back to client-side scoped reads below.
-    }
-  }
-
   const localTeacher = await findCurrentTeacher(user);
 
   let rpcClasses: CurrentTeacherClassRow[] = [];
   try {
-    const { data, error } = await (supabase as any).rpc("current_teacher_classes");
+    const { data, error } = await (supabase as unknown as CurrentTeacherClassesRpcClient).rpc(
+      "current_teacher_classes",
+    );
     if (error) throw error;
     rpcClasses = ((data ?? []) as CurrentTeacherClassRow[]).map(normalizeClassRow);
   } catch {
@@ -173,8 +176,8 @@ export async function findTeacherClassScope(user: SupabaseUser | null | undefine
       "class_id,room,teacher_id,teacher_name,subject_code,classes(id,name,subject_code,room,capacity,semester,teacher_id,teachers(full_name))",
     );
   if (!slotsError) {
-    const matchedSlots = ((timetableSlots ?? []) as unknown as TimetableScopeSlot[]).filter((slot) =>
-      slotMatchesTeacher(slot, teacher),
+    const matchedSlots = ((timetableSlots ?? []) as unknown as TimetableScopeSlot[]).filter(
+      (slot) => slotMatchesTeacher(slot, teacher),
     );
     fallbackClasses.push(
       ...matchedSlots
