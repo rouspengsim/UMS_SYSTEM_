@@ -8,11 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { pageTitle } from "@/lib/brand";
-import {
-  createAdminNotification,
-  createNotificationMediaUpload,
-} from "@/lib/notification-admin";
-import { decodeNotificationContent } from "@/lib/notification-content";
+import { decodeNotificationContent, encodeNotificationContent } from "@/lib/notification-content";
 
 export const Route = createFileRoute("/app/notifications")({
   head: () => ({ meta: [{ title: pageTitle("Notifications") }] }),
@@ -45,6 +41,15 @@ function readDemoNotifications(): NotificationRow[] {
 function writeDemoNotifications(notifications: NotificationRow[]) {
   if (typeof window === "undefined") return;
   localStorage.setItem(DEMO_NOTIFICATIONS_KEY, JSON.stringify(notifications));
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read media."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function NotificationsPage() {
@@ -212,7 +217,7 @@ function AddNotif({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
         return;
       }
 
-      if (!session?.access_token) {
+      if (!session?.access_token || !session.user?.id) {
         throw new Error(t("admin_session_expired_login"));
       }
 
@@ -222,36 +227,67 @@ function AddNotif({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
         if (mediaFile.size > 25 * 1024 * 1024) {
           throw new Error(t("media_size_limit"));
         }
-        const signed = await createNotificationMediaUpload({
-          data: {
-            accessToken: session.access_token,
-            fileName: mediaFile.name,
-            contentType: mediaFile.type,
-          },
-        });
-        const { error: uploadError } = await supabase.storage
-          .from("notification-media")
-          .uploadToSignedUrl(signed.path, signed.token, mediaFile, {
-            contentType: mediaFile.type,
-          });
-        if (uploadError) throw uploadError;
-
-        mediaUrl = supabase.storage.from("notification-media").getPublicUrl(signed.path).data
-          .publicUrl;
-        uploadedMediaType = signed.mediaType;
+        mediaUrl = await fileToDataUrl(mediaFile);
+        uploadedMediaType = mediaType;
       }
 
-      await createAdminNotification({
-        data: {
-          accessToken: session.access_token,
-          title: f.title,
-          body: f.body,
-          kind: f.kind,
-          targetRole: f.targetRole === "all" ? null : f.targetRole,
-          mediaUrl,
-          mediaType: uploadedMediaType,
-        },
+      const targetRole = f.targetRole === "all" ? null : f.targetRole;
+      const richPayload = {
+        title: f.title,
+        body: f.body || null,
+        kind: f.kind,
+        target_user_id: null,
+        target_role: targetRole,
+        media_url: mediaUrl,
+        media_type: uploadedMediaType,
+        created_by: session.user.id,
+      };
+      const { error } = await supabase.from("notifications").insert(richPayload);
+      if (!error) return;
+
+      const missingRichColumns =
+        error.message.includes("media_type") ||
+        error.message.includes("media_url") ||
+        error.message.includes("target_role") ||
+        error.code === "PGRST204";
+      if (!missingRichColumns) throw error;
+
+      const encodedBody = encodeNotificationContent({
+        description: f.body,
+        mediaUrl,
+        mediaType: uploadedMediaType,
+        targetRole,
       });
+
+      if (!targetRole) {
+        const { error: fallbackError } = await supabase.from("notifications").insert({
+          title: f.title,
+          body: encodedBody,
+          kind: f.kind,
+          target_user_id: null,
+          created_by: session.user.id,
+        });
+        if (fallbackError) throw fallbackError;
+        return;
+      }
+
+      const { data: recipients, error: recipientsError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", targetRole);
+      if (recipientsError) throw recipientsError;
+      if (!recipients?.length) throw new Error(`No ${targetRole} accounts found.`);
+
+      const { error: fallbackError } = await supabase.from("notifications").insert(
+        recipients.map((recipient) => ({
+          title: f.title,
+          body: encodedBody,
+          kind: f.kind,
+          target_user_id: recipient.user_id,
+          created_by: session.user.id,
+        })),
+      );
+      if (fallbackError) throw fallbackError;
     },
     onSuccess: () => {
       toast.success(isDemo ? t("demo_announcement_added") : t("sent"));
