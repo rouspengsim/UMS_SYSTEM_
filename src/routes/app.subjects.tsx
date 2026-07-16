@@ -5,7 +5,11 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DEFAULT_SUBJECT_OPTIONS,
+  mergeSubjectRows,
   readDemoSubjects,
+  shortSubjectDescription,
+  shortSubjectName,
+  subjectPlacementLabel,
   type SubjectRecord,
   writeDemoSubjects,
 } from "@/lib/subjects";
@@ -63,7 +67,7 @@ function SubjectsPage() {
     queryFn: async () => {
       if (isDemo) {
         const rows = readDemoSubjects();
-        if (!isTeacher) return rows;
+        if (!isTeacher) return mergeSubjectRows(rows);
 
         const teacher = readDemoList<{ id: string }>("studentsphere.demo.teachers")[0];
         const classSubjectCodes = new Set(
@@ -107,7 +111,7 @@ function SubjectsPage() {
         .select("id,subject_id,subject_name,description,created_at,updated_at")
         .order("subject_id", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as SubjectRecord[];
+      return mergeSubjectRows((data ?? []) as SubjectRecord[]);
     },
   });
 
@@ -158,8 +162,8 @@ function SubjectsPage() {
       />
 
       <SectionCard className="mb-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <label className="block min-w-64 flex-1">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <label className="block min-w-64">
             <span className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {t("search")}
             </span>
@@ -215,9 +219,21 @@ function SubjectsPage() {
                     <td className="py-3 pr-4 font-mono text-xs font-semibold">
                       {subject.subject_id}
                     </td>
-                    <td className="py-3 pr-4 font-semibold">{subject.subject_name}</td>
-                    <td className="max-w-md py-3 pr-4 text-xs text-muted-foreground">
-                      <span className="line-clamp-2">{subject.description || "-"}</span>
+                    <td className="py-3 pr-4 font-semibold" title={subject.subject_name}>
+                      <div className="flex flex-col">
+                        <span>{shortSubjectName(subject.subject_name)}</span>
+                        <span className="text-[11px] font-normal text-muted-foreground">
+                          {subjectPlacementLabel(subject.description)}
+                        </span>
+                      </div>
+                    </td>
+                    <td
+                      className="max-w-md py-3 pr-4 text-xs text-muted-foreground"
+                      title={subject.description || "-"}
+                    >
+                      <span className="line-clamp-1">
+                        {shortSubjectDescription(subject.description)}
+                      </span>
                     </td>
                     {isAdmin && (
                       <td className="py-3 pr-4">

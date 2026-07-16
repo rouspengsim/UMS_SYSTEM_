@@ -19,16 +19,22 @@ import {
   Upload,
   KeyRound,
 } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ADDRESS_OPTIONS, FLAT_MAJOR_OPTIONS, MAJOR_OPTIONS } from "@/lib/academic-options";
+import {
+  ADDRESS_OPTIONS,
+  FLAT_MAJOR_OPTIONS,
+  MAJOR_OPTIONS,
+  generateClassName,
+} from "@/lib/academic-options";
 import { generateSchoolAccountId } from "@/lib/account-ids";
 import { pageTitle } from "@/lib/brand";
 import { createStudentAccount } from "@/lib/student-accounts";
 import { ResetPasswordModal } from "@/components/app/reset-password-modal";
 import { findTeacherClassScope } from "@/lib/teacher-scope";
+import { tuitionPaymentLabel, tuitionPaymentOptions, tuitionPaymentPrice } from "@/lib/tuition";
 
 export const Route = createFileRoute("/app/students")({
   head: () => ({ meta: [{ title: pageTitle("Students") }] }),
@@ -77,12 +83,52 @@ const SHIFT_OPTIONS = [
 ];
 const ACADEMIC_OPTIONS = MAJOR_OPTIONS.map((group) => group.group);
 const NATIONALITY_OPTIONS = ["Khmer", "Foreign"];
-const STUDENT_TYPE_OPTIONS = ["General Student", "Scholarship", "Transfer", "Exchange"];
-const PAY_YEAR_OPTIONS = [
-  { value: "not_yet", label: "Not yet" },
-  { value: "paid", label: "Paid" },
-  { value: "partial", label: "Partial" },
-];
+const STUDENT_TYPE_OPTIONS = ["បង់ថ្លៃ", "អាហារូបកណ៍"];
+const BLANK_ADDRESS_OPTION = { value: "", label: "" };
+
+function majorGroupsForAcademic(academic: string) {
+  const groups = MAJOR_OPTIONS.filter((group) => group.group === academic);
+  return groups.length ? groups : MAJOR_OPTIONS;
+}
+
+function firstMajorForAcademic(academic: string) {
+  return (
+    majorGroupsForAcademic(academic)[0]?.options[0]?.value ?? MAJOR_OPTIONS[0].options[0].value
+  );
+}
+
+function paymentStudyYear(studyYear: number | string | null | undefined) {
+  return Math.min(4, Math.max(1, Number(studyYear) || 1));
+}
+
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+type ClassCapacityRow = { name: string; capacity: number | null };
+
+function nextAvailableClassName({
+  major,
+  studyYear,
+  shift,
+  students,
+  classes,
+}: {
+  major: string | null | undefined;
+  studyYear: number | string | null | undefined;
+  shift: string | null | undefined;
+  students: Array<{ class_name?: string | null }>;
+  classes: ClassCapacityRow[];
+}) {
+  for (let classNumber = 1; classNumber < 100; classNumber += 1) {
+    const className = generateClassName(major, studyYear, shift, classNumber);
+    const capacity = classes.find((classRow) => classRow.name === className)?.capacity ?? 40;
+    const enrolled = students.filter((student) => student.class_name === className).length;
+    if (enrolled < capacity) return className;
+  }
+
+  return generateClassName(major, studyYear, shift, 99);
+}
 
 function shiftLabel(value: string | null | undefined, t: (key: string) => string) {
   const shift = SHIFT_OPTIONS.find((option) => option.value === value);
@@ -449,7 +495,6 @@ function StudentsPage() {
     },
     onError: (e) => toast.error(e.message),
   });
-
   return (
     <div>
       <PageHeader
@@ -722,7 +767,13 @@ function StudentsPage() {
         </div>
       </SectionCard>
 
-      {showAdd && <AddStudentModal isDemo={isDemo} onClose={() => setShowAdd(false)} />}
+      {showAdd && (
+        <AddStudentModal
+          existingStudents={students}
+          isDemo={isDemo}
+          onClose={() => setShowAdd(false)}
+        />
+      )}
       {editingStudent && (
         <EditStudentModal
           student={editingStudent}
@@ -830,7 +881,11 @@ function StudentAvatarModal({
               {student.full_name_en || student.full_name} · {student.student_code}
             </p>
           </div>
-          <button onClick={onClose} className="rounded-md p-2 hover:bg-muted" aria-label={t("close")}>
+          <button
+            onClick={onClose}
+            className="rounded-md p-2 hover:bg-muted"
+            aria-label={t("close")}
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -862,9 +917,7 @@ function StudentAvatarModal({
               }}
             />
           </label>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            {t("image_upload_hint")}
-          </p>
+          <p className="mt-2 text-center text-xs text-muted-foreground">{t("image_upload_hint")}</p>
         </div>
 
         <div className="mt-6 flex justify-end gap-2 border-t border-border pt-4">
@@ -894,8 +947,13 @@ function StudentAvatarModal({
   );
 }
 
-function payYearLabel(value: string | null | undefined) {
-  return PAY_YEAR_OPTIONS.find((option) => option.value === value)?.label ?? value ?? "—";
+function payYearLabel(value: string | null | undefined, major: string | null | undefined) {
+  return tuitionPaymentLabel(value, major);
+}
+
+function academicYearLabel(enrollmentYear: number | null | undefined) {
+  const year = Number(enrollmentYear) || new Date().getFullYear();
+  return `${year}-${year + 1}`;
 }
 
 function StudentInfoModal({ student, onClose }: { student: StudentRow; onClose: () => void }) {
@@ -962,15 +1020,31 @@ function StudentInfoModal({ student, onClose }: { student: StudentRow; onClose: 
           <div className="mt-6 border-t border-border pt-5">
             <div className="grid gap-x-6 gap-y-4 md:grid-cols-3">
               <InfoField label={t("academic")} value={student.academic} />
+              <InfoField
+                label={t("academic_year")}
+                value={academicYearLabel(student.enrollment_year)}
+              />
               <InfoField label={t("major")} value={student.major} />
               <InfoField label={t("type_of_student")} value={student.student_type} />
               <InfoField label={t("class")} value={student.class_name} />
               <InfoField label={t("shift")} value={shiftLabel(student.shift, t)} />
-              <InfoField label={t("year")} value={student.study_year ?? student.enrollment_year} />
-              <InfoField label={t("pay_year1")} value={payYearLabel(student.pay_year1)} />
-              <InfoField label={t("pay_year2")} value={payYearLabel(student.pay_year2)} />
-              <InfoField label={t("pay_year3")} value={payYearLabel(student.pay_year3)} />
-              <InfoField label={t("pay_year4")} value={payYearLabel(student.pay_year4)} />
+              <InfoField label={t("year")} value={student.study_year} />
+              <InfoField
+                label={t("pay_year1")}
+                value={payYearLabel(student.pay_year1, student.major)}
+              />
+              <InfoField
+                label={t("pay_year2")}
+                value={payYearLabel(student.pay_year2, student.major)}
+              />
+              <InfoField
+                label={t("pay_year3")}
+                value={payYearLabel(student.pay_year3, student.major)}
+              />
+              <InfoField
+                label={t("pay_year4")}
+                value={payYearLabel(student.pay_year4, student.major)}
+              />
               <InfoField label={t("email")} value={student.email} />
               <InfoField label={t("image")} value={student.avatar_url} />
             </div>
@@ -996,31 +1070,63 @@ function InfoField({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => void }) {
+function AddStudentModal({
+  existingStudents,
+  isDemo,
+  onClose,
+}: {
+  existingStudents: StudentRow[];
+  isDemo: boolean;
+  onClose: () => void;
+}) {
   const { t } = useI18n();
   const { session } = useAuth();
   const qc = useQueryClient();
+  const currentEnrollmentYear = new Date().getFullYear();
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const academicYearOptions = useMemo(
+    () =>
+      Array.from({ length: 20 }, (_, index) => {
+        const year = currentEnrollmentYear + index;
+        return { value: String(year), label: `${year}-${year + 1}` };
+      }),
+    [currentEnrollmentYear],
+  );
+  const { data: classCapacityRows = [] } = useQuery({
+    queryKey: ["class-capacities", isDemo ? "demo" : "remote"],
+    queryFn: async () => {
+      if (isDemo) {
+        return readDemoList<ClassCapacityRow>("studentsphere.demo.classes").map((classRow) => ({
+          name: classRow.name,
+          capacity: classRow.capacity,
+        }));
+      }
+
+      const { data, error } = await supabase.from("classes").select("name,capacity");
+      if (error) throw error;
+      return (data ?? []) as ClassCapacityRow[];
+    },
+  });
   const [form, setForm] = useState(() => {
-    const enrollmentYear = new Date().getFullYear();
     return {
-      student_code: generateSchoolAccountId("student", enrollmentYear),
+      student_code: generateSchoolAccountId("student", currentEnrollmentYear),
       full_name_km: "",
       full_name_en: "",
       gender: "male",
       date_of_birth: "",
       nationality: "Khmer",
-      place_of_birth: ADDRESS_OPTIONS[0],
+      place_of_birth: "",
       father_name: "",
       father_job: "",
       mother_name: "",
       mother_job: "",
       phone: "",
       academic: ACADEMIC_OPTIONS[0],
-      enrollment_year: enrollmentYear,
+      enrollment_year: currentEnrollmentYear,
       study_year: 1,
       major: MAJOR_OPTIONS[0].options[0].value,
       student_type: STUDENT_TYPE_OPTIONS[0],
-      class_name: "",
+      class_name: generateClassName(MAJOR_OPTIONS[0].options[0].value, 1, "morning"),
       shift: "morning",
       pay_year1: "not_yet",
       pay_year2: "not_yet",
@@ -1029,14 +1135,29 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
       email: "",
       password: "",
       avatar_url: "",
-      address: ADDRESS_OPTIONS[0],
+      address: "",
     };
   });
 
   const mut = useMutation({
     mutationFn: async () => {
+      let avatarUrl = form.avatar_url;
+      if (avatarFile) {
+        const blob = await compressAvatar(avatarFile);
+        avatarUrl = await blobToDataUrl(blob);
+      }
+      const enrollmentYear = Math.max(
+        Number(form.enrollment_year) || currentEnrollmentYear,
+        currentEnrollmentYear,
+      );
+      const assignedClassName = nextAvailableClassName({
+        major: form.major,
+        studyYear: form.study_year,
+        shift: form.shift,
+        students: existingStudents,
+        classes: classCapacityRows,
+      });
       if (isDemo) {
-        const enrollmentYear = Number(form.enrollment_year) || new Date().getFullYear();
         const studentCode =
           form.student_code.trim().toUpperCase().replaceAll(".", "-") ||
           generateSchoolAccountId("student", enrollmentYear);
@@ -1051,7 +1172,7 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
           phone: form.phone || null,
           gender: form.gender || null,
           date_of_birth: form.date_of_birth || null,
-          avatar_url: form.avatar_url || null,
+          avatar_url: avatarUrl || null,
           nationality: form.nationality || null,
           place_of_birth: form.place_of_birth || null,
           father_name: form.father_name || null,
@@ -1062,7 +1183,7 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
           study_year: Number(form.study_year),
           major: form.major || null,
           student_type: form.student_type || null,
-          class_name: form.class_name || null,
+          class_name: assignedClassName,
           shift: form.shift || null,
           pay_year1: form.pay_year1 || null,
           pay_year2: form.pay_year2 || null,
@@ -1088,7 +1209,7 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
           student: {
             password: form.password,
             student_code: form.student_code.trim().replaceAll(".", "-"),
-            enrollment_year: Number(form.enrollment_year) || new Date().getFullYear(),
+            enrollment_year: enrollmentYear,
             full_name: form.full_name_en || form.full_name_km,
             full_name_km: form.full_name_km || null,
             full_name_en: form.full_name_en || null,
@@ -1096,7 +1217,7 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
             phone: form.phone || null,
             gender: form.gender || null,
             date_of_birth: form.date_of_birth || null,
-            avatar_url: form.avatar_url || null,
+            avatar_url: avatarUrl || null,
             nationality: form.nationality || null,
             place_of_birth: form.place_of_birth || null,
             father_name: form.father_name || null,
@@ -1107,12 +1228,12 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
             study_year: Number(form.study_year),
             major: form.major || null,
             student_type: form.student_type || null,
-            class_name: form.class_name || null,
+            class_name: assignedClassName,
             shift: form.shift || null,
-            pay_year1: form.pay_year1 || null,
-            pay_year2: form.pay_year2 || null,
-            pay_year3: form.pay_year3 || null,
-            pay_year4: form.pay_year4 || null,
+            pay_year1: form.pay_year1 || "not_yet",
+            pay_year2: form.pay_year2 || "not_yet",
+            pay_year3: form.pay_year3 || "not_yet",
+            pay_year4: form.pay_year4 || "not_yet",
             address: form.address || null,
           },
         },
@@ -1126,6 +1247,14 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
       onClose();
     },
     onError: (e) => toast.error(e.message),
+  });
+  const selectedMajorGroups = majorGroupsForAcademic(form.academic);
+  const assignedClassName = nextAvailableClassName({
+    major: form.major,
+    studyYear: form.study_year,
+    shift: form.shift,
+    students: existingStudents,
+    classes: classCapacityRows,
   });
 
   return (
@@ -1147,12 +1276,13 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
           </button>
         </div>
         <form
+          autoComplete="off"
           onSubmit={(e) => {
             e.preventDefault();
             if (!form.full_name_km.trim()) return toast.error(t("khmer_name"));
             if (!form.full_name_en.trim()) return toast.error(t("english_name"));
             if (!form.major.trim()) return toast.error(t("major"));
-            if (!form.class_name.trim()) return toast.error(t("class"));
+            if (!assignedClassName.trim()) return toast.error(t("class"));
             if (!form.password.trim()) return toast.error(t("password"));
             mut.mutate();
           }}
@@ -1209,7 +1339,10 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
               label={t("place_of_birth")}
               value={form.place_of_birth}
               onChange={(v) => setForm({ ...form, place_of_birth: v })}
-              options={ADDRESS_OPTIONS.map((address) => ({ value: address, label: address }))}
+              options={[
+                BLANK_ADDRESS_OPTION,
+                ...ADDRESS_OPTIONS.map((address) => ({ value: address, label: address })),
+              ]}
             />
             <Input
               label={t("father_name")}
@@ -1233,35 +1366,53 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
             />
             <Input
               label={t("phone")}
+              type="tel"
               value={form.phone}
-              onChange={(v) => setForm({ ...form, phone: v })}
+              onChange={(v) => setForm({ ...form, phone: digitsOnly(v) })}
+              inputMode="numeric"
+              pattern="[0-9]*"
             />
             <Select
               label={t("academic")}
               value={form.academic}
-              onChange={(v) => setForm({ ...form, academic: v })}
-              options={ACADEMIC_OPTIONS.map((academic) => ({ value: academic, label: academic }))}
-            />
-            <Input
-              label="Enrollment year *"
-              type="number"
-              value={String(form.enrollment_year)}
-              onChange={(v) =>
+              onChange={(v) => {
+                const major = firstMajorForAcademic(v);
                 setForm({
                   ...form,
-                  enrollment_year: Number(v) || new Date().getFullYear(),
-                  student_code: generateSchoolAccountId(
-                    "student",
-                    Number(v) || new Date().getFullYear(),
-                  ),
-                })
-              }
+                  academic: v,
+                  major,
+                  class_name: generateClassName(major, form.study_year, form.shift),
+                });
+              }}
+              options={ACADEMIC_OPTIONS.map((academic) => ({ value: academic, label: academic }))}
+            />
+            <Select
+              label={`${t("academic_year")} *`}
+              value={String(form.enrollment_year)}
+              onChange={(v) => {
+                const enrollmentYear = Math.max(
+                  Number(v) || currentEnrollmentYear,
+                  currentEnrollmentYear,
+                );
+                setForm({
+                  ...form,
+                  enrollment_year: enrollmentYear,
+                  student_code: generateSchoolAccountId("student", enrollmentYear),
+                });
+              }}
+              options={academicYearOptions}
             />
             <GroupedSelect
               label={`${t("major")} *`}
               value={form.major}
-              onChange={(v) => setForm({ ...form, major: v })}
-              groups={MAJOR_OPTIONS}
+              onChange={(v) =>
+                setForm({
+                  ...form,
+                  major: v,
+                  class_name: generateClassName(v, form.study_year, form.shift),
+                })
+              }
+              groups={selectedMajorGroups}
             />
             <Select
               label={t("type_of_student")}
@@ -1272,13 +1423,20 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
             <Input
               label={`${t("class")} *`}
               placeholder="IT1A01"
-              value={form.class_name}
-              onChange={(v) => setForm({ ...form, class_name: v.toUpperCase() })}
+              value={assignedClassName}
+              onChange={() => {}}
+              readOnly
             />
             <Select
               label={`${t("shift")} *`}
               value={form.shift}
-              onChange={(v) => setForm({ ...form, shift: v })}
+              onChange={(v) =>
+                setForm({
+                  ...form,
+                  shift: v,
+                  class_name: generateClassName(form.major, form.study_year, v),
+                })
+              }
               options={SHIFT_OPTIONS.map((shift) => ({
                 value: shift.value,
                 label: t(shift.labelKey),
@@ -1288,55 +1446,74 @@ function AddStudentModal({ isDemo, onClose }: { isDemo: boolean; onClose: () => 
               label={`${t("year")} *`}
               type="number"
               value={String(form.study_year)}
-              onChange={(v) => setForm({ ...form, study_year: Number(v) })}
+              onChange={(v) => {
+                const studyYear = Number(v) || 1;
+                setForm({
+                  ...form,
+                  study_year: studyYear,
+                  class_name: generateClassName(form.major, studyYear, form.shift),
+                });
+              }}
             />
-            <Select
-              label={t("pay_year1")}
-              value={form.pay_year1}
-              onChange={(v) => setForm({ ...form, pay_year1: v })}
-              options={PAY_YEAR_OPTIONS}
-            />
-            <Select
-              label={t("pay_year2")}
-              value={form.pay_year2}
-              onChange={(v) => setForm({ ...form, pay_year2: v })}
-              options={PAY_YEAR_OPTIONS}
-            />
-            <Select
-              label={t("pay_year3")}
-              value={form.pay_year3}
-              onChange={(v) => setForm({ ...form, pay_year3: v })}
-              options={PAY_YEAR_OPTIONS}
-            />
-            <Select
-              label={t("pay_year4")}
-              value={form.pay_year4}
-              onChange={(v) => setForm({ ...form, pay_year4: v })}
-              options={PAY_YEAR_OPTIONS}
+            <PaymentYearSelect
+              label={t(`pay_year${paymentStudyYear(form.study_year)}`)}
+              major={form.major}
+              value={
+                paymentStudyYear(form.study_year) === 1
+                  ? form.pay_year1
+                  : paymentStudyYear(form.study_year) === 2
+                    ? form.pay_year2
+                    : paymentStudyYear(form.study_year) === 3
+                      ? form.pay_year3
+                      : form.pay_year4
+              }
+              onChange={(v) => {
+                const year = paymentStudyYear(form.study_year);
+                setForm({
+                  ...form,
+                  ...(year === 1 ? { pay_year1: v } : {}),
+                  ...(year === 2 ? { pay_year2: v } : {}),
+                  ...(year === 3 ? { pay_year3: v } : {}),
+                  ...(year === 4 ? { pay_year4: v } : {}),
+                });
+              }}
             />
             <Input
               label={t("email")}
               type="email"
               value={form.email}
               onChange={(v) => setForm({ ...form, email: v })}
+              autoComplete="off"
+              name="new-student-email"
             />
             <Input
               label={`${t("password")} *`}
               type="password"
               value={form.password}
               onChange={(v) => setForm({ ...form, password: v })}
+              autoComplete="new-password"
+              name="new-student-password"
             />
-            <Input
+            <ImageUploadField
               label={t("image")}
+              name={form.full_name_en || form.full_name_km || t("student_information")}
               value={form.avatar_url}
-              onChange={(v) => setForm({ ...form, avatar_url: v })}
+              file={avatarFile}
+              onFileChange={setAvatarFile}
+              onRemove={() => {
+                setAvatarFile(null);
+                setForm({ ...form, avatar_url: "" });
+              }}
             />
             <div className="md:col-span-3">
               <Select
                 label={t("address")}
                 value={form.address}
                 onChange={(v) => setForm({ ...form, address: v })}
-                options={ADDRESS_OPTIONS.map((address) => ({ value: address, label: address }))}
+                options={[
+                  BLANK_ADDRESS_OPTION,
+                  ...ADDRESS_OPTIONS.map((address) => ({ value: address, label: address })),
+                ]}
               />
             </div>
           </div>
@@ -1373,6 +1550,7 @@ function EditStudentModal({
 }) {
   const { t } = useI18n();
   const qc = useQueryClient();
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [form, setForm] = useState(() => ({
     student_code: student.student_code,
     full_name_km: student.full_name_km ?? "",
@@ -1380,7 +1558,7 @@ function EditStudentModal({
     gender: student.gender ?? "male",
     date_of_birth: student.date_of_birth ?? "",
     nationality: student.nationality ?? "Khmer",
-    place_of_birth: student.place_of_birth ?? ADDRESS_OPTIONS[0],
+    place_of_birth: student.place_of_birth ?? "",
     father_name: student.father_name ?? "",
     father_job: student.father_job ?? "",
     mother_name: student.mother_name ?? "",
@@ -1399,12 +1577,17 @@ function EditStudentModal({
     pay_year4: student.pay_year4 ?? "not_yet",
     email: student.email ?? "",
     avatar_url: student.avatar_url ?? "",
-    address: student.address ?? ADDRESS_OPTIONS[0],
+    address: student.address ?? "",
     status: student.status,
   }));
 
   const mut = useMutation({
     mutationFn: async () => {
+      let avatarUrl = form.avatar_url;
+      if (avatarFile) {
+        const blob = await compressAvatar(avatarFile);
+        avatarUrl = await blobToDataUrl(blob);
+      }
       const payload = {
         student_code: form.student_code.trim().toUpperCase().replaceAll(".", "-"),
         full_name: form.full_name_en || form.full_name_km,
@@ -1414,7 +1597,7 @@ function EditStudentModal({
         phone: form.phone || null,
         gender: form.gender || null,
         date_of_birth: form.date_of_birth || null,
-        avatar_url: form.avatar_url || null,
+        avatar_url: avatarUrl || null,
         nationality: form.nationality || null,
         place_of_birth: form.place_of_birth || null,
         father_name: form.father_name || null,
@@ -1428,10 +1611,10 @@ function EditStudentModal({
         student_type: form.student_type || null,
         class_name: form.class_name || null,
         shift: form.shift || null,
-        pay_year1: form.pay_year1 || null,
-        pay_year2: form.pay_year2 || null,
-        pay_year3: form.pay_year3 || null,
-        pay_year4: form.pay_year4 || null,
+        pay_year1: form.pay_year1 || "not_yet",
+        pay_year2: form.pay_year2 || "not_yet",
+        pay_year3: form.pay_year3 || "not_yet",
+        pay_year4: form.pay_year4 || "not_yet",
         address: form.address || null,
         status: form.status,
       };
@@ -1458,11 +1641,12 @@ function EditStudentModal({
       qc.invalidateQueries({ queryKey: ["students"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["dashboard-recent-students"] });
-      toast.success("Student information updated");
+      toast.success(t("student_information_updated"));
       onClose();
     },
     onError: (e) => toast.error(e.message),
   });
+  const selectedMajorGroups = majorGroupsForAcademic(form.academic);
 
   return (
     <div
@@ -1475,7 +1659,7 @@ function EditStudentModal({
       >
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
-            <h3 className="font-display text-lg font-bold">Update student information</h3>
+            <h3 className="font-display text-lg font-bold">{t("update_student_information")}</h3>
             <p className="mt-1 font-mono text-xs text-muted-foreground">{student.student_code}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
@@ -1540,7 +1724,10 @@ function EditStudentModal({
               label={t("place_of_birth")}
               value={form.place_of_birth}
               onChange={(v) => setForm({ ...form, place_of_birth: v })}
-              options={ADDRESS_OPTIONS.map((address) => ({ value: address, label: address }))}
+              options={[
+                BLANK_ADDRESS_OPTION,
+                ...ADDRESS_OPTIONS.map((address) => ({ value: address, label: address })),
+              ]}
             />
             <Input
               label={t("father_name")}
@@ -1562,24 +1749,47 @@ function EditStudentModal({
               value={form.mother_job}
               onChange={(v) => setForm({ ...form, mother_job: v })}
             />
-            <Input label={t("phone")} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+            <Input
+              label={t("phone")}
+              type="tel"
+              value={form.phone}
+              onChange={(v) => setForm({ ...form, phone: digitsOnly(v) })}
+              inputMode="numeric"
+              pattern="[0-9]*"
+            />
             <Select
               label={t("academic")}
               value={form.academic}
-              onChange={(v) => setForm({ ...form, academic: v })}
+              onChange={(v) => {
+                const major = firstMajorForAcademic(v);
+                setForm({
+                  ...form,
+                  academic: v,
+                  major,
+                  class_name: generateClassName(major, form.study_year, form.shift),
+                });
+              }}
               options={ACADEMIC_OPTIONS.map((academic) => ({ value: academic, label: academic }))}
             />
             <Input
-              label="Enrollment year *"
+              label={`${t("academic_year")} *`}
               type="number"
               value={String(form.enrollment_year)}
-              onChange={(v) => setForm({ ...form, enrollment_year: Number(v) || new Date().getFullYear() })}
+              onChange={(v) =>
+                setForm({ ...form, enrollment_year: Number(v) || new Date().getFullYear() })
+              }
             />
             <GroupedSelect
               label={`${t("major")} *`}
               value={form.major}
-              onChange={(v) => setForm({ ...form, major: v })}
-              groups={MAJOR_OPTIONS}
+              onChange={(v) =>
+                setForm({
+                  ...form,
+                  major: v,
+                  class_name: generateClassName(v, form.study_year, form.shift),
+                })
+              }
+              groups={selectedMajorGroups}
             />
             <Select
               label={t("type_of_student")}
@@ -1595,7 +1805,13 @@ function EditStudentModal({
             <Select
               label={`${t("shift")} *`}
               value={form.shift}
-              onChange={(v) => setForm({ ...form, shift: v })}
+              onChange={(v) =>
+                setForm({
+                  ...form,
+                  shift: v,
+                  class_name: generateClassName(form.major, form.study_year, v),
+                })
+              }
               options={SHIFT_OPTIONS.map((shift) => ({
                 value: shift.value,
                 label: t(shift.labelKey),
@@ -1605,31 +1821,37 @@ function EditStudentModal({
               label={`${t("year")} *`}
               type="number"
               value={String(form.study_year)}
-              onChange={(v) => setForm({ ...form, study_year: Number(v) })}
+              onChange={(v) => {
+                const studyYear = Number(v) || 1;
+                setForm({
+                  ...form,
+                  study_year: studyYear,
+                  class_name: generateClassName(form.major, studyYear, form.shift),
+                });
+              }}
             />
-            <Select
-              label={t("pay_year1")}
-              value={form.pay_year1}
-              onChange={(v) => setForm({ ...form, pay_year1: v })}
-              options={PAY_YEAR_OPTIONS}
-            />
-            <Select
-              label={t("pay_year2")}
-              value={form.pay_year2}
-              onChange={(v) => setForm({ ...form, pay_year2: v })}
-              options={PAY_YEAR_OPTIONS}
-            />
-            <Select
-              label={t("pay_year3")}
-              value={form.pay_year3}
-              onChange={(v) => setForm({ ...form, pay_year3: v })}
-              options={PAY_YEAR_OPTIONS}
-            />
-            <Select
-              label={t("pay_year4")}
-              value={form.pay_year4}
-              onChange={(v) => setForm({ ...form, pay_year4: v })}
-              options={PAY_YEAR_OPTIONS}
+            <PaymentYearSelect
+              label={t(`pay_year${paymentStudyYear(form.study_year)}`)}
+              major={form.major}
+              value={
+                paymentStudyYear(form.study_year) === 1
+                  ? form.pay_year1
+                  : paymentStudyYear(form.study_year) === 2
+                    ? form.pay_year2
+                    : paymentStudyYear(form.study_year) === 3
+                      ? form.pay_year3
+                      : form.pay_year4
+              }
+              onChange={(v) => {
+                const year = paymentStudyYear(form.study_year);
+                setForm({
+                  ...form,
+                  ...(year === 1 ? { pay_year1: v } : {}),
+                  ...(year === 2 ? { pay_year2: v } : {}),
+                  ...(year === 3 ? { pay_year3: v } : {}),
+                  ...(year === 4 ? { pay_year4: v } : {}),
+                });
+              }}
             />
             <Input
               label={t("email")}
@@ -1637,10 +1859,16 @@ function EditStudentModal({
               value={form.email}
               onChange={(v) => setForm({ ...form, email: v })}
             />
-            <Input
+            <ImageUploadField
               label={t("image")}
+              name={form.full_name_en || form.full_name_km || student.full_name}
               value={form.avatar_url}
-              onChange={(v) => setForm({ ...form, avatar_url: v })}
+              file={avatarFile}
+              onFileChange={setAvatarFile}
+              onRemove={() => {
+                setAvatarFile(null);
+                setForm({ ...form, avatar_url: "" });
+              }}
             />
             <Select
               label={t("status")}
@@ -1658,7 +1886,10 @@ function EditStudentModal({
                 label={t("address")}
                 value={form.address}
                 onChange={(v) => setForm({ ...form, address: v })}
-                options={ADDRESS_OPTIONS.map((address) => ({ value: address, label: address }))}
+                options={[
+                  BLANK_ADDRESS_OPTION,
+                  ...ADDRESS_OPTIONS.map((address) => ({ value: address, label: address })),
+                ]}
               />
             </div>
           </div>
@@ -1711,6 +1942,131 @@ function Select({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function ImageUploadField({
+  label,
+  name,
+  value,
+  file,
+  onFileChange,
+  onRemove,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  file: File | null;
+  onFileChange: (file: File | null) => void;
+  onRemove: () => void;
+}) {
+  const { t } = useI18n();
+  const [preview, setPreview] = useState(value);
+
+  useEffect(() => {
+    if (!file) {
+      setPreview(value);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file, value]);
+
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </label>
+      <div className="flex min-h-10 items-center gap-3 rounded-xl border border-border bg-surface p-2">
+        {preview ? (
+          <img
+            src={preview}
+            alt={label}
+            className="h-14 w-14 shrink-0 rounded-lg object-cover ring-1 ring-border"
+          />
+        ) : (
+          <Avatar name={name} className="h-14 w-14 shrink-0 rounded-lg" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap gap-2">
+            <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 text-xs font-semibold hover:bg-muted">
+              <Camera className="h-4 w-4" />
+              {t("choose_image")}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => {
+                  const selected = event.currentTarget.files?.[0] ?? null;
+                  if (selected && !selected.type.startsWith("image/")) {
+                    toast.error(t("choose_image"));
+                    event.currentTarget.value = "";
+                    return;
+                  }
+                  onFileChange(selected);
+                }}
+              />
+            </label>
+            {(preview || file) && (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-card px-3 text-xs font-semibold text-destructive hover:bg-muted"
+              >
+                <Trash2 className="h-4 w-4" />
+                {t("remove_image")}
+              </button>
+            )}
+          </div>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            {file ? file.name : t("image_upload_hint")}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentYearSelect({
+  label,
+  major,
+  value,
+  onChange,
+}: {
+  label: string;
+  major: string | null | undefined;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </label>
+      <div className="grid overflow-hidden rounded-xl border border-border bg-surface focus-within:border-primary sm:grid-cols-[1fr_120px]">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-10 min-w-0 border-0 bg-transparent px-3 text-sm outline-none"
+        >
+          {tuitionPaymentOptions(major).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <div className="flex h-10 items-center justify-between border-t border-border bg-muted/40 px-3 sm:border-l sm:border-t-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Price
+          </span>
+          <span className="font-mono text-sm font-bold text-primary">
+            {tuitionPaymentPrice(value, major)}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1803,6 +2159,8 @@ function Input({
   type = "text",
   placeholder,
   autoComplete,
+  inputMode,
+  pattern,
   name,
   readOnly = false,
 }: {
@@ -1812,6 +2170,8 @@ function Input({
   type?: string;
   placeholder?: string;
   autoComplete?: string;
+  inputMode?: "none" | "text" | "tel" | "url" | "email" | "numeric" | "decimal" | "search";
+  pattern?: string;
   name?: string;
   readOnly?: boolean;
 }) {
@@ -1826,6 +2186,8 @@ function Input({
         value={value}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        inputMode={inputMode}
+        pattern={pattern}
         readOnly={readOnly}
         onChange={(e) => onChange(e.target.value)}
         className={

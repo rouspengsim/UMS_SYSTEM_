@@ -4,7 +4,10 @@ import { UNIVERSITY_ACCOUNT_DOMAIN } from "@/lib/brand";
 export type LoginRole = "admin" | "student" | "teacher";
 
 export function accountLoginEmail(role: Exclude<Role, "admin">, loginId: string) {
-  const normalizedId = loginId.trim().toLowerCase().replace(/[^a-z0-9]+/g, ".");
+  const normalizedId = loginId
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".");
   return `${role}.${normalizedId}@${UNIVERSITY_ACCOUNT_DOMAIN}`;
 }
 

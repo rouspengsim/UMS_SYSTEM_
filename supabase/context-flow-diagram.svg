@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1000" viewBox="0 0 1400 1000" role="img" aria-labelledby="title desc">
+  <title id="title">StudentSphere context flow diagram</title>
+  <desc id="desc">Context flow diagram showing StudentSphere interactions with admins, teachers, students, admissions, and the database.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 4 L 0 8 z" fill="#1f2933" />
+    </marker>
+    <style>
+      .background { fill: #ffffff; }
+      .title { fill: #111827; font: 700 30px Arial, sans-serif; text-anchor: middle; }
+      .subtitle { fill: #4b5563; font: 400 15px Arial, sans-serif; text-anchor: middle; }
+      .external { fill: #cbe95b; stroke: #1f2933; stroke-width: 2; }
+      .system { fill: #cbe95b; stroke: #111827; stroke-width: 2.4; }
+      .system-divider { stroke: #111827; stroke-width: 2; }
+      .box-label { fill: #111827; font: 700 21px Arial, sans-serif; text-anchor: middle; }
+      .system-label { fill: #111827; font: 700 23px Arial, sans-serif; text-anchor: middle; }
+      .flow { fill: none; stroke: #1f2933; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+      .flow-label { fill: #111827; font: 16px Arial, sans-serif; paint-order: stroke; stroke: #ffffff; stroke-width: 5px; stroke-linejoin: round; }
+    </style>
+  </defs>
+  <rect width="1400" height="1000" class="background" />
+  <text x="700" y="55" class="title">Context Flow Diagram for StudentSphere Management System</text>
+  <text x="700" y="82" class="subtitle">External users exchange requests, records, and reports with the central school management system</text>
+
+  
+    <g>
+      <rect x="310" y="115" width="280" height="90" class="external" />
+      <text x="450" y="167" class="box-label">Admin</text>
+    </g>
+  
+    <g>
+      <rect x="810" y="115" width="280" height="90" class="external" />
+      <text x="950" y="167" class="box-label">Teachers</text>
+    </g>
+  
+    <g>
+      <rect x="40" y="430" width="270" height="90" class="external" />
+      <text x="175" y="482" class="box-label">Admissions</text>
+    </g>
+  
+    <g>
+      <rect x="1090" y="430" width="270" height="90" class="external" />
+      <text x="1225" y="482" class="box-label">Students</text>
+    </g>
+  
+    <g>
+      <rect x="565" y="810" width="270" height="90" class="external" />
+      <text x="700" y="862" class="box-label">Supabase Database</text>
+    </g>
+  
+    <g>
+      <rect x="565" y="420" width="270" height="120" rx="10" class="system" />
+      <path d="M 565 448 H 835" class="system-divider" />
+      <path d="M 565 512 H 835" class="system-divider" />
+      <text x="700" y="487" class="system-label">StudentSphere SMS</text>
+    </g>
+
+  
+    <g>
+      <path d="M 450 205 V 335 Q 450 395 565 440" class="flow" marker-end="url(#arrow)" />
+      <text x="465" y="290" class="flow-label" text-anchor="start">Manage users,</text>
+<text x="465" y="310" class="flow-label" text-anchor="start">classes, reports</text>
+    </g>
+  
+    <g>
+      <path d="M 595 455 Q 520 398 520 320 V 205" class="flow" marker-end="url(#arrow)" />
+      <text x="535" y="250" class="flow-label" text-anchor="start">Dashboard and</text>
+<text x="535" y="270" class="flow-label" text-anchor="start">system reports</text>
+    </g>
+
+  
+    <g>
+      <path d="M 950 205 V 335 Q 950 395 835 440" class="flow" marker-end="url(#arrow)" />
+      <text x="930" y="290" class="flow-label" text-anchor="end">Attendance,</text>
+<text x="930" y="310" class="flow-label" text-anchor="end">scores, schedule</text>
+    </g>
+  
+    <g>
+      <path d="M 805 455 Q 880 398 880 320 V 205" class="flow" marker-end="url(#arrow)" />
+      <text x="865" y="250" class="flow-label" text-anchor="end">Class lists and</text>
+<text x="865" y="270" class="flow-label" text-anchor="end">teaching reports</text>
+    </g>
+
+  
+    <g>
+      <path d="M 310 505 H 565" class="flow" marker-end="url(#arrow)" />
+      <text x="430" y="540" class="flow-label" text-anchor="middle">Add new student</text>
+<text x="430" y="560" class="flow-label" text-anchor="middle">registration</text>
+    </g>
+  
+    <g>
+      <path d="M 565 455 H 310" class="flow" marker-end="url(#arrow)" />
+      <text x="430" y="402" class="flow-label" text-anchor="middle">Student ID and</text>
+<text x="430" y="422" class="flow-label" text-anchor="middle">registration status</text>
+    </g>
+
+  
+    <g>
+      <path d="M 835 455 H 1090" class="flow" marker-end="url(#arrow)" />
+      <text x="965" y="402" class="flow-label" text-anchor="middle">Schedules,</text>
+<text x="965" y="422" class="flow-label" text-anchor="middle">results, notices</text>
+    </g>
+  
+    <g>
+      <path d="M 1090 505 H 835" class="flow" marker-end="url(#arrow)" />
+      <text x="965" y="540" class="flow-label" text-anchor="middle">Profile, payment,</text>
+<text x="965" y="560" class="flow-label" text-anchor="middle">report requests</text>
+    </g>
+
+  
+    <g>
+      <path d="M 770 540 V 810" class="flow" marker-end="url(#arrow)" />
+      <text x="785" y="665" class="flow-label" text-anchor="start">Save students,</text>
+<text x="785" y="685" class="flow-label" text-anchor="start">classes, payments</text>
+    </g>
+  
+    <g>
+      <path d="M 630 810 V 540" class="flow" marker-end="url(#arrow)" />
+      <text x="615" y="690" class="flow-label" text-anchor="end">Load records</text>
+<text x="615" y="710" class="flow-label" text-anchor="end">and reports</text>
+    </g>
+</svg>

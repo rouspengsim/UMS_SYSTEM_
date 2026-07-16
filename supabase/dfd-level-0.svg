@@ -1,0 +1,256 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">StudentSphere DFD Level 0</title>
+  <desc id="desc">Modern Level 0 data-flow diagram with clear actors, processes, and data stores.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 4 L 0 8 z" fill="#334155" />
+    </marker>
+    <filter id="softShadow" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.12" />
+    </filter>
+    <style>
+      .background { fill: #f8fafc; }
+      .page-title { fill: #0f172a; font: 800 34px Arial, sans-serif; text-anchor: middle; }
+      .page-subtitle { fill: #64748b; font: 500 16px Arial, sans-serif; text-anchor: middle; }
+      .section-title { fill: #0f172a; font: 800 21px Arial, sans-serif; }
+      .section-note { fill: #64748b; font: 500 14px Arial, sans-serif; }
+      .panel { fill: #ffffff; stroke: #dbe4ee; stroke-width: 1.4; filter: url(#softShadow); }
+      .platform-panel { fill: #ffffff; stroke: #b6d9e2; stroke-width: 1.5; filter: url(#softShadow); }
+      .data-panel { fill: #ffffff; stroke: #d6d3d1; stroke-width: 1.5; filter: url(#softShadow); }
+      .actor-card, .module-card, .data-pill, .process-node, .store { fill: #ffffff; stroke: #d7e0ea; stroke-width: 1.2; }
+      .initials { fill: #ffffff; font: 800 17px Arial, sans-serif; text-anchor: middle; }
+      .actor-title { fill: #0f172a; font: 800 17px Arial, sans-serif; }
+      .actor-note { fill: #64748b; font: 500 12px Arial, sans-serif; }
+      .module-title { fill: #0f172a; font: 800 16px Arial, sans-serif; }
+      .module-note { fill: #64748b; font: 500 12px Arial, sans-serif; }
+      .data-title { fill: #0f172a; font: 800 14px Arial, sans-serif; }
+      .data-note { fill: #64748b; font: 500 12px Arial, sans-serif; }
+      .flow { fill: none; stroke: #334155; stroke-width: 2.2; stroke-linecap: round; }
+      .flow-soft { fill: none; stroke: #0f766e; stroke-width: 2.4; stroke-linecap: round; }
+      .flow-dashed { fill: none; stroke: #64748b; stroke-width: 2; stroke-dasharray: 7 7; stroke-linecap: round; }
+      .flow-label { fill: #0f172a; font: 700 12px Arial, sans-serif; text-anchor: middle; paint-order: stroke; stroke: #f8fafc; stroke-width: 5px; stroke-linejoin: round; }
+      .process-id { fill: #ffffff; font: 800 14px Arial, sans-serif; text-anchor: middle; }
+      .process-title { fill: #0f172a; font: 800 15px Arial, sans-serif; }
+      .process-kind { fill: #64748b; font: 500 12px Arial, sans-serif; }
+      .db-icon { fill: #ecfeff; stroke: #0891b2; stroke-width: 1.5; }
+      .store-title { fill: #0f172a; font: 800 14px Arial, sans-serif; }
+      .store-note { fill: #64748b; font: 500 12px Arial, sans-serif; }
+      .step-circle { fill: #0f766e; }
+      .step-number { fill: #ffffff; font: 800 17px Arial, sans-serif; text-anchor: middle; }
+      .step-title { fill: #0f172a; font: 800 14px Arial, sans-serif; }
+      .step-note { fill: #64748b; font: 500 12px Arial, sans-serif; }
+      .swimlane-label { fill: #475569; font: 800 13px Arial, sans-serif; letter-spacing: 1.5px; }
+    </style>
+  </defs>
+  <rect width="1600" height="1000" class="background" />
+  <text x="800" y="48" class="page-title">StudentSphere DFD Level 0</text>
+  <text x="800" y="78" class="page-subtitle">Modern Level 0 data-flow diagram with clear actors, processes, and data stores.</text>
+  
+  <g>
+    <rect x="60" y="125" width="1480" height="820" rx="32" class="panel" />
+    <text x="100" y="175" class="section-title">DFD Level 0</text>
+    <text x="100" y="202" class="section-note">A cleaner Level 0 view with actors on the left, processes in the middle, and data stores on the right.</text>
+
+    <text x="105" y="255" class="swimlane-label">ACTORS</text>
+    <text x="390" y="255" class="swimlane-label">APPLICATION PROCESSES</text>
+    <text x="1210" y="255" class="swimlane-label">DATA STORES</text>
+
+    
+    <g>
+      <rect x="100" y="290" width="240" height="110" rx="20" class="actor-card" />
+      <circle cx="142" cy="345" r="25" fill="#2563eb" />
+      <text x="142" y="352" class="initials">AD</text>
+      <text x="184" y="336" class="actor-title">Admin</text>
+      <text x="184" y="362" class="actor-note">Setup and reports</text>
+    </g>
+    
+    <g>
+      <rect x="100" y="430" width="240" height="110" rx="20" class="actor-card" />
+      <circle cx="142" cy="485" r="25" fill="#0f766e" />
+      <text x="142" y="492" class="initials">TR</text>
+      <text x="184" y="476" class="actor-title">Teacher</text>
+      <text x="184" y="494.5" class="actor-note">Attendance and</text>
+<text x="184" y="509.5" class="actor-note">scores</text>
+    </g>
+    
+    <g>
+      <rect x="100" y="570" width="240" height="110" rx="20" class="actor-card" />
+      <circle cx="142" cy="625" r="25" fill="#db2777" />
+      <text x="142" y="632" class="initials">ST</text>
+      <text x="184" y="616" class="actor-title">Student</text>
+      <text x="184" y="642" class="actor-note">View own information</text>
+    </g>
+    
+    <g>
+      <rect x="100" y="710" width="240" height="110" rx="20" class="actor-card" />
+      <circle cx="142" cy="765" r="25" fill="#d97706" />
+      <text x="142" y="772" class="initials">AC</text>
+      <text x="184" y="756" class="actor-title">Accounting</text>
+      <text x="184" y="782" class="actor-note">Payment updates</text>
+    </g>
+
+    
+    <g>
+      <rect x="390" y="290" width="300" height="82" rx="18" class="process-node" />
+      <circle cx="424" cy="324" r="18" fill="#2563eb" />
+      <text x="424" y="330" class="process-id">1.0</text>
+      <text x="458" y="321" class="process-title">Login and Roles</text>
+      <text x="458" y="346" class="process-kind">Application process</text>
+    </g>
+    
+    <g>
+      <rect x="740" y="290" width="300" height="82" rx="18" class="process-node" />
+      <circle cx="774" cy="324" r="18" fill="#db2777" />
+      <text x="774" y="330" class="process-id">2.0</text>
+      <text x="808" y="321" class="process-title">Student Records</text>
+      <text x="808" y="346" class="process-kind">Application process</text>
+    </g>
+    
+    <g>
+      <rect x="390" y="420" width="300" height="82" rx="18" class="process-node" />
+      <circle cx="424" cy="454" r="18" fill="#7c3aed" />
+      <text x="424" y="460" class="process-id">3.0</text>
+      <text x="458" y="451" class="process-title">Teachers and Classes</text>
+      <text x="458" y="476" class="process-kind">Application process</text>
+    </g>
+    
+    <g>
+      <rect x="740" y="420" width="300" height="82" rx="18" class="process-node" />
+      <circle cx="774" cy="454" r="18" fill="#0891b2" />
+      <text x="774" y="460" class="process-id">4.0</text>
+      <text x="808" y="451" class="process-title">Attendance and Scores</text>
+      <text x="808" y="476" class="process-kind">Application process</text>
+    </g>
+    
+    <g>
+      <rect x="390" y="550" width="300" height="82" rx="18" class="process-node" />
+      <circle cx="424" cy="584" r="18" fill="#0f766e" />
+      <text x="424" y="590" class="process-id">5.0</text>
+      <text x="458" y="581" class="process-title">Timetable</text>
+      <text x="458" y="606" class="process-kind">Application process</text>
+    </g>
+    
+    <g>
+      <rect x="740" y="550" width="300" height="82" rx="18" class="process-node" />
+      <circle cx="774" cy="584" r="18" fill="#d97706" />
+      <text x="774" y="590" class="process-id">6.0</text>
+      <text x="808" y="581" class="process-title">Payments</text>
+      <text x="808" y="606" class="process-kind">Application process</text>
+    </g>
+    
+    <g>
+      <rect x="390" y="680" width="300" height="82" rx="18" class="process-node" />
+      <circle cx="424" cy="714" r="18" fill="#475569" />
+      <text x="424" y="720" class="process-id">7.0</text>
+      <text x="458" y="711" class="process-title">Reports</text>
+      <text x="458" y="736" class="process-kind">Application process</text>
+    </g>
+    
+    <g>
+      <rect x="740" y="680" width="300" height="82" rx="18" class="process-node" />
+      <circle cx="774" cy="714" r="18" fill="#ea580c" />
+      <text x="774" y="720" class="process-id">8.0</text>
+      <text x="808" y="711" class="process-title">Notifications</text>
+      <text x="808" y="736" class="process-kind">Application process</text>
+    </g>
+
+    
+    <g>
+      <rect x="1190" y="290" width="275" height="70" rx="16" class="store" />
+      <path d="M 1212 310 C 1212 300, 1268 300, 1268 310 V 338 C 1268 348, 1212 348, 1212 338 Z M 1212 310 C 1212 320, 1268 320, 1268 310" class="db-icon" />
+      <text x="1290" y="322" class="store-title">D1 Auth and Profiles</text>
+      <text x="1290" y="342" class="store-note">users, profiles, roles</text>
+    </g>
+    
+    <g>
+      <rect x="1190" y="390" width="275" height="70" rx="16" class="store" />
+      <path d="M 1212 410 C 1212 400, 1268 400, 1268 410 V 438 C 1268 448, 1212 448, 1212 438 Z M 1212 410 C 1212 420, 1268 420, 1268 410" class="db-icon" />
+      <text x="1290" y="422" class="store-title">D2 Academic Records</text>
+      <text x="1290" y="442" class="store-note">students, teachers, classes</text>
+    </g>
+    
+    <g>
+      <rect x="1190" y="490" width="275" height="70" rx="16" class="store" />
+      <path d="M 1212 510 C 1212 500, 1268 500, 1268 510 V 538 C 1268 548, 1212 548, 1212 538 Z M 1212 510 C 1212 520, 1268 520, 1268 510" class="db-icon" />
+      <text x="1290" y="522" class="store-title">D3 Attendance and Scores</text>
+      <text x="1290" y="542" class="store-note">attendance, exams, results</text>
+    </g>
+    
+    <g>
+      <rect x="1190" y="590" width="275" height="70" rx="16" class="store" />
+      <path d="M 1212 610 C 1212 600, 1268 600, 1268 610 V 638 C 1268 648, 1212 648, 1212 638 Z M 1212 610 C 1212 620, 1268 620, 1268 610" class="db-icon" />
+      <text x="1290" y="622" class="store-title">D4 Payments</text>
+      <text x="1290" y="642" class="store-note">student fee records</text>
+    </g>
+    
+    <g>
+      <rect x="1190" y="690" width="275" height="70" rx="16" class="store" />
+      <path d="M 1212 710 C 1212 700, 1268 700, 1268 710 V 738 C 1268 748, 1212 748, 1212 738 Z M 1212 710 C 1212 720, 1268 720, 1268 710" class="db-icon" />
+      <text x="1290" y="722" class="store-title">D5 Messages</text>
+      <text x="1290" y="742" class="store-note">notifications and reminders</text>
+    </g>
+
+    
+    <g>
+      <path d="M 340 345 L 390 331" class="flow" marker-end="url(#arrow)" />
+      <text x="365" y="329" class="flow-label">login</text>
+    </g>
+    
+    <g>
+      <path d="M 340 485 L 390 461" class="flow" marker-end="url(#arrow)" />
+      <text x="365" y="464" class="flow-label">class work</text>
+    </g>
+    
+    <g>
+      <path d="M 340 625 C 300 625, 430 721, 390 721" class="flow" marker-end="url(#arrow)" />
+      <text x="365" y="664" class="flow-label">view reports</text>
+    </g>
+    
+    <g>
+      <path d="M 340 765 L 360 765 C 610 765, 610 591, 740 591" class="flow" marker-end="url(#arrow)" />
+      <text x="555" y="790" class="flow-label">payments</text>
+    </g>
+
+    
+    <g>
+      <path d="M 690 331 L 740 331" class="flow" marker-end="url(#arrow)" />
+      <text x="715" y="322" class="flow-label">authorized</text>
+    </g>
+    
+    <g>
+      <path d="M 690 461 L 740 461" class="flow" marker-end="url(#arrow)" />
+      <text x="715" y="452" class="flow-label">classes</text>
+    </g>
+    
+    <g>
+      <path d="M 690 591 L 740 591" class="flow" marker-end="url(#arrow)" />
+      <text x="715" y="582" class="flow-label">schedule</text>
+    </g>
+    
+    <g>
+      <path d="M 690 721 L 740 721" class="flow" marker-end="url(#arrow)" />
+      <text x="715" y="712" class="flow-label">reports</text>
+    </g>
+
+    
+    <g>
+      <path d="M 1040 331 L 1190 325" class="flow-soft" marker-end="url(#arrow)" />
+      <text x="1115" y="319" class="flow-label">profile data</text>
+    </g>
+    
+    <g>
+      <path d="M 1040 461 L 1190 425" class="flow-soft" marker-end="url(#arrow)" />
+      <text x="1115" y="434" class="flow-label">academic data</text>
+    </g>
+    
+    <g>
+      <path d="M 1040 591 L 1190 625" class="flow-soft" marker-end="url(#arrow)" />
+      <text x="1115" y="599" class="flow-label">payment data</text>
+    </g>
+    
+    <g>
+      <path d="M 1040 721 L 1190 725" class="flow-soft" marker-end="url(#arrow)" />
+      <text x="1115" y="714" class="flow-label">message data</text>
+    </g>
+  </g>
+</svg>

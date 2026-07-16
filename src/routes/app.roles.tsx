@@ -24,10 +24,8 @@ type RoleRow = {
 
 const ROLE_REPORT_PAGE_SIZE = 10;
 
-function roleLabel(role: RoleRow["role"]) {
-  if (role === "admin") return "Admin";
-  if (role === "teacher") return "Teacher";
-  return "Student";
+function roleLabel(role: RoleRow["role"], t: (key: string) => string) {
+  return t(role);
 }
 
 function RolesPage() {
@@ -76,8 +74,8 @@ function RolesPage() {
   });
 
   const sortedRows = useMemo(
-    () => [...rows].sort((a, b) => roleLabel(a.role).localeCompare(roleLabel(b.role))),
-    [rows],
+    () => [...rows].sort((a, b) => roleLabel(a.role, t).localeCompare(roleLabel(b.role, t))),
+    [rows, t],
   );
   const pageCount = Math.max(1, Math.ceil(sortedRows.length / ROLE_REPORT_PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -93,16 +91,16 @@ function RolesPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["user-roles", isDemo ? "demo" : "remote"] });
-      toast.success("Role removed");
+      toast.success(t("role_removed"));
     },
     onError: (e) => toast.error(e.message),
   });
 
   return (
     <div>
-      <PageHeader title={t("roles")} subtitle="User role report and access assignments" />
+      <PageHeader title={t("roles")} subtitle={t("roles_subtitle")} />
       <SectionCard
-        title="របាយការណ៍ អ្នកប្រើប្រាស់"
+        title={t("roles")}
         action={
           isAdmin &&
           !isDemo && (
@@ -119,19 +117,21 @@ function RolesPage() {
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
         ) : rows.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">No role assignments yet.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            {t("no_role_assignments_yet")}
+          </p>
         ) : (
           <>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
                 <thead>
                   <tr className="bg-slate-800 text-left text-xs font-semibold text-white">
-                    <th className="w-16 px-3 py-2">ID</th>
-                    <th className="px-3 py-2">User Name</th>
-                    <th className="px-3 py-2">Email</th>
-                    <th className="px-3 py-2">Role as</th>
-                    {isAdmin && <th className="w-36 px-3 py-2">Password</th>}
-                    {isAdmin && <th className="w-24 px-3 py-2">Actions</th>}
+                    <th className="w-16 px-3 py-2">{t("id")}</th>
+                    <th className="px-3 py-2">{t("user_name")}</th>
+                    <th className="px-3 py-2">{t("email")}</th>
+                    <th className="px-3 py-2">{t("role_as")}</th>
+                    {isAdmin && <th className="w-36 px-3 py-2">{t("password")}</th>}
+                    {isAdmin && <th className="w-24 px-3 py-2">{t("actions")}</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -146,7 +146,7 @@ function RolesPage() {
                         <td className="px-3 py-2 font-mono">{displayId}</td>
                         <td className="px-3 py-2 font-semibold">{r.profiles?.full_name ?? "—"}</td>
                         <td className="px-3 py-2">{r.profiles?.email ?? "—"}</td>
-                        <td className="px-3 py-2">{roleLabel(r.role)}</td>
+                        <td className="px-3 py-2">{roleLabel(r.role, t)}</td>
                         {isAdmin && (
                           <td className="px-3 py-2">
                             <button
@@ -156,7 +156,7 @@ function RolesPage() {
                               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-xs font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               <KeyRound className="h-3.5 w-3.5" />
-                              Update
+                              {t("update")}
                             </button>
                           </td>
                         )}
@@ -164,12 +164,12 @@ function RolesPage() {
                           <td className="px-3 py-2">
                             <button
                               onClick={() => {
-                                if (confirm("Remove this role?")) del.mutate(r.id);
+                                if (confirm(t("remove_role_confirm"))) del.mutate(r.id);
                               }}
                               disabled={isDemo || del.isPending || r.role === "admin"}
                               className="rounded-md bg-destructive px-2.5 py-1 text-xs font-semibold text-destructive-foreground hover:bg-destructive/90 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              Delete
+                              {t("delete")}
                             </button>
                           </td>
                         )}
@@ -211,20 +211,21 @@ function RolesPage() {
 }
 
 function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => void }) {
+  const { t } = useI18n();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const updatePassword = useMutation({
     mutationFn: async () => {
-      if (password.length < 6) throw new Error("Password must be at least 6 characters.");
-      if (password !== confirmPassword) throw new Error("Passwords do not match.");
+      if (password.length < 6) throw new Error(t("password_min_6"));
+      if (password !== confirmPassword) throw new Error(t("passwords_do_not_match"));
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session?.access_token) {
-        throw new Error("Your admin session expired. Please log in again.");
+        throw new Error(t("admin_session_expired_login"));
       }
 
       return updateUserPassword({
@@ -236,7 +237,7 @@ function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => 
       });
     },
     onSuccess: () => {
-      toast.success("Password updated");
+      toast.success(t("password_updated"));
       onClose();
     },
     onError: (error) => toast.error(error.message),
@@ -253,16 +254,16 @@ function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => 
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h3 className="font-display text-lg font-bold">Update password</h3>
+            <h3 className="font-display text-lg font-bold">{t("update_password")}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              {user.profiles?.full_name ?? "User"} · {roleLabel(user.role)}
+              {user.profiles?.full_name ?? t("user")} · {roleLabel(user.role, t)}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-            aria-label="Close"
+            aria-label={t("close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -270,7 +271,7 @@ function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => 
 
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
           <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" />
-          Existing passwords cannot be viewed because Supabase stores them securely as hashes.
+          {t("secure_password_hash_notice")}
         </div>
 
         <form
@@ -282,7 +283,7 @@ function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => 
         >
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-              New password
+              {t("new_password")}
             </span>
             <div className="relative">
               <input
@@ -298,7 +299,7 @@ function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => 
                 type="button"
                 onClick={() => setShowPassword((visible) => !visible)}
                 className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-muted"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? t("hide_password") : t("show_password")}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -307,7 +308,7 @@ function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => 
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">
-              Confirm password
+              {t("confirm_password")}
             </span>
             <input
               type={showPassword ? "text" : "password"}
@@ -326,7 +327,7 @@ function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => 
               onClick={onClose}
               className="h-9 rounded-lg border border-border px-4 text-sm font-semibold hover:bg-muted"
             >
-              Cancel
+              {t("cancel")}
             </button>
             <button
               type="submit"
@@ -334,7 +335,7 @@ function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => 
               className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
             >
               {updatePassword.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              Update password
+              {t("update_password")}
             </button>
           </div>
         </form>
@@ -344,6 +345,7 @@ function UpdatePasswordModal({ user, onClose }: { user: RoleRow; onClose: () => 
 }
 
 function AssignRoleButton({ onAdded }: { onAdded: () => void }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [f, setF] = useState({ user_id: "", role: "teacher" as "teacher" | "student" });
   const { data: profiles = [] } = useQuery({
@@ -365,7 +367,7 @@ function AssignRoleButton({ onAdded }: { onAdded: () => void }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Role assigned");
+      toast.success(t("role_assigned"));
       setOpen(false);
       onAdded();
     },
@@ -377,7 +379,7 @@ function AssignRoleButton({ onAdded }: { onAdded: () => void }) {
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
       >
-        <Plus className="h-3.5 w-3.5" /> Assign role
+        <Plus className="h-3.5 w-3.5" /> {t("assign_role")}
       </button>
     );
   return (
@@ -389,25 +391,25 @@ function AssignRoleButton({ onAdded }: { onAdded: () => void }) {
         className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-card"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-4 font-display text-lg font-bold">Assign role</h3>
+        <h3 className="mb-4 font-display text-lg font-bold">{t("assign_role")}</h3>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!f.user_id) return toast.error("Pick a user");
+            if (!f.user_id) return toast.error(t("pick_user"));
             mut.mutate();
           }}
           className="space-y-3"
         >
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              User
+              {t("user")}
             </label>
             <select
               value={f.user_id}
               onChange={(e) => setF({ ...f, user_id: e.target.value })}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm"
             >
-              <option value="">— Select —</option>
+              <option value="">— {t("select")} —</option>
               {profiles.map((p) => (
                 <option key={p.user_id} value={p.user_id}>
                   {p.full_name} ({p.email})
@@ -417,15 +419,15 @@ function AssignRoleButton({ onAdded }: { onAdded: () => void }) {
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Role
+              {t("role")}
             </label>
             <select
               value={f.role}
               onChange={(e) => setF({ ...f, role: e.target.value as typeof f.role })}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm"
             >
-              <option value="teacher">Teacher</option>
-              <option value="student">Student</option>
+              <option value="teacher">{t("teacher")}</option>
+              <option value="student">{t("student")}</option>
             </select>
           </div>
           <button
@@ -433,7 +435,7 @@ function AssignRoleButton({ onAdded }: { onAdded: () => void }) {
             disabled={mut.isPending}
             className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl gradient-primary text-sm font-semibold text-primary-foreground shadow-soft disabled:opacity-60"
           >
-            {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Assign"}
+            {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("assign_role")}
           </button>
         </form>
       </div>

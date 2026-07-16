@@ -1,0 +1,707 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1626" height="1822" viewBox="0 0 1626 1822" role="img" aria-labelledby="title desc">
+  <title id="title">StudentSphere database schema</title>
+  <desc id="desc">Database table diagram generated from src/integrations/supabase/types.ts.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 9 3 L 0 6 z" fill="#64748b" fill-opacity="0.65" />
+    </marker>
+    <style>
+
+      .background { fill: #f8fafc; }
+      .headline { fill: #0f172a; font: 700 28px Arial, sans-serif; }
+      .subhead { fill: #475569; font: 14px Arial, sans-serif; }
+      .legend { fill: #334155; font: 12px Arial, sans-serif; }
+      .card-shadow { fill: #0f172a; opacity: 0.08; transform: translate(0, 2px); }
+      .card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1; }
+      .card-title, .card-title-fill { fill: #123c69; }
+      .table-name { fill: #ffffff; font: 700 16px Arial, sans-serif; }
+      .table-count { fill: #bfdbfe; font: 12px Arial, sans-serif; text-anchor: end; }
+      .column-marker { fill: #b45309; font: 700 11px Arial, sans-serif; }
+      .column-name { fill: #111827; font: 13px Arial, sans-serif; }
+      .column-type { fill: #64748b; font: 12px Arial, sans-serif; text-anchor: end; }
+
+    </style>
+  </defs>
+  <rect width="1626" height="1822" class="background" />
+  <text x="42" y="42" class="headline">StudentSphere Database Tables</text>
+  <text x="42" y="66" class="subhead">Generated from src/integrations/supabase/types.ts: 16 tables, 14 relationships</text>
+  <text x="1584" y="45" class="legend" text-anchor="end">PK = primary key, FK = foreign key</text>
+  <g><path d="M 222 257 C 635.7 257, 990.3 246, 1404 246" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 222 257 C 359.9 257, 478.1 1361, 616 1361" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 616 246 C 891.8 246, 1128.2 1196, 1404 1196" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 1010 257 C 872.1 257, 753.9 1361, 616 1361" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 1404 246 C 1334 246, 1474 1196, 1404 1196" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 1404 515 C 1334 515, 1474 246, 1404 246" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 1404 515 C 1128.2 515, 891.8 1361, 616 1361" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 222 592 C 635.7 592, 990.3 246, 1404 246" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 1404 795 C 1128.2 795, 891.8 1361, 616 1361" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 222 872 C 152 872, 292 592, 222 592" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 222 872 C 359.9 872, 478.1 1361, 616 1361" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 1010 960 C 1147.9 960, 1266.1 246, 1404 246" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 1010 960 C 872.1 960, 753.9 1361, 616 1361" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" />
+<path d="M 222 1130 C 635.7 1130, 990.3 246, 1404 246" fill="none" stroke="#64748b" stroke-width="1.4" stroke-opacity="0.48" marker-end="url(#arrow)" /></g>
+  <g>
+      <g>
+        <rect x="42" y="88" width="360" height="338" rx="8" class="card-shadow" />
+        <rect x="42" y="88" width="360" height="338" rx="8" class="card" />
+        <rect x="42" y="88" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 42 122 H 402 V 130 H 42 Z" class="card-title-fill" />
+        <text x="60" y="115" class="table-name">attendance</text>
+        <text x="384" y="115" class="table-count">12 columns</text>
+        
+          <text x="60" y="161" class="column-marker">FK</text>
+          <text x="94" y="161" class="column-name">class_id</text>
+          <text x="384" y="161" class="column-type">string</text>
+          
+          <text x="94" y="183" class="column-name">created_at</text>
+          <text x="384" y="183" class="column-type">string</text>
+          
+          <text x="94" y="205" class="column-name">date</text>
+          <text x="384" y="205" class="column-type">string</text>
+          
+          <text x="94" y="227" class="column-name">day_of_week</text>
+          <text x="384" y="227" class="column-type">number</text>
+          <text x="60" y="249" class="column-marker">PK</text>
+          <text x="94" y="249" class="column-name">id</text>
+          <text x="384" y="249" class="column-type">string</text>
+          
+          <text x="94" y="271" class="column-name">note</text>
+          <text x="384" y="271" class="column-type">string?</text>
+          
+          <text x="94" y="293" class="column-name">recorded_by</text>
+          <text x="384" y="293" class="column-type">string?</text>
+          
+          <text x="94" y="315" class="column-name">semester</text>
+          <text x="384" y="315" class="column-type">string</text>
+          
+          <text x="94" y="337" class="column-name">status</text>
+          <text x="384" y="337" class="column-type">enum:attendance_status</text>
+          
+          <text x="94" y="359" class="column-name">subject_code</text>
+          <text x="384" y="359" class="column-type">string</text>
+          <text x="60" y="381" class="column-marker">FK</text>
+          <text x="94" y="381" class="column-name">student_id</text>
+          <text x="384" y="381" class="column-type">string</text>
+          
+          <text x="94" y="403" class="column-name">week_number</text>
+          <text x="384" y="403" class="column-type">number</text>
+      </g>
+      <g>
+        <rect x="436" y="88" width="360" height="316" rx="8" class="card-shadow" />
+        <rect x="436" y="88" width="360" height="316" rx="8" class="card" />
+        <rect x="436" y="88" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 436 122 H 796 V 130 H 436 Z" class="card-title-fill" />
+        <text x="454" y="115" class="table-name">teacher_attendance</text>
+        <text x="778" y="115" class="table-count">11 columns</text>
+        
+          
+          <text x="488" y="161" class="column-name">created_at</text>
+          <text x="778" y="161" class="column-type">string</text>
+          
+          <text x="488" y="183" class="column-name">date</text>
+          <text x="778" y="183" class="column-type">string</text>
+          
+          <text x="488" y="205" class="column-name">day_of_week</text>
+          <text x="778" y="205" class="column-type">number</text>
+          <text x="454" y="227" class="column-marker">PK</text>
+          <text x="488" y="227" class="column-name">id</text>
+          <text x="778" y="227" class="column-type">string</text>
+          
+          <text x="488" y="249" class="column-name">note</text>
+          <text x="778" y="249" class="column-type">string?</text>
+          
+          <text x="488" y="271" class="column-name">recorded_by</text>
+          <text x="778" y="271" class="column-type">string?</text>
+          
+          <text x="488" y="293" class="column-name">semester</text>
+          <text x="778" y="293" class="column-type">string</text>
+          
+          <text x="488" y="315" class="column-name">status</text>
+          <text x="778" y="315" class="column-type">enum:attendance_status</text>
+          
+          <text x="488" y="337" class="column-name">subject_code</text>
+          <text x="778" y="337" class="column-type">string</text>
+          <text x="454" y="359" class="column-marker">FK</text>
+          <text x="488" y="359" class="column-name">teacher_id</text>
+          <text x="778" y="359" class="column-type">string</text>
+          
+          <text x="488" y="381" class="column-name">week_number</text>
+          <text x="778" y="381" class="column-type">number</text>
+      </g>
+      <g>
+        <rect x="830" y="88" width="360" height="338" rx="8" class="card-shadow" />
+        <rect x="830" y="88" width="360" height="338" rx="8" class="card" />
+        <rect x="830" y="88" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 830 122 H 1190 V 130 H 830 Z" class="card-title-fill" />
+        <text x="848" y="115" class="table-name">certificates</text>
+        <text x="1172" y="115" class="table-count">12 columns</text>
+        
+          
+          <text x="882" y="161" class="column-name">created_at</text>
+          <text x="1172" y="161" class="column-type">string</text>
+          
+          <text x="882" y="183" class="column-name">description</text>
+          <text x="1172" y="183" class="column-type">string?</text>
+          
+          <text x="882" y="205" class="column-name">file_url</text>
+          <text x="1172" y="205" class="column-type">string?</text>
+          <text x="848" y="227" class="column-marker">PK</text>
+          <text x="882" y="227" class="column-name">id</text>
+          <text x="1172" y="227" class="column-type">string</text>
+          
+          <text x="882" y="249" class="column-name">issue_date</text>
+          <text x="1172" y="249" class="column-type">string</text>
+          
+          <text x="882" y="271" class="column-name">issued_by</text>
+          <text x="1172" y="271" class="column-type">string?</text>
+          
+          <text x="882" y="293" class="column-name">kind</text>
+          <text x="1172" y="293" class="column-type">enum:certificate_kind</text>
+          
+          <text x="882" y="315" class="column-name">status</text>
+          <text x="1172" y="315" class="column-type">enum:certificate_status</text>
+          <text x="848" y="337" class="column-marker">FK</text>
+          <text x="882" y="337" class="column-name">student_id</text>
+          <text x="1172" y="337" class="column-type">string</text>
+          
+          <text x="882" y="359" class="column-name">title</text>
+          <text x="1172" y="359" class="column-type">string</text>
+          
+          <text x="882" y="381" class="column-name">updated_at</text>
+          <text x="1172" y="381" class="column-type">string</text>
+          
+          <text x="882" y="403" class="column-name">verification_code</text>
+          <text x="1172" y="403" class="column-type">string</text>
+      </g>
+      <g>
+        <rect x="1224" y="88" width="360" height="316" rx="8" class="card-shadow" />
+        <rect x="1224" y="88" width="360" height="316" rx="8" class="card" />
+        <rect x="1224" y="88" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 1224 122 H 1584 V 130 H 1224 Z" class="card-title-fill" />
+        <text x="1242" y="115" class="table-name">classes</text>
+        <text x="1566" y="115" class="table-count">11 columns</text>
+        
+          
+          <text x="1276" y="161" class="column-name">academic_year</text>
+          <text x="1566" y="161" class="column-type">string?</text>
+          
+          <text x="1276" y="183" class="column-name">capacity</text>
+          <text x="1566" y="183" class="column-type">number</text>
+          
+          <text x="1276" y="205" class="column-name">created_at</text>
+          <text x="1566" y="205" class="column-type">string</text>
+          
+          <text x="1276" y="227" class="column-name">description</text>
+          <text x="1566" y="227" class="column-type">string?</text>
+          <text x="1242" y="249" class="column-marker">PK</text>
+          <text x="1276" y="249" class="column-name">id</text>
+          <text x="1566" y="249" class="column-type">string</text>
+          
+          <text x="1276" y="271" class="column-name">name</text>
+          <text x="1566" y="271" class="column-type">string</text>
+          
+          <text x="1276" y="293" class="column-name">room</text>
+          <text x="1566" y="293" class="column-type">string?</text>
+          
+          <text x="1276" y="315" class="column-name">semester</text>
+          <text x="1566" y="315" class="column-type">string?</text>
+          
+          <text x="1276" y="337" class="column-name">subject_code</text>
+          <text x="1566" y="337" class="column-type">string</text>
+          <text x="1242" y="359" class="column-marker">FK</text>
+          <text x="1276" y="359" class="column-name">teacher_id</text>
+          <text x="1566" y="359" class="column-type">string?</text>
+          
+          <text x="1276" y="381" class="column-name">updated_at</text>
+          <text x="1566" y="381" class="column-type">string</text>
+      </g>
+      <g>
+        <rect x="436" y="434" width="360" height="206" rx="8" class="card-shadow" />
+        <rect x="436" y="434" width="360" height="206" rx="8" class="card" />
+        <rect x="436" y="434" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 436 468 H 796 V 476 H 436 Z" class="card-title-fill" />
+        <text x="454" y="461" class="table-name">subjects</text>
+        <text x="778" y="461" class="table-count">6 columns</text>
+        
+          
+          <text x="488" y="507" class="column-name">created_at</text>
+          <text x="778" y="507" class="column-type">string</text>
+          
+          <text x="488" y="529" class="column-name">description</text>
+          <text x="778" y="529" class="column-type">string?</text>
+          <text x="454" y="551" class="column-marker">PK</text>
+          <text x="488" y="551" class="column-name">id</text>
+          <text x="778" y="551" class="column-type">string</text>
+          
+          <text x="488" y="573" class="column-name">subject_id</text>
+          <text x="778" y="573" class="column-type">string</text>
+          
+          <text x="488" y="595" class="column-name">subject_name</text>
+          <text x="778" y="595" class="column-type">string</text>
+          
+          <text x="488" y="617" class="column-name">updated_at</text>
+          <text x="778" y="617" class="column-type">string</text>
+      </g>
+      <g>
+        <rect x="1224" y="434" width="360" height="162" rx="8" class="card-shadow" />
+        <rect x="1224" y="434" width="360" height="162" rx="8" class="card" />
+        <rect x="1224" y="434" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 1224 468 H 1584 V 476 H 1224 Z" class="card-title-fill" />
+        <text x="1242" y="461" class="table-name">enrollments</text>
+        <text x="1566" y="461" class="table-count">4 columns</text>
+        
+          <text x="1242" y="507" class="column-marker">FK</text>
+          <text x="1276" y="507" class="column-name">class_id</text>
+          <text x="1566" y="507" class="column-type">string</text>
+          
+          <text x="1276" y="529" class="column-name">enrolled_at</text>
+          <text x="1566" y="529" class="column-type">string</text>
+          <text x="1242" y="551" class="column-marker">PK</text>
+          <text x="1276" y="551" class="column-name">id</text>
+          <text x="1566" y="551" class="column-type">string</text>
+          <text x="1242" y="573" class="column-marker">FK</text>
+          <text x="1276" y="573" class="column-name">student_id</text>
+          <text x="1566" y="573" class="column-type">string</text>
+      </g>
+      <g>
+        <rect x="42" y="456" width="360" height="272" rx="8" class="card-shadow" />
+        <rect x="42" y="456" width="360" height="272" rx="8" class="card" />
+        <rect x="42" y="456" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 42 490 H 402 V 498 H 42 Z" class="card-title-fill" />
+        <text x="60" y="483" class="table-name">exams</text>
+        <text x="384" y="483" class="table-count">9 columns</text>
+        
+          <text x="60" y="529" class="column-marker">FK</text>
+          <text x="94" y="529" class="column-name">class_id</text>
+          <text x="384" y="529" class="column-type">string</text>
+          
+          <text x="94" y="551" class="column-name">created_at</text>
+          <text x="384" y="551" class="column-type">string</text>
+          
+          <text x="94" y="573" class="column-name">exam_date</text>
+          <text x="384" y="573" class="column-type">string?</text>
+          
+          <text x="94" y="595" class="column-name">exam_type</text>
+          <text x="384" y="595" class="column-type">enum:exam_type</text>
+          <text x="60" y="617" class="column-marker">PK</text>
+          <text x="94" y="617" class="column-name">id</text>
+          <text x="384" y="617" class="column-type">string</text>
+          
+          <text x="94" y="639" class="column-name">max_score</text>
+          <text x="384" y="639" class="column-type">number</text>
+          
+          <text x="94" y="661" class="column-name">name</text>
+          <text x="384" y="661" class="column-type">string</text>
+          
+          <text x="94" y="683" class="column-name">updated_at</text>
+          <text x="384" y="683" class="column-type">string</text>
+          
+          <text x="94" y="705" class="column-name">weight</text>
+          <text x="384" y="705" class="column-type">number</text>
+      </g>
+      <g>
+        <rect x="830" y="456" width="360" height="316" rx="8" class="card-shadow" />
+        <rect x="830" y="456" width="360" height="316" rx="8" class="card" />
+        <rect x="830" y="456" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 830 490 H 1190 V 498 H 830 Z" class="card-title-fill" />
+        <text x="848" y="483" class="table-name">notifications</text>
+        <text x="1172" y="483" class="table-count">11 columns</text>
+        
+          
+          <text x="882" y="529" class="column-name">body</text>
+          <text x="1172" y="529" class="column-type">string?</text>
+          
+          <text x="882" y="551" class="column-name">created_at</text>
+          <text x="1172" y="551" class="column-type">string</text>
+          
+          <text x="882" y="573" class="column-name">created_by</text>
+          <text x="1172" y="573" class="column-type">string?</text>
+          <text x="848" y="595" class="column-marker">PK</text>
+          <text x="882" y="595" class="column-name">id</text>
+          <text x="1172" y="595" class="column-type">string</text>
+          
+          <text x="882" y="617" class="column-name">is_read</text>
+          <text x="1172" y="617" class="column-type">boolean</text>
+          
+          <text x="882" y="639" class="column-name">kind</text>
+          <text x="1172" y="639" class="column-type">enum:notification_kind</text>
+          
+          <text x="882" y="661" class="column-name">media_type</text>
+          <text x="1172" y="661" class="column-type">string?</text>
+          
+          <text x="882" y="683" class="column-name">media_url</text>
+          <text x="1172" y="683" class="column-type">string?</text>
+          
+          <text x="882" y="705" class="column-name">target_role</text>
+          <text x="1172" y="705" class="column-type">enum:app_role?</text>
+          
+          <text x="882" y="727" class="column-name">target_user_id</text>
+          <text x="1172" y="727" class="column-type">string?</text>
+          
+          <text x="882" y="749" class="column-name">title</text>
+          <text x="1172" y="749" class="column-type">string</text>
+      </g>
+      <g>
+        <rect x="1224" y="626" width="360" height="338" rx="8" class="card-shadow" />
+        <rect x="1224" y="626" width="360" height="338" rx="8" class="card" />
+        <rect x="1224" y="626" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 1224 660 H 1584 V 668 H 1224 Z" class="card-title-fill" />
+        <text x="1242" y="653" class="table-name">payments</text>
+        <text x="1566" y="653" class="table-count">12 columns</text>
+        
+          
+          <text x="1276" y="699" class="column-name">amount</text>
+          <text x="1566" y="699" class="column-type">number</text>
+          
+          <text x="1276" y="721" class="column-name">created_at</text>
+          <text x="1566" y="721" class="column-type">string</text>
+          
+          <text x="1276" y="743" class="column-name">currency</text>
+          <text x="1566" y="743" class="column-type">string</text>
+          
+          <text x="1276" y="765" class="column-name">description</text>
+          <text x="1566" y="765" class="column-type">string?</text>
+          
+          <text x="1276" y="787" class="column-name">due_date</text>
+          <text x="1566" y="787" class="column-type">string?</text>
+          <text x="1242" y="809" class="column-marker">PK</text>
+          <text x="1276" y="809" class="column-name">id</text>
+          <text x="1566" y="809" class="column-type">string</text>
+          
+          <text x="1276" y="831" class="column-name">invoice_number</text>
+          <text x="1566" y="831" class="column-type">string</text>
+          
+          <text x="1276" y="853" class="column-name">method</text>
+          <text x="1566" y="853" class="column-type">enum:payment_method?</text>
+          
+          <text x="1276" y="875" class="column-name">paid_date</text>
+          <text x="1566" y="875" class="column-type">string?</text>
+          
+          <text x="1276" y="897" class="column-name">status</text>
+          <text x="1566" y="897" class="column-type">enum:payment_status</text>
+          <text x="1242" y="919" class="column-marker">FK</text>
+          <text x="1276" y="919" class="column-name">student_id</text>
+          <text x="1566" y="919" class="column-type">string</text>
+          
+          <text x="1276" y="941" class="column-name">updated_at</text>
+          <text x="1566" y="941" class="column-type">string</text>
+      </g>
+      <g>
+        <rect x="436" y="670" width="360" height="272" rx="8" class="card-shadow" />
+        <rect x="436" y="670" width="360" height="272" rx="8" class="card" />
+        <rect x="436" y="670" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 436 704 H 796 V 712 H 436 Z" class="card-title-fill" />
+        <text x="454" y="697" class="table-name">profiles</text>
+        <text x="778" y="697" class="table-count">9 columns</text>
+        
+          
+          <text x="488" y="743" class="column-name">avatar_url</text>
+          <text x="778" y="743" class="column-type">string?</text>
+          
+          <text x="488" y="765" class="column-name">created_at</text>
+          <text x="778" y="765" class="column-type">string</text>
+          
+          <text x="488" y="787" class="column-name">email</text>
+          <text x="778" y="787" class="column-type">string?</text>
+          
+          <text x="488" y="809" class="column-name">full_name</text>
+          <text x="778" y="809" class="column-type">string</text>
+          <text x="454" y="831" class="column-marker">PK</text>
+          <text x="488" y="831" class="column-name">id</text>
+          <text x="778" y="831" class="column-type">string</text>
+          
+          <text x="488" y="853" class="column-name">major</text>
+          <text x="778" y="853" class="column-type">string?</text>
+          
+          <text x="488" y="875" class="column-name">phone</text>
+          <text x="778" y="875" class="column-type">string?</text>
+          
+          <text x="488" y="897" class="column-name">updated_at</text>
+          <text x="778" y="897" class="column-type">string</text>
+          
+          <text x="488" y="919" class="column-name">user_id</text>
+          <text x="778" y="919" class="column-type">string</text>
+      </g>
+      <g>
+        <rect x="42" y="758" width="360" height="228" rx="8" class="card-shadow" />
+        <rect x="42" y="758" width="360" height="228" rx="8" class="card" />
+        <rect x="42" y="758" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 42 792 H 402 V 800 H 42 Z" class="card-title-fill" />
+        <text x="60" y="785" class="table-name">scores</text>
+        <text x="384" y="785" class="table-count">7 columns</text>
+        
+          
+          <text x="94" y="831" class="column-name">created_at</text>
+          <text x="384" y="831" class="column-type">string</text>
+          <text x="60" y="853" class="column-marker">FK</text>
+          <text x="94" y="853" class="column-name">exam_id</text>
+          <text x="384" y="853" class="column-type">string</text>
+          <text x="60" y="875" class="column-marker">PK</text>
+          <text x="94" y="875" class="column-name">id</text>
+          <text x="384" y="875" class="column-type">string</text>
+          
+          <text x="94" y="897" class="column-name">remark</text>
+          <text x="384" y="897" class="column-type">string?</text>
+          
+          <text x="94" y="919" class="column-name">score</text>
+          <text x="384" y="919" class="column-type">number?</text>
+          <text x="60" y="941" class="column-marker">FK</text>
+          <text x="94" y="941" class="column-name">student_id</text>
+          <text x="384" y="941" class="column-type">string</text>
+          
+          <text x="94" y="963" class="column-name">updated_at</text>
+          <text x="384" y="963" class="column-type">string</text>
+      </g>
+      <g>
+        <rect x="830" y="802" width="360" height="316" rx="8" class="card-shadow" />
+        <rect x="830" y="802" width="360" height="316" rx="8" class="card" />
+        <rect x="830" y="802" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 830 836 H 1190 V 844 H 830 Z" class="card-title-fill" />
+        <text x="848" y="829" class="table-name">subject_scores</text>
+        <text x="1172" y="829" class="table-count">11 columns</text>
+        
+          <text x="848" y="875" class="column-marker">FK</text>
+          <text x="882" y="875" class="column-name">class_id</text>
+          <text x="1172" y="875" class="column-type">string</text>
+          
+          <text x="882" y="897" class="column-name">created_at</text>
+          <text x="1172" y="897" class="column-type">string</text>
+          <text x="848" y="919" class="column-marker">PK</text>
+          <text x="882" y="919" class="column-name">id</text>
+          <text x="1172" y="919" class="column-type">string</text>
+          
+          <text x="882" y="941" class="column-name">max_score</text>
+          <text x="1172" y="941" class="column-type">number</text>
+          
+          <text x="882" y="963" class="column-name">recorded_by</text>
+          <text x="1172" y="963" class="column-type">string?</text>
+          
+          <text x="882" y="985" class="column-name">score</text>
+          <text x="1172" y="985" class="column-type">number?</text>
+          
+          <text x="882" y="1007" class="column-name">semester</text>
+          <text x="1172" y="1007" class="column-type">string</text>
+          <text x="848" y="1029" class="column-marker">FK</text>
+          <text x="882" y="1029" class="column-name">student_id</text>
+          <text x="1172" y="1029" class="column-type">string</text>
+          
+          <text x="882" y="1051" class="column-name">subject_code</text>
+          <text x="1172" y="1051" class="column-type">string</text>
+          
+          <text x="882" y="1073" class="column-name">updated_at</text>
+          <text x="1172" y="1073" class="column-type">string</text>
+          
+          <text x="882" y="1095" class="column-name">week_number</text>
+          <text x="1172" y="1095" class="column-type">number</text>
+      </g>
+      <g>
+        <rect x="436" y="972" width="360" height="778" rx="8" class="card-shadow" />
+        <rect x="436" y="972" width="360" height="778" rx="8" class="card" />
+        <rect x="436" y="972" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 436 1006 H 796 V 1014 H 436 Z" class="card-title-fill" />
+        <text x="454" y="999" class="table-name">students</text>
+        <text x="778" y="999" class="table-count">32 columns</text>
+        
+          
+          <text x="488" y="1045" class="column-name">address</text>
+          <text x="778" y="1045" class="column-type">string?</text>
+          
+          <text x="488" y="1067" class="column-name">academic</text>
+          <text x="778" y="1067" class="column-type">string?</text>
+          
+          <text x="488" y="1089" class="column-name">avatar_url</text>
+          <text x="778" y="1089" class="column-type">string?</text>
+          
+          <text x="488" y="1111" class="column-name">class_name</text>
+          <text x="778" y="1111" class="column-type">string?</text>
+          
+          <text x="488" y="1133" class="column-name">created_at</text>
+          <text x="778" y="1133" class="column-type">string</text>
+          
+          <text x="488" y="1155" class="column-name">date_of_birth</text>
+          <text x="778" y="1155" class="column-type">string?</text>
+          
+          <text x="488" y="1177" class="column-name">email</text>
+          <text x="778" y="1177" class="column-type">string?</text>
+          
+          <text x="488" y="1199" class="column-name">enrollment_year</text>
+          <text x="778" y="1199" class="column-type">number</text>
+          
+          <text x="488" y="1221" class="column-name">father_job</text>
+          <text x="778" y="1221" class="column-type">string?</text>
+          
+          <text x="488" y="1243" class="column-name">father_name</text>
+          <text x="778" y="1243" class="column-type">string?</text>
+          
+          <text x="488" y="1265" class="column-name">full_name</text>
+          <text x="778" y="1265" class="column-type">string</text>
+          
+          <text x="488" y="1287" class="column-name">full_name_en</text>
+          <text x="778" y="1287" class="column-type">string?</text>
+          
+          <text x="488" y="1309" class="column-name">full_name_km</text>
+          <text x="778" y="1309" class="column-type">string?</text>
+          
+          <text x="488" y="1331" class="column-name">gender</text>
+          <text x="778" y="1331" class="column-type">string?</text>
+          <text x="454" y="1353" class="column-marker">PK</text>
+          <text x="488" y="1353" class="column-name">id</text>
+          <text x="778" y="1353" class="column-type">string</text>
+          
+          <text x="488" y="1375" class="column-name">mother_job</text>
+          <text x="778" y="1375" class="column-type">string?</text>
+          
+          <text x="488" y="1397" class="column-name">mother_name</text>
+          <text x="778" y="1397" class="column-type">string?</text>
+          
+          <text x="488" y="1419" class="column-name">major</text>
+          <text x="778" y="1419" class="column-type">string?</text>
+          
+          <text x="488" y="1441" class="column-name">nationality</text>
+          <text x="778" y="1441" class="column-type">string?</text>
+          
+          <text x="488" y="1463" class="column-name">pay_year1</text>
+          <text x="778" y="1463" class="column-type">string</text>
+          
+          <text x="488" y="1485" class="column-name">pay_year2</text>
+          <text x="778" y="1485" class="column-type">string</text>
+          
+          <text x="488" y="1507" class="column-name">pay_year3</text>
+          <text x="778" y="1507" class="column-type">string</text>
+          
+          <text x="488" y="1529" class="column-name">pay_year4</text>
+          <text x="778" y="1529" class="column-type">string</text>
+          
+          <text x="488" y="1551" class="column-name">phone</text>
+          <text x="778" y="1551" class="column-type">string?</text>
+          
+          <text x="488" y="1573" class="column-name">place_of_birth</text>
+          <text x="778" y="1573" class="column-type">string?</text>
+          
+          <text x="488" y="1595" class="column-name">shift</text>
+          <text x="778" y="1595" class="column-type">string?</text>
+          
+          <text x="488" y="1617" class="column-name">status</text>
+          <text x="778" y="1617" class="column-type">enum:student_status</text>
+          
+          <text x="488" y="1639" class="column-name">student_type</text>
+          <text x="778" y="1639" class="column-type">string?</text>
+          
+          <text x="488" y="1661" class="column-name">study_year</text>
+          <text x="778" y="1661" class="column-type">number?</text>
+          
+          <text x="488" y="1683" class="column-name">student_code</text>
+          <text x="778" y="1683" class="column-type">string</text>
+          
+          <text x="488" y="1705" class="column-name">updated_at</text>
+          <text x="778" y="1705" class="column-type">string</text>
+          
+          <text x="488" y="1727" class="column-name">user_id</text>
+          <text x="778" y="1727" class="column-type">string?</text>
+      </g>
+      <g>
+        <rect x="1224" y="994" width="360" height="404" rx="8" class="card-shadow" />
+        <rect x="1224" y="994" width="360" height="404" rx="8" class="card" />
+        <rect x="1224" y="994" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 1224 1028 H 1584 V 1036 H 1224 Z" class="card-title-fill" />
+        <text x="1242" y="1021" class="table-name">teachers</text>
+        <text x="1566" y="1021" class="table-count">15 columns</text>
+        
+          
+          <text x="1276" y="1067" class="column-name">avatar_url</text>
+          <text x="1566" y="1067" class="column-type">string?</text>
+          
+          <text x="1276" y="1089" class="column-name">created_at</text>
+          <text x="1566" y="1089" class="column-type">string</text>
+          
+          <text x="1276" y="1111" class="column-name">department</text>
+          <text x="1566" y="1111" class="column-type">string?</text>
+          
+          <text x="1276" y="1133" class="column-name">email</text>
+          <text x="1566" y="1133" class="column-type">string?</text>
+          
+          <text x="1276" y="1155" class="column-name">faculty</text>
+          <text x="1566" y="1155" class="column-type">string?</text>
+          
+          <text x="1276" y="1177" class="column-name">full_name</text>
+          <text x="1566" y="1177" class="column-type">string</text>
+          
+          <text x="1276" y="1199" class="column-name">full_name_en</text>
+          <text x="1566" y="1199" class="column-type">string?</text>
+          
+          <text x="1276" y="1221" class="column-name">full_name_km</text>
+          <text x="1566" y="1221" class="column-type">string?</text>
+          
+          <text x="1276" y="1243" class="column-name">hire_date</text>
+          <text x="1566" y="1243" class="column-type">string?</text>
+          <text x="1242" y="1265" class="column-marker">PK</text>
+          <text x="1276" y="1265" class="column-name">id</text>
+          <text x="1566" y="1265" class="column-type">string</text>
+          
+          <text x="1276" y="1287" class="column-name">phone</text>
+          <text x="1566" y="1287" class="column-type">string?</text>
+          
+          <text x="1276" y="1309" class="column-name">specialization</text>
+          <text x="1566" y="1309" class="column-type">string?</text>
+          
+          <text x="1276" y="1331" class="column-name">staff_code</text>
+          <text x="1566" y="1331" class="column-type">string</text>
+          
+          <text x="1276" y="1353" class="column-name">updated_at</text>
+          <text x="1566" y="1353" class="column-type">string</text>
+          
+          <text x="1276" y="1375" class="column-name">user_id</text>
+          <text x="1566" y="1375" class="column-type">string?</text>
+      </g>
+      <g>
+        <rect x="42" y="1016" width="360" height="228" rx="8" class="card-shadow" />
+        <rect x="42" y="1016" width="360" height="228" rx="8" class="card" />
+        <rect x="42" y="1016" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 42 1050 H 402 V 1058 H 42 Z" class="card-title-fill" />
+        <text x="60" y="1043" class="table-name">timetable_slots</text>
+        <text x="384" y="1043" class="table-count">7 columns</text>
+        
+          <text x="60" y="1089" class="column-marker">FK</text>
+          <text x="94" y="1089" class="column-name">class_id</text>
+          <text x="384" y="1089" class="column-type">string</text>
+          
+          <text x="94" y="1111" class="column-name">created_at</text>
+          <text x="384" y="1111" class="column-type">string</text>
+          
+          <text x="94" y="1133" class="column-name">day</text>
+          <text x="384" y="1133" class="column-type">enum:weekday</text>
+          
+          <text x="94" y="1155" class="column-name">end_time</text>
+          <text x="384" y="1155" class="column-type">string</text>
+          <text x="60" y="1177" class="column-marker">PK</text>
+          <text x="94" y="1177" class="column-name">id</text>
+          <text x="384" y="1177" class="column-type">string</text>
+          
+          <text x="94" y="1199" class="column-name">room</text>
+          <text x="384" y="1199" class="column-type">string?</text>
+          
+          <text x="94" y="1221" class="column-name">start_time</text>
+          <text x="384" y="1221" class="column-type">string</text>
+      </g>
+      <g>
+        <rect x="830" y="1148" width="360" height="162" rx="8" class="card-shadow" />
+        <rect x="830" y="1148" width="360" height="162" rx="8" class="card" />
+        <rect x="830" y="1148" width="360" height="42" rx="8" class="card-title" />
+        <path d="M 830 1182 H 1190 V 1190 H 830 Z" class="card-title-fill" />
+        <text x="848" y="1175" class="table-name">user_roles</text>
+        <text x="1172" y="1175" class="table-count">4 columns</text>
+        
+          
+          <text x="882" y="1221" class="column-name">created_at</text>
+          <text x="1172" y="1221" class="column-type">string</text>
+          <text x="848" y="1243" class="column-marker">PK</text>
+          <text x="882" y="1243" class="column-name">id</text>
+          <text x="1172" y="1243" class="column-type">string</text>
+          
+          <text x="882" y="1265" class="column-name">role</text>
+          <text x="1172" y="1265" class="column-type">enum:app_role</text>
+          
+          <text x="882" y="1287" class="column-name">user_id</text>
+          <text x="1172" y="1287" class="column-type">string</text>
+      </g></g>
+</svg>

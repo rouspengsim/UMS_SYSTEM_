@@ -10,7 +10,6 @@ import {
   pageTitle,
 } from "@/lib/brand";
 import {
-  Plus,
   Loader2,
   X,
   DollarSign,
@@ -29,6 +28,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { tuitionRateForMajor } from "@/lib/tuition";
 
 export const Route = createFileRoute("/app/payments")({
   head: () => ({ meta: [{ title: pageTitle("Payments") }] }),
@@ -84,6 +84,8 @@ type PaymentStudent = {
 };
 
 const DEMO_PAYMENTS_KEY = "studentsphere.demo.payments";
+const PAYMENT_ROW_SELECT =
+  "id,invoice_number,amount,due_date,paid_date,status,method,description,students(full_name,full_name_en,full_name_km,student_code,class_name,major,phone,date_of_birth,gender,address,enrollment_year,study_year)";
 
 function readDemoPayments(): PaymentRow[] {
   if (typeof window === "undefined") return [];
@@ -134,12 +136,16 @@ function readDemoStudentsMin(): PaymentStudent[] {
 
 function PaymentsPage() {
   const { t } = useI18n();
-  const { user, primaryRole, isDemo } = useAuth();
+  const { user, primaryRole, roles, isDemo } = useAuth();
   const qc = useQueryClient();
-  const [showAdd, setShowAdd] = useState(false);
   const [qrPayment, setQrPayment] = useState<PaymentRow | null>(null);
-  const isAdmin = primaryRole === "admin";
+  const isAdmin = roles.includes("admin");
   const isStudent = primaryRole === "student";
+  type MarkPaidVariables = {
+    id: string;
+    method?: "cash" | "mobile";
+    receiptWindow?: Window | null;
+  };
 
   const { data: payments = [], isLoading } = useQuery({
     queryKey: ["payments", primaryRole, user?.id, isDemo ? "demo" : "remote"],
@@ -156,9 +162,7 @@ function PaymentsPage() {
 
       const { data, error } = await supabase
         .from("payments")
-        .select(
-          "id,invoice_number,amount,due_date,paid_date,status,method,description,students(full_name,full_name_en,full_name_km,student_code,class_name,major,phone,date_of_birth,gender,address,enrollment_year,study_year)",
-        )
+        .select(PAYMENT_ROW_SELECT)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as PaymentRow[];
@@ -179,83 +183,97 @@ function PaymentsPage() {
   }, [payments]);
 
   const markPaid = useMutation({
-    mutationFn: async ({ id, method }: { id: string; method?: "cash" | "mobile" }) => {
+    mutationFn: async ({ id, method }: MarkPaidVariables) => {
+      const paidDate = new Date().toISOString().slice(0, 10);
       if (isDemo) {
-        writeDemoPayments(
-          readDemoPayments().map((payment) =>
-            payment.id === id
-              ? {
-                  ...payment,
-                  status: "paid",
-                  method: method ?? payment.method,
-                  paid_date: new Date().toISOString().slice(0, 10),
-                }
-              : payment,
-          ),
+        const updatedPayments = readDemoPayments().map((payment) =>
+          payment.id === id
+            ? {
+                ...payment,
+                status: "paid" as const,
+                method: method ?? payment.method,
+                paid_date: paidDate,
+              }
+            : payment,
         );
-        return;
+        writeDemoPayments(updatedPayments);
+        return updatedPayments.find((payment) => payment.id === id) ?? null;
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("payments")
         .update({
           status: "paid",
           method: method ?? "cash",
-          paid_date: new Date().toISOString().slice(0, 10),
+          paid_date: paidDate,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .select(PAYMENT_ROW_SELECT)
+        .single();
       if (error) throw error;
+      return data as unknown as PaymentRow;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (paidPayment, variables) => {
+      const fallbackPayment =
+        payments.find((payment) => payment.id === variables.id) ??
+        (qrPayment?.id === variables.id ? qrPayment : null);
+      const receiptPayment = paidPayment ?? fallbackPayment;
+
+      if (receiptPayment) {
+        const normalizedPayment: PaymentRow = {
+          ...receiptPayment,
+          status: "paid",
+          method: variables.method ?? receiptPayment.method ?? "cash",
+          paid_date: receiptPayment.paid_date ?? new Date().toISOString().slice(0, 10),
+        };
+        qc.setQueriesData<PaymentRow[]>({ queryKey: ["payments"] }, (oldPayments) =>
+          oldPayments
+            ? oldPayments.some((payment) => payment.id === normalizedPayment.id)
+              ? oldPayments.map((payment) =>
+                  payment.id === normalizedPayment.id ? normalizedPayment : payment,
+                )
+              : [normalizedPayment, ...oldPayments]
+            : oldPayments,
+        );
+        printReceipt(normalizedPayment, variables.receiptWindow);
+      } else if (variables.receiptWindow) {
+        variables.receiptWindow.document.body.innerHTML =
+          '<p style="font-family: Arial, sans-serif; padding: 24px;">Could not load this invoice. Please close this tab and try again.</p>';
+      }
+
       qc.invalidateQueries({ queryKey: ["payments"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
       qc.invalidateQueries({ queryKey: ["dashboard-recent-payments"] });
-      const paidPayment = payments.find((payment) => payment.id === variables.id);
       toast.success("Marked paid");
       setQrPayment(null);
-      if (paidPayment) {
-        printReceipt({
-          ...paidPayment,
-          status: "paid",
-          method: variables.method ?? paidPayment.method ?? "cash",
-          paid_date: new Date().toISOString().slice(0, 10),
-        });
-      }
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e, variables) => {
+      const message = e.message || "Payment was not marked paid.";
+      if (variables.receiptWindow) {
+        variables.receiptWindow.document.body.innerHTML = `<p style="font-family: Arial, sans-serif; padding: 24px;">Payment was not marked paid: ${escapeHtml(message)}. Please close this tab and try again.</p>`;
+      }
+      toast.error(message);
+    },
   });
 
   return (
     <div>
-      <PageHeader
-        title={t("payments")}
-        subtitle="Invoices, dues and revenue tracking"
-        actions={
-          isAdmin && (
-            <button
-              onClick={() => setShowAdd(true)}
-              className="inline-flex h-10 items-center gap-2 rounded-xl gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:shadow-glow"
-            >
-              <Plus className="h-4 w-4" /> Create invoice
-            </button>
-          )
-        }
-      />
+      <PageHeader title={t("payments")} subtitle={t("payments_subtitle")} />
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
-          label="Paid"
+          label={t("paid")}
           value={`$${stats.paid.toLocaleString()}`}
           icon={<DollarSign className="h-5 w-5" />}
           tone="success"
         />
         <StatCard
-          label="Pending"
+          label={t("pending")}
           value={`$${stats.pending.toLocaleString()}`}
           icon={<Wallet className="h-5 w-5" />}
           tone="warning"
         />
         <StatCard
-          label="Overdue"
+          label={t("overdue")}
           value={`$${stats.overdue.toLocaleString()}`}
           icon={<AlertTriangle className="h-5 w-5" />}
           tone="info"
@@ -294,27 +312,19 @@ function PaymentsPage() {
           </div>
         ) : payments.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-sm text-muted-foreground">No payments yet.</p>
-            {isAdmin && (
-              <button
-                onClick={() => setShowAdd(true)}
-                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-info px-3 py-1.5 text-xs font-semibold text-info-foreground"
-              >
-                <QrCode className="h-3.5 w-3.5" /> Create KH QR invoice
-              </button>
-            )}
+            <p className="text-sm text-muted-foreground">{t("no_payments_yet")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="py-3 pr-4">Invoice</th>
-                  <th className="py-3 pr-4">Student</th>
-                  <th className="py-3 pr-4">Amount</th>
-                  <th className="py-3 pr-4">Due</th>
-                  <th className="py-3 pr-4">Status</th>
-                  <th className="py-3 text-right">Payment option</th>
+                  <th className="py-3 pr-4">{t("invoice")}</th>
+                  <th className="py-3 pr-4">{t("student")}</th>
+                  <th className="py-3 pr-4">{t("amount")}</th>
+                  <th className="py-3 pr-4">{t("due")}</th>
+                  <th className="py-3 pr-4">{t("status")}</th>
+                  <th className="py-3 text-right">{t("payment_option")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -347,7 +357,13 @@ function PaymentsPage() {
                         )}
                         {isAdmin && p.status !== "paid" && (
                           <button
-                            onClick={() => markPaid.mutate({ id: p.id, method: "cash" })}
+                            onClick={() =>
+                              markPaid.mutate({
+                                id: p.id,
+                                method: "cash",
+                                receiptWindow: openReceiptWindow(),
+                              })
+                            }
                             className="rounded-lg bg-success/10 px-2.5 py-1 text-xs font-semibold text-success hover:bg-success/20"
                           >
                             Mark paid
@@ -362,14 +378,19 @@ function PaymentsPage() {
           </div>
         )}
       </SectionCard>
-      {showAdd && <AddPayment isDemo={isDemo} onClose={() => setShowAdd(false)} />}
       {qrPayment && (
         <KhQrPaymentModal
           payment={qrPayment}
           canConfirm={isAdmin}
           isConfirming={markPaid.isPending}
           onClose={() => setQrPayment(null)}
-          onConfirm={() => markPaid.mutate({ id: qrPayment.id, method: "mobile" })}
+          onConfirm={() =>
+            markPaid.mutate({
+              id: qrPayment.id,
+              method: "mobile",
+              receiptWindow: openReceiptWindow(),
+            })
+          }
         />
       )}
     </div>
@@ -417,7 +438,9 @@ function khmerNumberBelowThousand(value: number) {
     } else {
       const tens = Math.floor(remainder / 10) * 10;
       const ones = remainder % 10;
-      parts.push(ones ? `${KHMER_TENS_WORDS[tens]}${KHMER_NUMBER_WORDS[ones]}` : KHMER_TENS_WORDS[tens]);
+      parts.push(
+        ones ? `${KHMER_TENS_WORDS[tens]}${KHMER_NUMBER_WORDS[ones]}` : KHMER_TENS_WORDS[tens],
+      );
     }
   }
 
@@ -465,7 +488,9 @@ function formatReceiptDate(value: string | null | undefined) {
 }
 
 function receiptNumber(invoiceNumber: string) {
-  return invoiceNumber.startsWith("RV/") ? invoiceNumber : `RV/${invoiceNumber.replace(/^INV-/, "")}`;
+  return invoiceNumber.startsWith("RV/")
+    ? invoiceNumber
+    : `RV/${invoiceNumber.replace(/^INV-/, "")}`;
 }
 
 function receiptSerial(invoiceNumber: string) {
@@ -540,7 +565,11 @@ function KhQrCode({ payment, className = "" }: { payment: PaymentRow; className?
       className={`flex aspect-square items-center justify-center bg-white p-3 ${className}`}
     >
       {qrUrl ? (
-        <img src={qrUrl} alt={`KH QR for invoice ${payment.invoice_number}`} className="h-full w-full" />
+        <img
+          src={qrUrl}
+          alt={`KH QR for invoice ${payment.invoice_number}`}
+          className="h-full w-full"
+        />
       ) : (
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       )}
@@ -548,10 +577,27 @@ function KhQrCode({ payment, className = "" }: { payment: PaymentRow; className?
   );
 }
 
-function printReceipt(payment: PaymentRow) {
+function openReceiptWindow() {
   const printWindow = window.open("", "_blank", "width=980,height=700");
   if (!printWindow) {
     toast.error("Allow pop-ups to create the receipt PDF.");
+    return null;
+  }
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head><title>Preparing receipt</title></head>
+      <body style="font-family: Arial, sans-serif; padding: 24px;">Preparing receipt...</body>
+    </html>
+  `);
+  printWindow.document.close();
+  return printWindow;
+}
+
+function printReceipt(payment: PaymentRow, existingWindow?: Window | null) {
+  const printWindow = existingWindow ?? openReceiptWindow();
+  if (!printWindow) {
     return;
   }
 
@@ -569,7 +615,7 @@ function printReceipt(payment: PaymentRow) {
   const paidForYear = escapeHtml(khmerStudyYear(student?.study_year));
   const description = escapeHtml(payment.description ?? "Tuition payment");
   const amountWords = escapeHtml(khmerMoneyWords(payment.amount));
-  const method = payment.method === "mobile" ? "KH QR" : payment.method ?? "Cash";
+  const method = payment.method === "mobile" ? "KH QR" : (payment.method ?? "Cash");
   const paidDate = payment.paid_date ?? new Date().toISOString().slice(0, 10);
   const receiptId = escapeHtml(receiptNumber(payment.invoice_number));
   const serial = escapeHtml(receiptSerial(payment.invoice_number));
@@ -805,6 +851,7 @@ function KhQrPaymentModal({
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
@@ -816,7 +863,7 @@ function KhQrPaymentModal({
       >
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h3 className="font-display text-lg font-bold">Pay by KH QR</h3>
+            <h3 className="font-display text-lg font-bold">{t("pay_by_khqr")}</h3>
             <p className="mt-1 text-xs text-muted-foreground">{payment.invoice_number}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
@@ -825,26 +872,32 @@ function KhQrPaymentModal({
         </div>
         <div className="grid gap-5 sm:grid-cols-[220px_1fr]">
           <div className="overflow-hidden rounded-xl border border-border bg-white">
-            <div className="bg-red-600 px-3 py-2 text-center text-sm font-bold text-white">KHQR</div>
+            <div className="bg-red-600 px-3 py-2 text-center text-sm font-bold text-white">
+              KHQR
+            </div>
             <KhQrCode payment={payment} />
           </div>
           <div className="space-y-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pay to</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("pay_to")}
+              </p>
               <p className="mt-1 font-semibold">{UNIVERSITY_SHORT_NAME}</p>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Student</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("student")}
+              </p>
               <p className="mt-1 font-semibold">{payment.students?.full_name ?? "—"}</p>
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Amount</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("amount")}
+              </p>
               <p className="mt-1 text-2xl font-bold">{formatUsd(payment.amount)}</p>
             </div>
             <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-warning-foreground">
-              {canConfirm
-                ? "Scan this KH QR in your banking app. After the transfer is complete, confirm payment to mark the invoice paid and create the receipt PDF."
-                : "Scan this KH QR in your banking app. After the transfer is complete, contact the cashier/admin to confirm your payment and issue the receipt."}
+              {canConfirm ? t("scan_khqr_admin_notice") : t("scan_khqr_student_notice")}
             </div>
           </div>
         </div>
@@ -853,7 +906,7 @@ function KhQrPaymentModal({
             onClick={onClose}
             className="h-10 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-muted"
           >
-            Cancel
+            {t("cancel")}
           </button>
           {canConfirm && (
             <button
@@ -866,7 +919,7 @@ function KhQrPaymentModal({
               ) : (
                 <CheckCircle2 className="h-4 w-4" />
               )}
-              Paid, create receipt
+              {t("paid_create_receipt")}
             </button>
           )}
         </div>
@@ -884,16 +937,188 @@ function StudentInfoLine({ label, value }: { label: string; value?: string | nul
   );
 }
 
+function studentSearchText(student: PaymentStudent) {
+  return [
+    student.student_code,
+    student.full_name,
+    student.full_name_en,
+    student.full_name_km,
+    student.phone,
+    student.class_name,
+    student.major,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function studentSuggestions(students: PaymentStudent[], query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return [];
+
+  return students
+    .filter((student) => studentSearchText(student).includes(normalized))
+    .sort((a, b) => {
+      const aCode = a.student_code.toLowerCase();
+      const bCode = b.student_code.toLowerCase();
+      const aStarts = aCode.startsWith(normalized);
+      const bStarts = bCode.startsWith(normalized);
+      if (aStarts !== bStarts) return aStarts ? -1 : 1;
+      return aCode.localeCompare(bCode);
+    })
+    .slice(0, 6);
+}
+
+function StudentSearchSuggestions({
+  suggestions,
+  onSelect,
+}: {
+  suggestions: PaymentStudent[];
+  onSelect: (student: PaymentStudent) => void;
+}) {
+  if (suggestions.length === 0) return null;
+
+  return (
+    <div className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-xl border border-border bg-card shadow-card">
+      {suggestions.map((student) => (
+        <button
+          key={student.id}
+          type="button"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onSelect(student)}
+          className="flex w-full items-start justify-between gap-3 border-b border-border/60 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-muted"
+        >
+          <div className="min-w-0">
+            <p className="font-mono font-semibold text-info">{student.student_code}</p>
+            <p className="truncate font-semibold text-foreground">
+              {student.full_name_en || student.full_name}
+            </p>
+            {student.full_name_km && (
+              <p className="truncate text-muted-foreground">{student.full_name_km}</p>
+            )}
+          </div>
+          <div className="shrink-0 text-right text-muted-foreground">
+            <p>{student.class_name || "-"}</p>
+            <p>{student.phone || "-"}</p>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const PAYMENT_YEARS = [1, 2, 3, 4] as const;
 const PAYMENT_SEMESTERS = [1, 2] as const;
+type PaymentPlan = "semester" | "year";
 
 function paymentTermLabel(year: number, semester: number) {
   return `ឆ្នាំទី${year} ឆមាសទី${semester}`;
 }
 
+function paymentPlanLabel(plan: PaymentPlan) {
+  return plan === "year" ? "បង់ ១ឆ្នាំ" : "បង់ ១ឆមាស";
+}
+
+function paymentDescriptionLabel(year: number, semester: number, plan: PaymentPlan) {
+  return plan === "year" ? `ឆ្នាំទី${year} ១ឆ្នាំ` : paymentTermLabel(year, semester);
+}
+
 function paymentYearStatus(student: PaymentStudent | null, year: number) {
   const value = student?.[`pay_year${year}` as keyof PaymentStudent];
   return typeof value === "string" ? value : null;
+}
+
+function studentPaidAmountForYear(
+  student: PaymentStudent | null,
+  year: number,
+  annualPrice: number,
+  semesterPrice: number,
+) {
+  const status = paymentYearStatus(student, year);
+  if (status === "paid" || status === "full_year_580" || status === "semester1_2_600")
+    return annualPrice;
+  if (status === "semester_300" || status === "semester1_300" || status === "semester2_300")
+    return semesterPrice;
+  return 0;
+}
+
+function paymentDescription(payment: PaymentRow) {
+  return payment.description?.toLowerCase() ?? "";
+}
+
+function paymentMatchesYear(payment: PaymentRow, year: number) {
+  const description = paymentDescription(payment);
+  return description.includes(`ឆ្នាំទី${year}`) || description.includes(`year ${year}`);
+}
+
+function paymentIsFullYear(payment: PaymentRow) {
+  const description = paymentDescription(payment);
+  return (
+    description.includes("១ឆ្នាំ") ||
+    description.includes("1 year") ||
+    description.includes("full year") ||
+    description.includes("annual")
+  );
+}
+
+function paymentMatchesTerm(payment: PaymentRow, year: number, semester: number) {
+  const description = paymentDescription(payment);
+  return (
+    paymentMatchesYear(payment, year) &&
+    (description.includes(`ឆមាសទី${semester}`) ||
+      description.includes(`semester ${semester}`) ||
+      paymentIsFullYear(payment))
+  );
+}
+
+function activePayment(payment: PaymentRow) {
+  return payment.status === "pending" || payment.status === "overdue" || payment.status === "paid";
+}
+
+function studentHasPaidTerm(student: PaymentStudent | null, year: number, semester: number) {
+  const yearStatus = paymentYearStatus(student, year);
+  return (
+    yearStatus === "paid" ||
+    yearStatus === "full_year_580" ||
+    yearStatus === "semester1_2_600" ||
+    yearStatus === "semester_300" ||
+    (semester === 1 && yearStatus === "semester1_300") ||
+    (semester === 2 && yearStatus === "semester2_300")
+  );
+}
+
+function existingPaymentForTerm(
+  student: PaymentStudent | null,
+  payments: PaymentRow[],
+  year: number,
+  semester: number,
+) {
+  if (studentHasPaidTerm(student, year, semester)) return "student_record";
+  return (
+    payments.find(
+      (payment) => activePayment(payment) && paymentMatchesTerm(payment, year, semester),
+    ) ?? null
+  );
+}
+
+function existingPaymentForSelection(
+  student: PaymentStudent | null,
+  payments: PaymentRow[],
+  year: number,
+  semester: number,
+  plan: PaymentPlan,
+) {
+  if (plan === "semester") {
+    return existingPaymentForTerm(student, payments, year, semester);
+  }
+
+  const semester1 = existingPaymentForTerm(student, payments, year, 1);
+  if (semester1) return semester1;
+  const semester2 = existingPaymentForTerm(student, payments, year, 2);
+  if (semester2) return semester2;
+  return (
+    payments.find((payment) => activePayment(payment) && paymentMatchesYear(payment, year)) ?? null
+  );
 }
 
 function paymentTermStatus(
@@ -902,29 +1127,68 @@ function paymentTermStatus(
   year: number,
   semester: number,
 ) {
-  if (paymentYearStatus(student, year) === "paid") return "paid";
+  const yearStatus = paymentYearStatus(student, year);
+  if (yearStatus === "paid" || yearStatus === "full_year_580" || yearStatus === "semester1_2_600") {
+    return "paid";
+  }
+  if (
+    yearStatus === "semester_300" ||
+    (semester === 1 && yearStatus === "semester1_300") ||
+    (semester === 2 && yearStatus === "semester2_300")
+  ) {
+    return "paid";
+  }
 
-  const term = paymentTermLabel(year, semester).toLowerCase();
-  const englishTerm = `year ${year} semester ${semester}`;
   const matching = payments.find((payment) => {
-    const description = payment.description?.toLowerCase() ?? "";
-    return description.includes(term) || description.includes(englishTerm);
+    return paymentMatchesTerm(payment, year, semester);
   });
 
   return matching?.status ?? "unpaid";
 }
 
-function PaymentTermBadge({ status }: { status: "pending" | "paid" | "overdue" | "cancelled" | "unpaid" }) {
+function paymentBalanceForYear(
+  student: PaymentStudent | null,
+  payments: PaymentRow[],
+  year: number,
+  annualPrice: number,
+  semesterPrice: number,
+) {
+  const yearPayments = payments.filter((payment) => paymentMatchesYear(payment, year));
+  const paidFromPayments = yearPayments
+    .filter((payment) => payment.status === "paid")
+    .reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const pending = yearPayments
+    .filter((payment) => payment.status === "pending" || payment.status === "overdue")
+    .reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const paidFromStudent = yearPayments.length
+    ? 0
+    : studentPaidAmountForYear(student, year, annualPrice, semesterPrice);
+  const paid = Math.min(annualPrice, paidFromPayments + paidFromStudent);
+
+  return {
+    total: annualPrice,
+    paid,
+    pending,
+    left: Math.max(annualPrice - paid, 0),
+  };
+}
+
+function PaymentTermBadge({
+  status,
+}: {
+  status: "pending" | "paid" | "overdue" | "cancelled" | "unpaid";
+}) {
+  const { t } = useI18n();
   const label =
     status === "paid"
-      ? "Paid"
+      ? t("paid")
       : status === "pending"
-        ? "Pending"
+        ? t("pending")
         : status === "overdue"
-          ? "Overdue"
+          ? t("overdue")
           : status === "cancelled"
-            ? "Cancelled"
-            : "Unpaid";
+            ? t("cancelled")
+            : t("unpaid");
   const className =
     status === "paid"
       ? "bg-success/15 text-success"
@@ -956,6 +1220,7 @@ function StudentPaymentPanel({
   payments: PaymentRow[];
   onCreated: (payment: PaymentRow) => void;
 }) {
+  const { t } = useI18n();
   const [studentCode, setStudentCode] = useState("");
   const [form, setForm] = useState({
     amount: "",
@@ -963,9 +1228,15 @@ function StudentPaymentPanel({
     description: "",
     targetYear: 1,
     targetSemester: 1,
+    paymentPlan: "semester" as PaymentPlan,
   });
   const { data: students = [], isLoading } = useQuery({
-    queryKey: ["students-payment-lookup", isStudent ? "student" : "admin", userId, isDemo ? "demo" : "remote"],
+    queryKey: [
+      "students-payment-lookup",
+      isStudent ? "student" : "admin",
+      userId,
+      isDemo ? "demo" : "remote",
+    ],
     queryFn: async () => {
       if (isDemo) {
         const students = readDemoStudentsMin();
@@ -998,22 +1269,80 @@ function StudentPaymentPanel({
     if (!normalized) return null;
     return students.find((student) => student.student_code.toLowerCase() === normalized) ?? null;
   }, [isStudent, studentCode, students]);
-  const showMissingStudent = !isStudent && studentCode.trim().length > 0 && !selectedStudent && !isLoading;
+  const searchSuggestions = useMemo(
+    () => (!isStudent && !selectedStudent ? studentSuggestions(students, studentCode) : []),
+    [isStudent, selectedStudent, studentCode, students],
+  );
+  const showMissingStudent =
+    !isStudent && studentCode.trim().length > 0 && !selectedStudent && !isLoading;
   const selectedStudentPayments = useMemo(
     () =>
       selectedStudent
-        ? payments.filter((payment) => payment.students?.student_code === selectedStudent.student_code)
+        ? payments.filter(
+            (payment) => payment.students?.student_code === selectedStudent.student_code,
+          )
         : [],
     [payments, selectedStudent],
   );
   const amountValue = Number(form.amount);
   const canCreatePayment = Boolean(selectedStudent && amountValue > 0);
-  const selectedTerm = paymentTermLabel(form.targetYear, form.targetSemester);
+  const selectedTuitionRate = tuitionRateForMajor(selectedStudent?.major);
+  const selectedTerm = paymentDescriptionLabel(
+    form.targetYear,
+    form.targetSemester,
+    form.paymentPlan,
+  );
+  const autoAmount =
+    form.paymentPlan === "year" ? selectedTuitionRate.year : selectedTuitionRate.semester;
+  const selectedYearBalance = paymentBalanceForYear(
+    selectedStudent,
+    selectedStudentPayments,
+    form.targetYear,
+    selectedTuitionRate.year,
+    selectedTuitionRate.semester,
+  );
+  const duplicatePayment = existingPaymentForSelection(
+    selectedStudent,
+    selectedStudentPayments,
+    form.targetYear,
+    form.targetSemester,
+    form.paymentPlan,
+  );
+  const duplicatePaymentMessage =
+    duplicatePayment && typeof duplicatePayment === "object"
+      ? t("payment_already_exists_invoice", { invoice: duplicatePayment.invoice_number })
+      : duplicatePayment
+        ? t("payment_already_exists")
+        : "";
+  const canCreateSelectedPayment = canCreatePayment && !duplicatePayment;
+
+  useEffect(() => {
+    if (!selectedStudent) return;
+    setForm((current) => ({
+      ...current,
+      amount: autoAmount.toString(),
+      description: current.description || selectedTerm,
+    }));
+  }, [autoAmount, selectedStudent, selectedTerm]);
 
   const createPayment = useMutation({
     mutationFn: async () => {
-      if (!selectedStudent) throw new Error("Enter a valid Student ID");
-      if (!amountValue || amountValue <= 0) throw new Error("Enter a valid amount");
+      if (!selectedStudent) throw new Error(t("valid_student_id_required"));
+      if (!amountValue || amountValue <= 0) throw new Error(t("valid_amount_required"));
+      const duplicate = existingPaymentForSelection(
+        selectedStudent,
+        selectedStudentPayments,
+        form.targetYear,
+        form.targetSemester,
+        form.paymentPlan,
+      );
+      if (duplicate) {
+        throw new Error(
+          typeof duplicate === "object"
+            ? t("payment_already_exists_invoice", { invoice: duplicate.invoice_number })
+            : t("payment_already_exists"),
+        );
+      }
 
       const invoiceNumber = `INV-${Date.now().toString().slice(-7)}`;
       const payment: PaymentRow = {
@@ -1056,15 +1385,13 @@ function StudentPaymentPanel({
           description: form.description || selectedTerm,
           status: "pending",
         })
-        .select(
-          "id,invoice_number,amount,due_date,paid_date,status,method,description,students(full_name,full_name_en,full_name_km,student_code,class_name,major,phone,date_of_birth,gender,address,enrollment_year,study_year)",
-        )
+        .select(PAYMENT_ROW_SELECT)
         .single();
       if (error) throw error;
       return data as unknown as PaymentRow;
     },
     onSuccess: (payment) => {
-      toast.success(isDemo ? "Demo KH QR ready" : "KH QR ready");
+      toast.success(isDemo ? t("demo_khqr_ready") : t("khqr_ready"));
       onCreated(payment);
     },
     onError: (e) => toast.error(e.message),
@@ -1076,28 +1403,34 @@ function StudentPaymentPanel({
         <div className="space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {isStudent ? "Your student information" : "Student lookup"}
+              {isStudent ? t("your_student_information") : t("student_lookup")}
             </p>
             {!isStudent && (
-              <div className="mt-2 flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-3 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <input
-                  value={studentCode}
-                  onChange={(e) => setStudentCode(e.target.value)}
-                  placeholder="RULE-007"
-                  className="h-full min-w-0 flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground"
+              <div className="relative mt-2">
+                <div className="flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-3 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <input
+                    value={studentCode}
+                    onChange={(e) => setStudentCode(e.target.value)}
+                    placeholder={t("student_id")}
+                    className="h-full min-w-0 flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+                <StudentSearchSuggestions
+                  suggestions={searchSuggestions}
+                  onSelect={(student) => setStudentCode(student.student_code)}
                 />
               </div>
             )}
           </div>
           {isLoading && (
             <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading students
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("loading_students")}
             </div>
           )}
           {showMissingStudent && (
             <p className="mt-2 text-xs font-medium text-destructive">
-              No student found for {studentCode.trim()}.
+              {t("no_student_found_for", { id: studentCode.trim() })}
             </p>
           )}
           <div className="rounded-xl border border-border bg-surface p-3">
@@ -1112,20 +1445,20 @@ function StudentPaymentPanel({
                       {selectedStudent.full_name_en || selectedStudent.full_name}
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      {selectedStudent.full_name_km || "Khmer name not set"}
+                      {selectedStudent.full_name_km || t("khmer_name_not_set")}
                     </p>
                   </div>
                   {selectedStudent.status && <StatusPill status={selectedStudent.status} />}
                 </div>
                 <div className="mt-3 grid gap-x-4 gap-y-1.5 text-xs text-muted-foreground sm:grid-cols-2">
-                  <StudentInfoLine label="Class" value={selectedStudent.class_name} />
-                  <StudentInfoLine label="Major" value={selectedStudent.major} />
-                  <StudentInfoLine label="Shift" value={selectedStudent.shift} />
-                  <StudentInfoLine label="Phone" value={selectedStudent.phone} />
+                  <StudentInfoLine label={t("class")} value={selectedStudent.class_name} />
+                  <StudentInfoLine label={t("major")} value={selectedStudent.major} />
+                  <StudentInfoLine label={t("shift")} value={selectedStudent.shift} />
+                  <StudentInfoLine label={t("phone")} value={selectedStudent.phone} />
                 </div>
                 <div className="mt-3 rounded-xl border border-border bg-card p-2">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Payment status
+                    {t("payment_status")}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {PAYMENT_YEARS.flatMap((year) =>
@@ -1147,7 +1480,9 @@ function StudentPaymentPanel({
                                 ...form,
                                 targetYear: year,
                                 targetSemester: semester,
-                                description: paymentTermLabel(year, semester),
+                                paymentPlan: "semester",
+                                description: paymentDescriptionLabel(year, semester, "semester"),
+                                amount: selectedTuitionRate.semester.toString(),
                               })
                             }
                             className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition ${
@@ -1156,7 +1491,9 @@ function StudentPaymentPanel({
                                 : "border-border bg-surface hover:bg-muted"
                             }`}
                           >
-                            <span className="font-semibold">{paymentTermLabel(year, semester)}</span>
+                            <span className="font-semibold">
+                              {paymentTermLabel(year, semester)}
+                            </span>
                             <PaymentTermBadge status={status} />
                           </button>
                         );
@@ -1168,7 +1505,7 @@ function StudentPaymentPanel({
             ) : (
               <div className="flex min-h-24 items-center justify-center gap-2 text-sm text-muted-foreground">
                 <UserRound className="h-4 w-4" />
-                <span>{isStudent ? "No student record linked to this account" : "Enter Student ID"}</span>
+                <span>{isStudent ? t("no_student_linked") : t("enter_student_id")}</span>
               </div>
             )}
           </div>
@@ -1184,10 +1521,10 @@ function StudentPaymentPanel({
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Payment form
+                {t("payment_form")}
               </p>
               <h3 className="mt-0.5 font-display text-base font-bold">
-                {isStudent ? "Pay by KH QR" : "Create KH QR invoice"}
+                {isStudent ? t("pay_by_khqr") : t("create_khqr_invoice")}
               </h3>
             </div>
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-info text-info-foreground">
@@ -1197,16 +1534,45 @@ function StudentPaymentPanel({
           <div className="space-y-2.5">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Pay for
+                {t("pay_for")}
               </label>
               <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={form.paymentPlan}
+                  onChange={(e) => {
+                    const paymentPlan = e.target.value as PaymentPlan;
+                    const amount =
+                      paymentPlan === "year"
+                        ? selectedTuitionRate.year
+                        : selectedTuitionRate.semester;
+                    setForm({
+                      ...form,
+                      paymentPlan,
+                      amount: amount.toString(),
+                      description: paymentDescriptionLabel(
+                        form.targetYear,
+                        form.targetSemester,
+                        paymentPlan,
+                      ),
+                    });
+                  }}
+                  className="h-10 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                >
+                  <option value="semester">{t("pay_one_semester")}</option>
+                  <option value="year">{t("pay_one_year")}</option>
+                </select>
                 <select
                   value={form.targetYear}
                   onChange={(e) =>
                     setForm({
                       ...form,
                       targetYear: Number(e.target.value),
-                      description: paymentTermLabel(Number(e.target.value), form.targetSemester),
+                      description: paymentDescriptionLabel(
+                        Number(e.target.value),
+                        form.targetSemester,
+                        form.paymentPlan,
+                      ),
+                      amount: autoAmount.toString(),
                     })
                   }
                   className="h-10 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-primary"
@@ -1217,57 +1583,61 @@ function StudentPaymentPanel({
                     </option>
                   ))}
                 </select>
-                <select
-                  value={form.targetSemester}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      targetSemester: Number(e.target.value),
-                      description: paymentTermLabel(form.targetYear, Number(e.target.value)),
-                    })
-                  }
-                  className="h-10 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-primary"
-                >
-                  {PAYMENT_SEMESTERS.map((semester) => (
-                    <option key={semester} value={semester}>
-                      ឆមាសទី{semester}
-                    </option>
-                  ))}
-                </select>
+                {form.paymentPlan === "semester" && (
+                  <select
+                    value={form.targetSemester}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        targetSemester: Number(e.target.value),
+                        description: paymentDescriptionLabel(
+                          form.targetYear,
+                          Number(e.target.value),
+                          form.paymentPlan,
+                        ),
+                        amount: autoAmount.toString(),
+                      })
+                    }
+                    className="h-10 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                  >
+                    {PAYMENT_SEMESTERS.map((semester) => (
+                      <option key={semester} value={semester}>
+                        ឆមាសទី{semester}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Amount (USD)
+                {t("amount_usd")}
               </label>
-              <div className="flex h-10 items-center rounded-xl border border-border bg-card px-3 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+              <div className="flex h-10 items-center rounded-xl border border-border bg-card px-3">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  readOnly
                   placeholder="0.00"
                   className="h-full min-w-0 flex-1 bg-transparent px-2 text-sm font-semibold outline-none"
                 />
               </div>
-              <div className="mt-1.5 grid grid-cols-4 gap-1.5">
-                {[25, 50, 100, 250].map((amount) => (
-                  <button
-                    key={amount}
-                    type="button"
-                    onClick={() => setForm({ ...form, amount: amount.toString() })}
-                    className="h-7 rounded-lg border border-border bg-card text-xs font-semibold hover:bg-muted"
-                  >
-                    ${amount}
-                  </button>
-                ))}
+              <div className="mt-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+                {paymentPlanLabel(form.paymentPlan)}:{" "}
+                <span className="font-semibold text-foreground">{formatUsd(autoAmount)}</span>
               </div>
+              {duplicatePaymentMessage && (
+                <p className="mt-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
+                  {duplicatePaymentMessage}
+                </p>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Due date
+                {t("due_date")}
               </label>
               <div className="flex h-10 items-center rounded-xl border border-border bg-card px-3 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
                 <CalendarDays className="h-4 w-4 text-muted-foreground" />
@@ -1281,7 +1651,7 @@ function StudentPaymentPanel({
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Description
+                {t("description")}
               </label>
               <div className="flex rounded-xl border border-border bg-card px-3 py-1.5 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
                 <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" />
@@ -1296,17 +1666,41 @@ function StudentPaymentPanel({
             </div>
             <div className="rounded-xl border border-border bg-card px-3 py-2">
               <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>Student</span>
+                <span>{t("student")}</span>
                 <span className="truncate font-medium text-foreground">
                   {selectedStudent?.full_name_en || selectedStudent?.full_name || "-"}
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>Pay for</span>
+                <span>{t("pay_for")}</span>
                 <span className="font-medium text-foreground">{selectedTerm}</span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>Total due</span>
+                <span>{t("annual_tuition")}</span>
+                <span className="font-medium text-foreground">
+                  {formatUsd(selectedYearBalance.total)}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>{t("paid_amount")}</span>
+                <span className="font-medium text-success">
+                  {formatUsd(selectedYearBalance.paid)}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>{t("pending_amount")}</span>
+                <span className="font-medium text-warning">
+                  {formatUsd(selectedYearBalance.pending)}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>{t("payment_left")}</span>
+                <span className="font-display text-base font-bold text-destructive">
+                  {formatUsd(selectedYearBalance.left)}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                <span>{t("total_due")}</span>
                 <span className="font-display text-base font-bold text-foreground">
                   {amountValue > 0 ? formatUsd(amountValue) : "$0.00"}
                 </span>
@@ -1314,7 +1708,7 @@ function StudentPaymentPanel({
             </div>
             <button
               type="submit"
-              disabled={!canCreatePayment || createPayment.isPending}
+              disabled={!canCreateSelectedPayment || createPayment.isPending}
               className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-info text-sm font-semibold text-info-foreground shadow-soft disabled:opacity-50"
             >
               {createPayment.isPending ? (
@@ -1322,7 +1716,7 @@ function StudentPaymentPanel({
               ) : (
                 <QrCode className="h-4 w-4" />
               )}
-              Pay by KH QR
+              {t("pay_by_khqr")}
             </button>
           </div>
         </form>
@@ -1332,6 +1726,7 @@ function StudentPaymentPanel({
 }
 
 function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void }) {
+  const { t } = useI18n();
   const qc = useQueryClient();
   const [f, setF] = useState({ student_code: "", amount: "", due_date: "", description: "" });
   const { data: students = [] } = useQuery({
@@ -1353,6 +1748,10 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
     if (!code) return null;
     return students.find((student) => student.student_code.toLowerCase() === code) ?? null;
   }, [f.student_code, students]);
+  const searchSuggestions = useMemo(
+    () => (!selectedStudent ? studentSuggestions(students, f.student_code) : []),
+    [f.student_code, selectedStudent, students],
+  );
   const showMissingStudent = f.student_code.trim().length > 0 && !selectedStudent;
   const amountValue = Number(f.amount);
   const canSubmit = Boolean(selectedStudent && amountValue > 0);
@@ -1389,16 +1788,14 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
         return;
       }
 
-      const { error } = await supabase
-        .from("payments")
-        .insert({
-          student_id: selectedStudent!.id,
-          invoice_number: `INV-${Date.now().toString().slice(-7)}`,
-          amount: amountValue,
-          due_date: f.due_date || null,
-          description: f.description || null,
-          status: "pending",
-        });
+      const { error } = await supabase.from("payments").insert({
+        student_id: selectedStudent!.id,
+        invoice_number: `INV-${Date.now().toString().slice(-7)}`,
+        amount: amountValue,
+        due_date: f.due_date || null,
+        description: f.description || null,
+        status: "pending",
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1420,8 +1817,8 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
       >
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <h3 className="font-display text-lg font-bold">Create invoice</h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">Prepare a KH QR invoice.</p>
+            <h3 className="font-display text-lg font-bold">{t("create_invoice")}</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t("prepare_khqr_invoice")}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
             <X className="h-4 w-4" />
@@ -1430,8 +1827,8 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!selectedStudent) return toast.error("Enter a valid Student ID");
-            if (!amountValue || amountValue <= 0) return toast.error("Enter a valid amount");
+            if (!selectedStudent) return toast.error(t("valid_student_id_required"));
+            if (!amountValue || amountValue <= 0) return toast.error(t("valid_amount_required"));
             mut.mutate();
           }}
           className="grid gap-3 md:grid-cols-[0.9fr_1.1fr]"
@@ -1439,20 +1836,26 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
           <div className="space-y-2.5">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Student ID *
+                {t("student_id")} *
               </label>
-              <div className="flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-3 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                <input
-                  value={f.student_code}
-                  onChange={(e) => setF({ ...f, student_code: e.target.value })}
-                  placeholder="RULE-007"
-                  className="h-full min-w-0 flex-1 bg-transparent font-mono text-sm outline-none"
+              <div className="relative">
+                <div className="flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-3 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <input
+                    value={f.student_code}
+                    onChange={(e) => setF({ ...f, student_code: e.target.value })}
+                    placeholder={t("student_id")}
+                    className="h-full min-w-0 flex-1 bg-transparent font-mono text-sm outline-none"
+                  />
+                </div>
+                <StudentSearchSuggestions
+                  suggestions={searchSuggestions}
+                  onSelect={(student) => setF({ ...f, student_code: student.student_code })}
                 />
               </div>
               {showMissingStudent && (
                 <p className="mt-1 text-xs font-medium text-destructive">
-                  No student found for {f.student_code.trim()}.
+                  {t("no_student_found_for", { id: f.student_code.trim() })}
                 </p>
               )}
             </div>
@@ -1468,22 +1871,24 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
                         {selectedStudent.full_name_en || selectedStudent.full_name}
                       </p>
                       {selectedStudent.full_name_km && (
-                        <p className="text-xs text-muted-foreground">{selectedStudent.full_name_km}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedStudent.full_name_km}
+                        </p>
                       )}
                     </div>
                     {selectedStudent.status && <StatusPill status={selectedStudent.status} />}
                   </div>
                   <div className="mt-2 grid gap-x-3 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
-                    <StudentInfoLine label="Class" value={selectedStudent.class_name} />
-                    <StudentInfoLine label="Major" value={selectedStudent.major} />
-                    <StudentInfoLine label="Shift" value={selectedStudent.shift} />
-                    <StudentInfoLine label="Phone" value={selectedStudent.phone} />
+                    <StudentInfoLine label={t("class")} value={selectedStudent.class_name} />
+                    <StudentInfoLine label={t("major")} value={selectedStudent.major} />
+                    <StudentInfoLine label={t("shift")} value={selectedStudent.shift} />
+                    <StudentInfoLine label={t("phone")} value={selectedStudent.phone} />
                   </div>
                 </>
               ) : (
                 <div className="flex min-h-24 items-center justify-center gap-2 text-center text-sm text-muted-foreground">
                   <UserRound className="h-4 w-4" />
-                  Enter Student ID
+                  {t("enter_student_id")}
                 </div>
               )}
             </div>
@@ -1491,13 +1896,13 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
           <div className="space-y-2.5 rounded-xl border border-info/30 bg-info/10 p-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Invoice details
+                {t("invoice_details")}
               </p>
               <QrCode className="h-4 w-4 text-info" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Amount (USD) *
+                {t("amount_usd")} *
               </label>
               <div className="flex h-10 items-center rounded-xl border border-border bg-card px-3 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -1514,7 +1919,7 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Due date
+                {t("due_date")}
               </label>
               <div className="flex h-10 items-center rounded-xl border border-border bg-card px-3 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
                 <CalendarDays className="h-4 w-4 text-muted-foreground" />
@@ -1528,7 +1933,7 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Description
+                {t("description")}
               </label>
               <div className="flex rounded-xl border border-border bg-card px-3 py-1.5 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
                 <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" />
@@ -1536,14 +1941,14 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
                   value={f.description}
                   onChange={(e) => setF({ ...f, description: e.target.value })}
                   rows={1}
-                  placeholder="Tuition fee, exam fee, materials..."
+                  placeholder={t("tuition_fee_placeholder")}
                   className="min-w-0 flex-1 resize-none bg-transparent px-2 text-sm outline-none"
                 />
               </div>
             </div>
             <div className="rounded-xl border border-border bg-card px-3 py-2">
               <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>Total due</span>
+                <span>{t("total_due")}</span>
                 <span className="font-display text-base font-bold text-foreground">
                   {amountValue > 0 ? formatUsd(amountValue) : "$0.00"}
                 </span>
@@ -1559,7 +1964,7 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
               ) : (
                 <QrCode className="h-4 w-4" />
               )}
-              Create KH QR invoice
+              {t("create_khqr_invoice")}
             </button>
           </div>
         </form>

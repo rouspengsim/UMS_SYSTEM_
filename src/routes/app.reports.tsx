@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, SectionCard, StatCard } from "@/components/app/ui";
-import { useI18n } from "@/lib/i18n";
+import { t as translate, useI18n } from "@/lib/i18n";
 import { Users, Wallet, CalendarCheck, FileBarChart, Loader2, Search, Printer } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,8 +55,24 @@ function escapeHtml(value: string | number | null | undefined) {
 
 function payLabel(student: StudentRegisterRow) {
   const payValues = [student.pay_year1, student.pay_year2, student.pay_year3, student.pay_year4];
-  if (payValues.some((value) => value === "paid")) return "Pay";
-  if (payValues.some((value) => value === "partial")) return "Partial";
+  if (
+    payValues.some(
+      (value) => value === "paid" || value === "full_year_580" || value === "semester1_2_600",
+    )
+  ) {
+    return "Pay";
+  }
+  if (
+    payValues.some(
+      (value) =>
+        value === "partial" ||
+        value === "semester_300" ||
+        value === "semester1_300" ||
+        value === "semester2_300",
+    )
+  ) {
+    return "Partial";
+  }
   return "Not yet";
 }
 
@@ -68,7 +84,7 @@ function genderShort(gender: string | null | undefined) {
 function printDocument(title: string, html: string) {
   const printWindow = window.open("", "_blank", "width=1200,height=800");
   if (!printWindow) {
-    toast.error("Allow pop-ups to print this report.");
+    toast.error(translate("allow_popups_print_report"));
     return;
   }
 
@@ -126,15 +142,15 @@ function studentRegisterReportHtml(students: StudentRegisterRow[]) {
       <table>
         <thead>
           <tr>
-            <th style="width: 84px">Student ID</th>
-            <th>Name in Khmer</th>
-            <th>Name in Latin</th>
-            <th style="width: 44px">Gender</th>
-            <th style="width: 78px">Date of Birth</th>
-            <th>Major</th>
-            <th style="width: 70px">Class</th>
-            <th style="width: 54px">Pay</th>
-            <th style="width: 68px">Status</th>
+            <th style="width: 84px">${escapeHtml(translate("student_id"))}</th>
+            <th>${escapeHtml(translate("khmer_name"))}</th>
+            <th>${escapeHtml(translate("english_name"))}</th>
+            <th style="width: 44px">${escapeHtml(translate("gender"))}</th>
+            <th style="width: 78px">${escapeHtml(translate("date_of_birth"))}</th>
+            <th>${escapeHtml(translate("major"))}</th>
+            <th style="width: 70px">${escapeHtml(translate("class"))}</th>
+            <th style="width: 54px">${escapeHtml(translate("pay"))}</th>
+            <th style="width: 68px">${escapeHtml(translate("status"))}</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -231,7 +247,7 @@ function ReportsPage() {
 
   return (
     <div>
-      <PageHeader title={t("reports")} subtitle="Aggregate insights from live data" />
+      <PageHeader title={t("reports")} subtitle={t("reports_subtitle")} />
       {isLoading ? (
         <div className="flex h-40 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -240,25 +256,25 @@ function ReportsPage() {
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              label="Total students"
+              label={t("total_students")}
               value={data?.students ?? 0}
               icon={<Users className="h-5 w-5" />}
               tone="primary"
             />
             <StatCard
-              label="Active classes"
+              label={t("active_classes")}
               value={data?.classes ?? 0}
               icon={<FileBarChart className="h-5 w-5" />}
               tone="info"
             />
             <StatCard
-              label="Revenue (paid)"
+              label={t("revenue_paid")}
               value={`$${(data?.revenue ?? 0).toLocaleString()}`}
               icon={<Wallet className="h-5 w-5" />}
               tone="success"
             />
             <StatCard
-              label="Attendance rate"
+              label={t("attendance_rate")}
               value={`${data?.attendanceRate ?? 0}%`}
               icon={<CalendarCheck className="h-5 w-5" />}
               tone="warning"
@@ -266,7 +282,7 @@ function ReportsPage() {
           </div>
           <SectionCard
             className="mt-6"
-            title="របាយការណ៍ចុះឈ្មោះនិស្សិត"
+            title={t("student_registration_report")}
             action={
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <div className="relative">
@@ -277,7 +293,7 @@ function ReportsPage() {
                       setRegisterSearch(event.target.value);
                       setRegisterPage(1);
                     }}
-                    placeholder="Search"
+                    placeholder={t("search")}
                     className="h-10 w-56 rounded-xl border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
                   />
                 </div>
@@ -291,7 +307,7 @@ function ReportsPage() {
                   disabled={filteredRegisterStudents.length === 0}
                   className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Printer className="h-4 w-4" /> Print
+                  <Printer className="h-4 w-4" /> {t("print")}
                 </button>
               </div>
             }
@@ -302,7 +318,7 @@ function ReportsPage() {
               </div>
             ) : filteredRegisterStudents.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No registered students match this report.
+                {t("no_registered_students_report")}
               </p>
             ) : (
               <>
@@ -310,15 +326,15 @@ function ReportsPage() {
                   <table className="w-full min-w-[920px] text-sm">
                     <thead>
                       <tr className="bg-slate-800 text-left text-xs font-semibold text-white">
-                        <th className="px-3 py-2">Student ID</th>
-                        <th className="px-3 py-2">Name in Khmer</th>
-                        <th className="px-3 py-2">Name in Latin</th>
-                        <th className="px-3 py-2">Gender</th>
-                        <th className="px-3 py-2">Date of Birth</th>
-                        <th className="px-3 py-2">Major</th>
-                        <th className="px-3 py-2">Class</th>
-                        <th className="px-3 py-2">Pay</th>
-                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">{t("student_id")}</th>
+                        <th className="px-3 py-2">{t("name_in_khmer")}</th>
+                        <th className="px-3 py-2">{t("name_in_latin")}</th>
+                        <th className="px-3 py-2">{t("gender")}</th>
+                        <th className="px-3 py-2">{t("date_of_birth")}</th>
+                        <th className="px-3 py-2">{t("major")}</th>
+                        <th className="px-3 py-2">{t("class")}</th>
+                        <th className="px-3 py-2">{t("pay")}</th>
+                        <th className="px-3 py-2">{t("status")}</th>
                       </tr>
                     </thead>
                     <tbody>

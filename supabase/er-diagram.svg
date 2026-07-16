@@ -1,0 +1,793 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2020" viewBox="0 0 1800 2020" role="img" aria-labelledby="title desc">
+  <title id="title">StudentSphere ER diagram</title>
+  <desc id="desc">Chen-style ER diagram for the StudentSphere database.</desc>
+  <defs>
+    <style>
+      .background { fill: #fff1e8; }
+      .title { fill: #2947b8; font: 700 31px Arial, sans-serif; text-anchor: middle; }
+      .entity { fill: #898989; stroke: #24304f; stroke-width: 2; }
+      .entity-label { fill: #ffffff; font: 700 16px Arial, sans-serif; text-anchor: middle; paint-order: stroke; stroke: #898989; stroke-width: 5px; stroke-linejoin: round; }
+      .attribute { fill: #ffffff; stroke: #0f2147; stroke-width: 1.8; }
+      .attribute-label { fill: #2947b8; font: 500 14px Arial, sans-serif; text-anchor: middle; }
+      .attribute-label.key { text-decoration: underline; font-weight: 700; }
+      .relationship { fill: #ffffff; stroke: #0f2147; stroke-width: 1.8; }
+      .relationship-label { fill: #2947b8; font: 500 14px Arial, sans-serif; text-anchor: middle; paint-order: stroke; stroke: #ffffff; stroke-width: 4px; stroke-linejoin: round; }
+      .line { fill: none; stroke: #3447e0; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+      .line-label { fill: #0f2147; font: 700 12px Arial, sans-serif; text-anchor: middle; paint-order: stroke; stroke: #fff1e8; stroke-width: 4px; stroke-linejoin: round; }
+    </style>
+  </defs>
+  <rect width="1800" height="2020" class="background" />
+  
+  <text x="900" y="70" class="title">ER Diagram for StudentSphere Management System</text>
+
+  
+    <g>
+      <rect x="485" y="194" width="210" height="72" class="entity" />
+      <text x="590" y="235" class="entity-label">Profiles</text>
+    </g>
+  
+    <g>
+      <ellipse cx="395" cy="125" rx="95" ry="28" class="attribute" />
+      <text x="395" y="130" class="attribute-label key">profile_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="590" cy="105" rx="95" ry="28" class="attribute" />
+      <text x="590" y="110" class="attribute-label">user_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="790" cy="125" rx="95" ry="28" class="attribute" />
+      <text x="790" y="130" class="attribute-label">full_name</text>
+    </g>
+  
+    <g>
+      <ellipse cx="395" cy="330" rx="95" ry="28" class="attribute" />
+      <text x="395" y="335" class="attribute-label">email</text>
+    </g>
+  
+    <g>
+      <ellipse cx="790" cy="330" rx="95" ry="28" class="attribute" />
+      <text x="790" y="335" class="attribute-label">phone</text>
+    </g>
+
+  
+    <g>
+      <path d="M 920 187 L 992.5 230 L 920 273 L 847.5 230 Z" class="relationship" />
+      <text x="920" y="235" class="relationship-label">Has</text>
+    </g>
+
+  
+    <g>
+      <rect x="1130" y="194" width="210" height="72" class="entity" />
+      <text x="1235" y="235" class="entity-label">User Roles</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1135" cy="105" rx="95" ry="28" class="attribute" />
+      <text x="1135" y="110" class="attribute-label key">role_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1435" cy="150" rx="95" ry="28" class="attribute" />
+      <text x="1435" y="155" class="attribute-label">role</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1450" cy="300" rx="95" ry="28" class="attribute" />
+      <text x="1450" y="305" class="attribute-label">user_id</text>
+    </g>
+
+  
+    <g>
+      <rect x="215" y="624" width="210" height="72" class="entity" />
+      <text x="320" y="665" class="entity-label">Students</text>
+    </g>
+  
+    <g>
+      <ellipse cx="130" cy="500" rx="95" ry="28" class="attribute" />
+      <text x="130" y="505" class="attribute-label key">student_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="320" cy="455" rx="95" ry="28" class="attribute" />
+      <text x="320" y="460" class="attribute-label">student_code</text>
+    </g>
+  
+    <g>
+      <ellipse cx="535" cy="510" rx="95" ry="28" class="attribute" />
+      <text x="535" y="515" class="attribute-label">full_name</text>
+    </g>
+  
+    <g>
+      <ellipse cx="125" cy="660" rx="95" ry="28" class="attribute" />
+      <text x="125" y="665" class="attribute-label">email</text>
+    </g>
+  
+    <g>
+      <ellipse cx="145" cy="805" rx="95" ry="28" class="attribute" />
+      <text x="145" y="810" class="attribute-label">phone</text>
+    </g>
+  
+    <g>
+      <ellipse cx="320" cy="860" rx="95" ry="28" class="attribute" />
+      <text x="320" y="865" class="attribute-label">major</text>
+    </g>
+  
+    <g>
+      <ellipse cx="545" cy="800" rx="95" ry="28" class="attribute" />
+      <text x="545" y="805" class="attribute-label">status</text>
+    </g>
+
+  
+    <g>
+      <path d="M 610 617 L 682.5 660 L 610 703 L 537.5 660 Z" class="relationship" />
+      <text x="610" y="665" class="relationship-label">Enrolls</text>
+    </g>
+
+  
+    <g>
+      <rect x="795" y="624" width="210" height="72" class="entity" />
+      <text x="900" y="665" class="entity-label">Classes</text>
+    </g>
+  
+    <g>
+      <ellipse cx="900" cy="455" rx="95" ry="28" class="attribute" />
+      <text x="900" y="460" class="attribute-label key">class_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="755" cy="525" rx="95" ry="28" class="attribute" />
+      <text x="755" y="530" class="attribute-label">class_name</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1045" cy="525" rx="95" ry="28" class="attribute" />
+      <text x="1045" y="530" class="attribute-label">subject_code</text>
+    </g>
+  
+    <g>
+      <ellipse cx="760" cy="800" rx="95" ry="28" class="attribute" />
+      <text x="760" y="805" class="attribute-label">room</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1040" cy="800" rx="95" ry="28" class="attribute" />
+      <text x="1040" y="805" class="attribute-label">semester</text>
+    </g>
+
+  
+    <g>
+      <path d="M 1190 617 L 1262.5 660 L 1190 703 L 1117.5 660 Z" class="relationship" />
+      <text x="1190" y="665" class="relationship-label">Teaches</text>
+    </g>
+
+  
+    <g>
+      <rect x="1375" y="624" width="210" height="72" class="entity" />
+      <text x="1480" y="665" class="entity-label">Teachers</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1285" cy="500" rx="95" ry="28" class="attribute" />
+      <text x="1285" y="505" class="attribute-label key">teacher_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1480" cy="455" rx="95" ry="28" class="attribute" />
+      <text x="1480" y="460" class="attribute-label">staff_code</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1675" cy="510" rx="95" ry="28" class="attribute" />
+      <text x="1675" y="515" class="attribute-label">full_name</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1680" cy="660" rx="95" ry="28" class="attribute" />
+      <text x="1680" y="665" class="attribute-label">email</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1660" cy="805" rx="95" ry="28" class="attribute" />
+      <text x="1660" y="810" class="attribute-label">department</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1480" cy="860" rx="95" ry="28" class="attribute" />
+      <text x="1480" y="865" class="attribute-label">specialization</text>
+    </g>
+
+  
+    <g>
+      <rect x="795" y="954" width="210" height="72" class="entity" />
+      <text x="900" y="995" class="entity-label">Enrollments</text>
+    </g>
+  
+    <g>
+      <ellipse cx="680" cy="940" rx="95" ry="28" class="attribute" />
+      <text x="680" y="945" class="attribute-label key">enrollment_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1120" cy="940" rx="95" ry="28" class="attribute" />
+      <text x="1120" y="945" class="attribute-label">enrolled_at</text>
+    </g>
+  
+    <g>
+      <ellipse cx="700" cy="1085" rx="95" ry="28" class="attribute" />
+      <text x="700" y="1090" class="attribute-label">student_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1100" cy="1085" rx="95" ry="28" class="attribute" />
+      <text x="1100" y="1090" class="attribute-label">class_id</text>
+    </g>
+
+  
+    <g>
+      <path d="M 320 967 L 392.5 1010 L 320 1053 L 247.5 1010 Z" class="relationship" />
+      <text x="320" y="1015" class="relationship-label">Pays</text>
+    </g>
+  
+    <g>
+      <rect x="215" y="1204" width="210" height="72" class="entity" />
+      <text x="320" y="1245" class="entity-label">Payments</text>
+    </g>
+  
+    <g>
+      <ellipse cx="130" cy="1140" rx="95" ry="28" class="attribute" />
+      <text x="130" y="1145" class="attribute-label key">payment_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="320" cy="1095" rx="95" ry="28" class="attribute" />
+      <text x="320" y="1100" class="attribute-label">invoice_number</text>
+    </g>
+  
+    <g>
+      <ellipse cx="545" cy="1140" rx="95" ry="28" class="attribute" />
+      <text x="545" y="1145" class="attribute-label">amount</text>
+    </g>
+  
+    <g>
+      <ellipse cx="130" cy="1320" rx="95" ry="28" class="attribute" />
+      <text x="130" y="1325" class="attribute-label">status</text>
+    </g>
+  
+    <g>
+      <ellipse cx="530" cy="1320" rx="95" ry="28" class="attribute" />
+      <text x="530" y="1325" class="attribute-label">paid_date</text>
+    </g>
+
+  
+    <g>
+      <path d="M 610 1297 L 682.5 1340 L 610 1383 L 537.5 1340 Z" class="relationship" />
+      <text x="610" y="1345" class="relationship-label">Records</text>
+    </g>
+  
+    <g>
+      <rect x="795" y="1304" width="210" height="72" class="entity" />
+      <text x="900" y="1345" class="entity-label">Attendance</text>
+    </g>
+  
+    <g>
+      <ellipse cx="690" cy="1240" rx="95" ry="28" class="attribute" />
+      <text x="690" y="1245" class="attribute-label key">attendance_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="900" cy="1200" rx="95" ry="28" class="attribute" />
+      <text x="900" y="1205" class="attribute-label">date</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1110" cy="1240" rx="95" ry="28" class="attribute" />
+      <text x="1110" y="1245" class="attribute-label">status</text>
+    </g>
+  
+    <g>
+      <ellipse cx="710" cy="1465" rx="95" ry="28" class="attribute" />
+      <text x="710" y="1470" class="attribute-label">week_number</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1090" cy="1465" rx="95" ry="28" class="attribute" />
+      <text x="1090" y="1470" class="attribute-label">subject_code</text>
+    </g>
+
+  
+    <g>
+      <path d="M 1190 1197 L 1262.5 1240 L 1190 1283 L 1117.5 1240 Z" class="relationship" />
+      <text x="1190" y="1245" class="relationship-label">Gets</text>
+    </g>
+  
+    <g>
+      <rect x="1375" y="1204" width="210" height="72" class="entity" />
+      <text x="1480" y="1245" class="entity-label">Scores</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1285" cy="1140" rx="95" ry="28" class="attribute" />
+      <text x="1285" y="1145" class="attribute-label key">score_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1480" cy="1095" rx="95" ry="28" class="attribute" />
+      <text x="1480" y="1100" class="attribute-label">score</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1680" cy="1140" rx="95" ry="28" class="attribute" />
+      <text x="1680" y="1145" class="attribute-label">remark</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1290" cy="1320" rx="95" ry="28" class="attribute" />
+      <text x="1290" y="1325" class="attribute-label">exam_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1670" cy="1320" rx="95" ry="28" class="attribute" />
+      <text x="1670" y="1325" class="attribute-label">student_id</text>
+    </g>
+
+  
+    <g>
+      <path d="M 1480 1432 L 1552.5 1475 L 1480 1518 L 1407.5 1475 Z" class="relationship" />
+      <text x="1480" y="1480" class="relationship-label">Has</text>
+    </g>
+  
+    <g>
+      <rect x="1375" y="1624" width="210" height="72" class="entity" />
+      <text x="1480" y="1665" class="entity-label">Exams</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1285" cy="1580" rx="95" ry="28" class="attribute" />
+      <text x="1285" y="1585" class="attribute-label key">exam_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1480" cy="1540" rx="95" ry="28" class="attribute" />
+      <text x="1480" y="1545" class="attribute-label">exam_name</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1675" cy="1580" rx="95" ry="28" class="attribute" />
+      <text x="1675" y="1585" class="attribute-label">exam_type</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1360" cy="1770" rx="95" ry="28" class="attribute" />
+      <text x="1360" y="1775" class="attribute-label">max_score</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1600" cy="1770" rx="95" ry="28" class="attribute" />
+      <text x="1600" y="1775" class="attribute-label">weight</text>
+    </g>
+
+  
+    <g>
+      <path d="M 900 1552 L 972.5 1595 L 900 1638 L 827.5 1595 Z" class="relationship" />
+      <text x="900" y="1600" class="relationship-label">Schedules</text>
+    </g>
+  
+    <g>
+      <rect x="795" y="1774" width="210" height="72" class="entity" />
+      <text x="900" y="1815" class="entity-label">Timetable Slots</text>
+    </g>
+  
+    <g>
+      <ellipse cx="690" cy="1725" rx="95" ry="28" class="attribute" />
+      <text x="690" y="1730" class="attribute-label key">slot_id</text>
+    </g>
+  
+    <g>
+      <ellipse cx="900" cy="1685" rx="95" ry="28" class="attribute" />
+      <text x="900" y="1690" class="attribute-label">day</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1110" cy="1725" rx="95" ry="28" class="attribute" />
+      <text x="1110" y="1730" class="attribute-label">start_time</text>
+    </g>
+  
+    <g>
+      <ellipse cx="780" cy="1935" rx="95" ry="28" class="attribute" />
+      <text x="780" y="1940" class="attribute-label">end_time</text>
+    </g>
+  
+    <g>
+      <ellipse cx="1020" cy="1935" rx="95" ry="28" class="attribute" />
+      <text x="1020" y="1940" class="attribute-label">room</text>
+    </g>
+
+  
+    <g>
+      <path d="M 590 194 L 395 135" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 590 194 L 590 133" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 590 194 L 790 135" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 590 266 L 395 320" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 590 266 L 790 320" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 695 230 L 848 230" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 992 230 L 1130 230" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1235 194 L 1135 115" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1235 194 L 1435 160" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1235 266 L 1450 290" class="line" />
+      
+    </g>
+
+  
+    <g>
+      <path d="M 320 624 L 130 510" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 320 624 L 320 483" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 320 624 L 535 520" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 215 660 L 125 660" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 320 696 L 145 795" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 320 696 L 320 832" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 320 696 L 545 790" class="line" />
+      
+    </g>
+
+  
+    <g>
+      <path d="M 425 660 L 538 660" class="line" />
+      <text x="475" y="642" class="line-label">1</text>
+    </g>
+  
+    <g>
+      <path d="M 682 660 L 795 660" class="line" />
+      <text x="735" y="642" class="line-label">M</text>
+    </g>
+
+  
+    <g>
+      <path d="M 900 624 L 900 483" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 624 L 755 535" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 624 L 1045 535" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 696 L 760 790" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 696 L 1040 790" class="line" />
+      
+    </g>
+
+  
+    <g>
+      <path d="M 1005 660 L 1118 660" class="line" />
+      <text x="1060" y="642" class="line-label">M</text>
+    </g>
+  
+    <g>
+      <path d="M 1262 660 L 1375 660" class="line" />
+      <text x="1320" y="642" class="line-label">1</text>
+    </g>
+
+  
+    <g>
+      <path d="M 1480 624 L 1285 510" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 624 L 1480 483" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 624 L 1675 520" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1585 660 L 1680 660" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 696 L 1660 795" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 696 L 1480 832" class="line" />
+      
+    </g>
+
+  
+    <g>
+      <path d="M 610 703 L 830 954" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 696 L 900 954" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 954 L 680 950" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 954 L 1120 950" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1026 L 700 1075" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1026 L 1100 1075" class="line" />
+      
+    </g>
+
+  
+    <g>
+      <path d="M 320 696 L 320 967" class="line" />
+      <text x="340" y="820" class="line-label">1</text>
+    </g>
+  
+    <g>
+      <path d="M 320 1053 L 320 1204" class="line" />
+      <text x="340" y="1135" class="line-label">M</text>
+    </g>
+  
+    <g>
+      <path d="M 320 1204 L 130 1150" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 320 1204 L 320 1123" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 320 1204 L 545 1150" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 320 1276 L 130 1310" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 320 1276 L 530 1310" class="line" />
+      
+    </g>
+
+  
+    <g>
+      <path d="M 425 660 L 510 660 L 510 1340 L 538 1340" class="line" />
+      <text x="490" y="630" class="line-label">1</text>
+    </g>
+  
+    <g>
+      <path d="M 682 1340 L 795 1340" class="line" />
+      <text x="735" y="1322" class="line-label">M</text>
+    </g>
+  
+    <g>
+      <path d="M 900 696 L 900 920 L 900 920 L 900 1258" class="line" />
+      <text x="918" y="825" class="line-label">1</text>
+    </g>
+  
+    <g>
+      <path d="M 900 1297 L 900 1304" class="line" />
+      <text x="918" y="1288" class="line-label">M</text>
+    </g>
+  
+    <g>
+      <path d="M 900 1304 L 690 1250" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1304 L 900 1228" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1304 L 1110 1250" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1376 L 710 1455" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1376 L 1090 1455" class="line" />
+      
+    </g>
+
+  
+    <g>
+      <path d="M 425 660 L 1190 660 L 1190 1197" class="line" />
+      <text x="1145" y="635" class="line-label">1</text>
+    </g>
+  
+    <g>
+      <path d="M 1262 1240 L 1375 1240" class="line" />
+      <text x="1320" y="1222" class="line-label">M</text>
+    </g>
+  
+    <g>
+      <path d="M 1480 1204 L 1285 1150" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 1204 L 1480 1123" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 1204 L 1680 1150" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 1276 L 1290 1310" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 1276 L 1670 1310" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 1276 L 1480 1432" class="line" />
+      <text x="1500" y="1360" class="line-label">M</text>
+    </g>
+  
+    <g>
+      <path d="M 1480 1518 L 1480 1624" class="line" />
+      <text x="1500" y="1570" class="line-label">1</text>
+    </g>
+  
+    <g>
+      <path d="M 1480 1624 L 1285 1590" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 1624 L 1480 1568" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 1624 L 1675 1590" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 1696 L 1360 1760" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 1480 1696 L 1600 1760" class="line" />
+      
+    </g>
+
+  
+    <g>
+      <path d="M 900 696 L 900 1552" class="line" />
+      <text x="920" y="965" class="line-label">1</text>
+    </g>
+  
+    <g>
+      <path d="M 900 1638 L 900 1774" class="line" />
+      <text x="920" y="1710" class="line-label">M</text>
+    </g>
+  
+    <g>
+      <path d="M 900 1774 L 690 1735" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1774 L 900 1713" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1774 L 1110 1735" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1846 L 780 1925" class="line" />
+      
+    </g>
+  
+    <g>
+      <path d="M 900 1846 L 1020 1925" class="line" />
+      
+    </g>
+
+</svg>

@@ -11,7 +11,9 @@ export function encodeNotificationContent(content: RichNotificationContent) {
   return `${RICH_NOTIFICATION_PREFIX}${JSON.stringify(content)}`;
 }
 
-export function decodeNotificationContent(body: string | null | undefined): RichNotificationContent {
+export function decodeNotificationContent(
+  body: string | null | undefined,
+): RichNotificationContent {
   if (!body?.startsWith(RICH_NOTIFICATION_PREFIX)) {
     return {
       description: body ?? "",
@@ -22,11 +24,14 @@ export function decodeNotificationContent(body: string | null | undefined): Rich
   }
 
   try {
-    const parsed = JSON.parse(body.slice(RICH_NOTIFICATION_PREFIX.length)) as RichNotificationContent;
+    const parsed = JSON.parse(
+      body.slice(RICH_NOTIFICATION_PREFIX.length),
+    ) as RichNotificationContent;
     return {
       description: parsed.description ?? "",
       mediaUrl: parsed.mediaUrl ?? null,
-      mediaType: parsed.mediaType === "image" || parsed.mediaType === "video" ? parsed.mediaType : null,
+      mediaType:
+        parsed.mediaType === "image" || parsed.mediaType === "video" ? parsed.mediaType : null,
       targetRole: parsed.targetRole ?? null,
     };
   } catch {

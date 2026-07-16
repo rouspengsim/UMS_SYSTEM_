@@ -29,7 +29,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(theme);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(STORAGE_KEY, theme);
-    } 
+    }
   }, [theme]);
 
   useEffect(() => {

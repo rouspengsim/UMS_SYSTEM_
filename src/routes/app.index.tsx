@@ -82,6 +82,30 @@ function emptyRecentDays() {
   return days;
 }
 
+type RecentStudent = {
+  id: string;
+  full_name: string;
+  full_name_en?: string | null;
+  student_code: string;
+  status: "active" | "inactive" | "graduated" | "suspended";
+  avatar_url?: string | null;
+};
+
+type TodayTimetableSlot = {
+  id: string;
+  start_time: string;
+  end_time: string;
+  room: string | null;
+  teacher_name?: string | null;
+  subject_code?: string | null;
+  subject_name?: string | null;
+  classes?: {
+    name?: string | null;
+    subject_code?: string | null;
+    teachers?: { full_name?: string | null } | null;
+  } | null;
+};
+
 function Dashboard() {
   const { t } = useI18n();
   const { user, profile, primaryRole, isDemo } = useAuth();
@@ -232,7 +256,7 @@ function Dashboard() {
     },
   });
 
-  const { data: recentStudents = [] } = useQuery({
+  const { data: recentStudents = [] } = useQuery<RecentStudent[]>({
     queryKey: ["dashboard-recent-students", isDemo ? "demo" : "remote"],
     enabled: primaryRole !== "student",
     queryFn: async () => {
@@ -243,6 +267,7 @@ function Dashboard() {
           full_name_en?: string | null;
           student_code: string;
           status: "active" | "inactive" | "graduated" | "suspended";
+          avatar_url?: string | null;
         }>("studentsphere.demo.students")
           .slice(0, 5)
           .map((s) => ({ ...s, full_name: s.full_name_en || s.full_name }));
@@ -575,7 +600,10 @@ type TeacherProfileSummary = {
   specialization?: string | null;
 };
 
-async function readTodayTimetableSlots(classIds: string[], dayKey: string) {
+async function readTodayTimetableSlots(
+  classIds: string[],
+  dayKey: string,
+): Promise<TodayTimetableSlot[]> {
   if (classIds.length === 0) return [];
 
   let { data, error } = await supabase
@@ -599,16 +627,7 @@ async function readTodayTimetableSlots(classIds: string[], dayKey: string) {
   }
 
   if (error) throw error;
-  return (data ?? []) as Array<{
-    id: string;
-    start_time: string;
-    end_time: string;
-    room: string | null;
-    teacher_name?: string | null;
-    subject_code?: string | null;
-    subject_name?: string | null;
-    classes?: { name?: string | null; subject_code?: string | null; teachers?: { full_name?: string | null } | null } | null;
-  }>;
+  return (data ?? []) as unknown as TodayTimetableSlot[];
 }
 
 function TeacherDashboard({ userId, userEmail }: { userId: string; userEmail: string }) {
@@ -666,7 +685,9 @@ function TeacherDashboard({ userId, userEmail }: { userId: string; userEmail: st
           classes,
           assignedStudents: assignedStudents.length,
           attendancePercentage:
-            attendanceRows.length === 0 ? null : Math.round((present / attendanceRows.length) * 100),
+            attendanceRows.length === 0
+              ? null
+              : Math.round((present / attendanceRows.length) * 100),
           upcomingExams: [],
           todaySchedule,
           notifications: readDemoList<{
@@ -740,7 +761,7 @@ function TeacherDashboard({ userId, userEmail }: { userId: string; userEmail: st
         attendancePercentage:
           attendanceRows.length === 0 ? null : Math.round((present / attendanceRows.length) * 100),
         upcomingExams: examsResult.data ?? [],
-        todaySchedule: ((Array.isArray(timetableResult) ? timetableResult : timetableResult.data) ?? []).map((slot) => {
+        todaySchedule: timetableResult.map((slot) => {
           const payload = decodeTimetableCell(slot.room);
           return {
             className: slot.classes?.name ?? "Class",
@@ -1043,7 +1064,7 @@ function StudentDashboard({ userId, userEmail }: { userId: string; userEmail: st
               ? "paid"
               : "no_invoice",
         notifications: notificationsResult.data ?? [],
-        todaySchedule: ((Array.isArray(timetableResult) ? timetableResult : timetableResult.data) ?? []).map((slot) => {
+        todaySchedule: timetableResult.map((slot) => {
           const payload = decodeTimetableCell(slot.room);
           return {
             time: `${slot.start_time.slice(0, 5)} - ${slot.end_time.slice(0, 5)}`,
@@ -1054,7 +1075,8 @@ function StudentDashboard({ userId, userEmail }: { userId: string; userEmail: st
               slot.subject_code ??
               slot.classes?.subject_code ??
               "Subject",
-            teacher: slot.teacher_name ?? payload.teacher ?? slot.classes?.teachers?.full_name ?? "",
+            teacher:
+              slot.teacher_name ?? payload.teacher ?? slot.classes?.teachers?.full_name ?? "",
             room: payload.room ?? slot.room ?? "",
           };
         }),
@@ -1194,7 +1216,9 @@ function StudentDashboard({ userId, userEmail }: { userId: string; userEmail: st
             <div>
               <div className="mb-2 flex items-center justify-between text-xs font-semibold">
                 <span>{t("attendance")}</span>
-                <span>{data?.attendancePercentage == null ? "—" : `${data.attendancePercentage}%`}</span>
+                <span>
+                  {data?.attendancePercentage == null ? "—" : `${data.attendancePercentage}%`}
+                </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
                 <div

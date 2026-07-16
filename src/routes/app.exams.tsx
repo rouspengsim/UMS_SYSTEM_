@@ -7,7 +7,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { DEFAULT_SUBJECT_OPTIONS, readDemoSubjects, subjectRowsToOptions } from "@/lib/subjects";
+import {
+  DEFAULT_SUBJECT_OPTIONS,
+  mergeSubjectOptions,
+  readDemoSubjects,
+  subjectRowsToOptions,
+} from "@/lib/subjects";
 import { pageTitle } from "@/lib/brand";
 import { findTeacherClassScope } from "@/lib/teacher-scope";
 
@@ -180,7 +185,7 @@ function ExamsPage() {
     queryFn: async () => {
       if (isDemo) {
         const rows = readDemoSubjects();
-        if (!isTeacher) return subjectRowsToOptions(rows);
+        if (!isTeacher) return mergeSubjectOptions(subjectRowsToOptions(rows));
 
         const teacher = readDemoList<{ id: string }>("studentsphere.demo.teachers")[0];
         const subjectCodes = new Set(
@@ -230,7 +235,7 @@ function ExamsPage() {
         label: subject.subject_name || subject.subject_id,
         description: subject.description,
       }));
-      return options.length > 0 ? options : SCORE_SUBJECT_OPTIONS;
+      return mergeSubjectOptions(options);
     },
   });
 
@@ -278,7 +283,7 @@ function ExamsPage() {
             ? demoStudents.filter((student) => student.class_name === demoStudents[0]?.class_name)
             : isTeacher
               ? demoStudents.filter((student) => assignedClassNames.has(student.class_name ?? ""))
-            : demoStudents;
+              : demoStudents;
         const demoClasses = Array.from(
           new Set(
             visibleDemoStudents
@@ -381,18 +386,22 @@ function ExamsPage() {
       if (isStudent) {
         const { data, error } = await supabase.rpc("list_student_classmates");
         if (error) throw error;
-        return ((data ?? []) as Array<{
-          id: string;
-          student_code: string;
-          full_name: string;
-          full_name_km?: string | null;
-          gender?: string | null;
-          date_of_birth?: string | null;
-          address?: string | null;
-          class_name?: string | null;
-          status?: string | null;
-        }>)
-          .filter((student) => student.class_name === selectedClassName && student.status === "active")
+        return (
+          (data ?? []) as Array<{
+            id: string;
+            student_code: string;
+            full_name: string;
+            full_name_km?: string | null;
+            gender?: string | null;
+            date_of_birth?: string | null;
+            address?: string | null;
+            class_name?: string | null;
+            status?: string | null;
+          }>
+        )
+          .filter(
+            (student) => student.class_name === selectedClassName && student.status === "active",
+          )
           .map((student) => ({
             student_id: student.id,
             students: student,
@@ -430,9 +439,7 @@ function ExamsPage() {
       if (isDemo) {
         return readDemoList<DemoSubjectScoreRow>(DEMO_SUBJECT_SCORES_KEY).filter(
           (row) =>
-            row.class_id === classId &&
-            row.semester === semester &&
-            row.week_number === weekNumber,
+            row.class_id === classId && row.semester === semester && row.week_number === weekNumber,
         );
       }
 
@@ -623,7 +630,8 @@ function ExamsPage() {
       () => `<th style="width: 34px">${SCORE_MAX}</th>`,
     ).join("");
     const rows = resultRows
-      .map(({ student, scores, total, average }, index) => `
+      .map(
+        ({ student, scores, total, average }, index) => `
         <tr>
           <td style="width: 28px">${index + 1}</td>
           <td style="width: 76px">${escapeHtml(student.students.student_code)}</td>
@@ -641,10 +649,12 @@ function ExamsPage() {
           <td style="width: 48px">${average === null ? "" : index + 1}</td>
           <td style="width: 56px"></td>
         </tr>
-      `)
+      `,
+      )
       .join("");
     const legend = RESULT_REPORT_SUBJECTS.map(
-      (subject) => `<div><strong>${escapeHtml(subject.short)}</strong> ${escapeHtml(subject.label)}</div>`,
+      (subject) =>
+        `<div><strong>${escapeHtml(subject.short)}</strong> ${escapeHtml(subject.label)}</div>`,
     ).join("");
 
     return `
@@ -717,7 +727,9 @@ function ExamsPage() {
       <SectionCard title={t("result_list")} className="mb-6">
         <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_auto] lg:items-end">
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-muted-foreground">{t("class")}</span>
+            <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+              {t("class")}
+            </span>
             <select
               value={classId}
               onChange={(event) => setClassId(event.currentTarget.value)}
@@ -732,7 +744,9 @@ function ExamsPage() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-muted-foreground">{t("semester")}</span>
+            <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+              {t("semester")}
+            </span>
             <select
               value={semester}
               onChange={(event) => setSemester(event.currentTarget.value)}
@@ -802,9 +816,7 @@ function ExamsPage() {
 
             <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
               <div className="border-b border-border bg-muted/35 px-4 py-3">
-                <p className="font-khmer text-lg font-black text-foreground">
-                  បញ្ចូលពិន្ទុនិស្សិត
-                </p>
+                <p className="font-khmer text-lg font-black text-foreground">បញ្ចូលពិន្ទុនិស្សិត</p>
                 <p className="text-xs font-semibold text-muted-foreground">
                   {selectedClassLabel} · {selectedScoreStudent.students.student_code}
                 </p>
@@ -822,7 +834,10 @@ function ExamsPage() {
                       selectedScoreStudent.students.full_name
                     }
                   />
-                  <ScoreInfoField label={t("name_in_latin")} value={selectedScoreStudent.students.full_name} />
+                  <ScoreInfoField
+                    label={t("name_in_latin")}
+                    value={selectedScoreStudent.students.full_name}
+                  />
                   <ScoreInfoField
                     label={t("gender")}
                     value={

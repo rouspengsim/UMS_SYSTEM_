@@ -7,9 +7,12 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FLAT_MAJOR_OPTIONS, MAJOR_OPTIONS } from "@/lib/academic-options";
+import { FLAT_MAJOR_OPTIONS, MAJOR_OPTIONS, generateClassName } from "@/lib/academic-options";
 import {
   DEFAULT_SUBJECT_OPTIONS,
+  filterSubjectOptionsByMajor,
+  groupSubjectOptionsByMajor,
+  mergeSubjectOptions,
   readDemoSubjects,
   subjectRowsToOptions,
   writeDemoSubjects,
@@ -361,7 +364,9 @@ function ClassesPage() {
       const { data, error } = await studentQuery;
       if (error) throw error;
       const rows = (data ?? []) as unknown as ClassStudent[];
-      return isTeacher ? rows.filter((student) => assignedClassNames.has(student.class_name ?? "")) : rows;
+      return isTeacher
+        ? rows.filter((student) => assignedClassNames.has(student.class_name ?? ""))
+        : rows;
     },
   });
 
@@ -405,7 +410,10 @@ function ClassesPage() {
               (shiftFilter === "all" || student.shift === shiftFilter),
           )?.shift ?? null,
         room: null,
-        capacity: Math.max(40, classStudents.filter((student) => student.class_name === className).length),
+        capacity: Math.max(
+          40,
+          classStudents.filter((student) => student.class_name === className).length,
+        ),
         semester: null,
         teacher_id: null,
         teachers: null,
@@ -415,7 +423,9 @@ function ClassesPage() {
     return combined.filter((classRow) => {
       if (isStudent && !studentClassNames.has(classRow.name)) return false;
       const matchesMajor =
-        majorFilter === "all" || classRow.major === majorFilter || matchingClassNames.has(classRow.name);
+        majorFilter === "all" ||
+        classRow.major === majorFilter ||
+        matchingClassNames.has(classRow.name);
       const classHasStudentInShift = classStudents.some(
         (student) => student.class_name === classRow.name && student.shift === shiftFilter,
       );
@@ -510,9 +520,7 @@ function ClassesPage() {
       ) : displayClasses.length === 0 ? (
         <SectionCard>
           <div className="py-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              {t("no_classes_yet")}
-            </p>
+            <p className="text-sm text-muted-foreground">{t("no_classes_yet")}</p>
             {isAdmin && (
               <button
                 onClick={() => setShowAdd(true)}
@@ -526,7 +534,9 @@ function ClassesPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {displayClasses.map((c) => {
-            const allStudentsInClass = classStudents.filter((student) => student.class_name === c.name);
+            const allStudentsInClass = classStudents.filter(
+              (student) => student.class_name === c.name,
+            );
             const studentsInClass = allStudentsInClass.filter(
               (student) =>
                 (majorFilter === "all" || student.major === majorFilter) &&
@@ -587,7 +597,11 @@ function ClassesPage() {
                   <p className="flex items-center gap-1.5">
                     <User className="h-3 w-3" /> {c.teachers?.full_name ?? t("unassigned")}
                   </p>
-                  {c.semester && <p className="mt-1">{t("semester")}: {c.semester}</p>}
+                  {c.semester && (
+                    <p className="mt-1">
+                      {t("semester")}: {c.semester}
+                    </p>
+                  )}
                 </div>
                 <div className="mt-4">
                   <div className="mb-1 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -607,7 +621,10 @@ function ClassesPage() {
                     </p>
                     <ul className="space-y-1.5">
                       {allStudentsInClass.slice(0, 5).map((student) => (
-                        <li key={student.id} className="flex items-center justify-between gap-2 text-xs">
+                        <li
+                          key={student.id}
+                          className="flex items-center justify-between gap-2 text-xs"
+                        >
                           <span className="truncate font-medium">
                             {student.full_name_en || student.full_name}
                           </span>
@@ -676,7 +693,7 @@ function ClassDetailsModal({
                 <h3 className="font-display text-xl font-bold">{classRow.name}</h3>
                 <p className="text-sm text-muted-foreground">
                   {students.length} total student{students.length === 1 ? "" : "s"}
-                  {classRow.room ? ` · Room ${classRow.room}` : ""}
+                  {classRow.room ? ` · ${t("room")} ${classRow.room}` : ""}
                   {classRow.shift ? ` · ${shiftLabel(classRow.shift, t)} ${t("shift")}` : ""}
                 </p>
               </div>
@@ -696,7 +713,7 @@ function ClassDetailsModal({
               disabled={students.length === 0}
               className="inline-flex h-9 items-center gap-2 rounded-xl border border-border bg-surface px-3 text-xs font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Printer className="h-4 w-4" /> Print
+              <Printer className="h-4 w-4" /> {t("print")}
             </button>
             <button onClick={onClose} className="rounded-lg p-2 hover:bg-muted">
               <X className="h-4 w-4" />
@@ -707,9 +724,9 @@ function ClassDetailsModal({
         <div className="overflow-auto p-5">
           {students.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-8 text-center">
-              <p className="text-sm font-medium">No students in this class yet.</p>
+              <p className="text-sm font-medium">{t("no_students_in_class")}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Add a student with class {classRow.name} to show them here.
+                {t("add_student_to_show_class", { className: classRow.name })}
               </p>
             </div>
           ) : (
@@ -717,7 +734,7 @@ function ClassDetailsModal({
               <table className={`w-full text-sm ${isStudent ? "min-w-[620px]" : "min-w-[860px]"}`}>
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    <th className="w-14 py-3 pr-4">No</th>
+                    <th className="w-14 py-3 pr-4">{t("no")}</th>
                     <th className="py-3 pr-4">{t("student_id")}</th>
                     <th className="py-3 pr-4">{t("english_name")}</th>
                     <th className="py-3 pr-4">{t("khmer_name")}</th>
@@ -757,7 +774,9 @@ function ClassDetailsModal({
                       </td>
                       {!isStudent && (
                         <>
-                          <td className="py-3 pr-4 whitespace-nowrap">{student.date_of_birth || "-"}</td>
+                          <td className="py-3 pr-4 whitespace-nowrap">
+                            {student.date_of_birth || "-"}
+                          </td>
                           <td className="max-w-56 py-3 pr-4 text-xs">
                             <span className="line-clamp-2">{student.address || "-"}</span>
                           </td>
@@ -780,13 +799,16 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
   const { t } = useI18n();
   const qc = useQueryClient();
   const [addNewSubject, setAddNewSubject] = useState(false);
+  const defaultMajor = FLAT_MAJOR_OPTIONS[0]?.value ?? "";
   const [f, setF] = useState({
-    name: "",
+    name: generateClassName(defaultMajor, 1, "morning", 1),
     subject_code: DEFAULT_SUBJECT_OPTIONS[0]?.code ?? "",
     new_subject_id: "",
     new_subject_name: "",
     new_subject_description: "",
-    major: FLAT_MAJOR_OPTIONS[0]?.value ?? "",
+    major: defaultMajor,
+    study_year: 1,
+    class_number: 1,
     shift: "morning",
     room: "",
     capacity: 40,
@@ -805,7 +827,7 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
   const { data: subjectOptions = DEFAULT_SUBJECT_OPTIONS } = useQuery({
     queryKey: ["subject-options", isDemo ? "demo" : "remote"],
     queryFn: async () => {
-      if (isDemo) return subjectRowsToOptions(readDemoSubjects());
+      if (isDemo) return mergeSubjectOptions(subjectRowsToOptions(readDemoSubjects()));
 
       const { data, error } = await supabase
         .from("subjects")
@@ -817,9 +839,17 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
         label: subject.subject_name || subject.subject_id,
         description: subject.description,
       }));
-      return options.length > 0 ? options : DEFAULT_SUBJECT_OPTIONS;
+      return mergeSubjectOptions(options);
     },
   });
+  const filteredSubjectOptions = useMemo(
+    () => filterSubjectOptionsByMajor(subjectOptions, f.major),
+    [subjectOptions, f.major],
+  );
+  const filteredSubjectGroups = useMemo(
+    () => groupSubjectOptionsByMajor(filteredSubjectOptions),
+    [filteredSubjectOptions],
+  );
 
   function normalizedNewSubjectId() {
     const source = f.new_subject_id || f.new_subject_name;
@@ -883,16 +913,14 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
         if (subjectError) throw subjectError;
       }
 
-      const { error } = await supabase
-        .from("classes")
-        .insert({
-          name: f.name,
-          subject_code: subjectCode,
-          room: f.room || null,
-          capacity: Number(f.capacity),
-          semester: f.semester || null,
-          teacher_id: f.teacher_id || null,
-        });
+      const { error } = await supabase.from("classes").insert({
+        name: f.name,
+        subject_code: subjectCode,
+        room: f.room || null,
+        capacity: Number(f.capacity),
+        semester: f.semester || null,
+        teacher_id: f.teacher_id || null,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -955,17 +983,21 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
                 }}
                 className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
               >
-                {subjectOptions.map((subject) => (
-                  <option key={subject.code} value={subject.code}>
-                    {subject.label} ({subject.code})
-                  </option>
+                {filteredSubjectGroups.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.options.map((subject) => (
+                      <option key={subject.code} value={subject.code}>
+                        {subject.label} ({subject.code})
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
                 <option value="__new__">+ {t("add_subject")}</option>
               </select>
               {!addNewSubject && (
                 <p className="text-[11px] text-muted-foreground">
-                  {subjectOptions.find((subject) => subject.code === f.subject_code)?.description ||
-                    t("select_subject")}
+                  {filteredSubjectOptions.find((subject) => subject.code === f.subject_code)
+                    ?.description || t("select_subject")}
                 </p>
               )}
             </div>
@@ -1005,14 +1037,45 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
           <Field label={`${t("major")} *`}>
             <GroupedSelect
               value={f.major}
-              onChange={(major) => setF({ ...f, major })}
+              onChange={(major) => {
+                const nextSubjectOptions = filterSubjectOptionsByMajor(subjectOptions, major);
+                setF({
+                  ...f,
+                  major,
+                  subject_code: nextSubjectOptions[0]?.code ?? f.subject_code,
+                  name: generateClassName(major, f.study_year, f.shift, f.class_number),
+                });
+              }}
               groups={MAJOR_OPTIONS}
+            />
+          </Field>
+          <Field label={`${t("year")} *`}>
+            <input
+              type="number"
+              min={1}
+              value={f.study_year}
+              onChange={(e) => {
+                const studyYear = Number(e.target.value) || 1;
+                setF({
+                  ...f,
+                  study_year: studyYear,
+                  name: generateClassName(f.major, studyYear, f.shift, f.class_number),
+                });
+              }}
+              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
             />
           </Field>
           <Field label={`${t("shift")} *`}>
             <select
               value={f.shift}
-              onChange={(e) => setF({ ...f, shift: e.target.value })}
+              onChange={(e) => {
+                const shift = e.target.value;
+                setF({
+                  ...f,
+                  shift,
+                  name: generateClassName(f.major, f.study_year, shift, f.class_number),
+                });
+              }}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
             >
               {CLASS_SHIFT_OPTIONS.map((shift) => (
@@ -1021,6 +1084,22 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
                 </option>
               ))}
             </select>
+          </Field>
+          <Field label="Class number">
+            <input
+              type="number"
+              min={1}
+              value={f.class_number}
+              onChange={(e) => {
+                const classNumber = Number(e.target.value) || 1;
+                setF({
+                  ...f,
+                  class_number: classNumber,
+                  name: generateClassName(f.major, f.study_year, f.shift, classNumber),
+                });
+              }}
+              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+            />
           </Field>
           <Field label={t("room")}>
             <input

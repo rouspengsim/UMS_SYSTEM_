@@ -6,6 +6,7 @@ const rolePaths: Record<Role, string[]> = {
     "/app/students",
     "/app/teachers",
     "/app/classes",
+    "/app/classrooms",
     "/app/subjects",
     "/app/attendance",
     "/app/exams",

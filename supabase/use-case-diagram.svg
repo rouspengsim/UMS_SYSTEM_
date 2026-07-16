@@ -1,0 +1,212 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="960" viewBox="0 0 1600 960" preserveAspectRatio="xMidYMid meet" style="max-width: 100%; height: auto;" role="img" aria-labelledby="title desc">
+  <title id="title">StudentSphere Use Case Diagram</title>
+  <desc id="desc">Clean UML-style diagram with actors and oval use cases.</desc>
+  <defs>
+    <marker id="umlArrow" markerWidth="12" markerHeight="12" refX="10" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 10 4 L 0 8 z" fill="#111827" />
+    </marker>
+    <style>
+      .background { fill: #f8fafc; }
+      .title { fill: #0f172a; font: 800 32px Arial, sans-serif; text-anchor: middle; }
+      .subtitle { fill: #64748b; font: 500 15px Arial, sans-serif; text-anchor: middle; }
+      .system-boundary { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.8; }
+      .boundary-label { fill: #0f172a; font: 800 18px Arial, sans-serif; }
+      .group-panel { stroke-width: 1.4; }
+      .group-admin { fill: #eff6ff; stroke: #bfdbfe; }
+      .group-school { fill: #f5f3ff; stroke: #ddd6fe; }
+      .group-service { fill: #ecfdf5; stroke: #bbf7d0; }
+      .uml-line { fill: none; stroke: #111827; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .uml-actor-label { fill: #111827; font: 700 16px Arial, sans-serif; text-anchor: middle; }
+      .role-card { fill: #ffffff; stroke-width: 1.5; filter: url(#cardShadow); }
+      .role-admin { stroke: #93c5fd; }
+      .role-teacher { stroke: #5eead4; }
+      .role-student { stroke: #86efac; }
+      .role-avatar-admin { fill: #2563eb; }
+      .role-avatar-teacher { fill: #0f766e; }
+      .role-avatar-student { fill: #16a34a; }
+      .role-initials { fill: #ffffff; font: 800 16px Arial, sans-serif; text-anchor: middle; }
+      .role-title { fill: #0f172a; font: 800 16px Arial, sans-serif; }
+      .role-note { fill: #64748b; font: 500 12px Arial, sans-serif; }
+      .use-case { fill: #ffffff; stroke: #334155; stroke-width: 1.7; filter: url(#caseShadow); }
+      .use-case-admin { fill: #dbeafe; stroke: #2563eb; }
+      .use-case-school { fill: #ede9fe; stroke: #7c3aed; }
+      .use-case-service { fill: #dcfce7; stroke: #16a34a; }
+      .use-case-label { fill: #0f172a; font: 700 13px Arial, sans-serif; text-anchor: middle; }
+      .association { fill: none; stroke: #475569; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+      .include { fill: none; stroke: #111827; stroke-width: 1.2; stroke-dasharray: 7 5; stroke-linecap: round; }
+      .include-label { fill: #111827; font: 600 11px Arial, sans-serif; text-anchor: middle; paint-order: stroke; stroke: #ffffff; stroke-width: 4px; stroke-linejoin: round; }
+      .spine { fill: none; stroke: #475569; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+      .group-label { fill: #0f172a; font: 800 14px Arial, sans-serif; text-anchor: middle; }
+      .group-note { fill: #64748b; font: 500 12px Arial, sans-serif; text-anchor: middle; }
+    </style>
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10" />
+    </filter>
+    <filter id="caseShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#0f172a" flood-opacity="0.07" />
+    </filter>
+  </defs>
+  <rect width="1600" height="960" class="background" />
+  <text x="800" y="46" class="title">StudentSphere Use Case Diagram</text>
+  <text x="800" y="74" class="subtitle">Clean UML-style diagram with actors and oval use cases.</text>
+  
+  <g>
+    
+    <g>
+      <rect x="45" y="405" width="220" height="104" rx="18" class="role-card role-admin" />
+      <circle cx="91" cy="457" r="26" class="role-avatar role-avatar-admin" />
+      <text x="91" y="464" class="role-initials">AD</text>
+      <text x="131" y="447" class="role-title">Admin</text>
+      <text x="131" y="466" class="role-note">school setup and</text>
+<text x="131" y="480" class="role-note">control</text>
+    </g>
+    
+    <g>
+      <rect x="1335" y="255" width="220" height="104" rx="18" class="role-card role-teacher" />
+      <circle cx="1381" cy="307" r="26" class="role-avatar role-avatar-teacher" />
+      <text x="1381" y="314" class="role-initials">TR</text>
+      <text x="1421" y="297" class="role-title">Teacher</text>
+      <text x="1421" y="316" class="role-note">class and learning</text>
+<text x="1421" y="330" class="role-note">records</text>
+    </g>
+    
+    <g>
+      <rect x="1335" y="575" width="220" height="104" rx="18" class="role-card role-student" />
+      <circle cx="1381" cy="627" r="26" class="role-avatar role-avatar-student" />
+      <text x="1381" y="634" class="role-initials">ST</text>
+      <text x="1421" y="617" class="role-title">Student</text>
+      <text x="1421" y="636" class="role-note">self service and</text>
+<text x="1421" y="650" class="role-note">results</text>
+    </g>
+
+    <rect x="295" y="120" width="1005" height="790" rx="26" class="system-boundary" />
+    <text x="335" y="158" class="boundary-label">StudentSphere Management System</text>
+
+    <rect x="340" y="190" width="260" height="660" rx="22" class="group-panel group-admin" />
+    <rect x="670" y="190" width="260" height="660" rx="22" class="group-panel group-school" />
+    <rect x="1000" y="190" width="250" height="660" rx="22" class="group-panel group-service" />
+
+    <text x="470" y="225" class="group-label">Admin Management</text>
+    <text x="470" y="246" class="group-note">setup and control</text>
+    <text x="800" y="225" class="group-label">School Operations</text>
+    <text x="800" y="246" class="group-note">daily academic work</text>
+    <text x="1125" y="225" class="group-label">User Services</text>
+    <text x="1125" y="246" class="group-note">teacher and student access</text>
+
+    
+    <g>
+      <ellipse cx="470" cy="295" rx="107.5" ry="29" class="use-case use-case-admin" />
+      <text x="470" y="299" class="use-case-label">Login</text>
+    </g>
+    
+    <g>
+      <ellipse cx="470" cy="370" rx="107.5" ry="29" class="use-case use-case-admin" />
+      <text x="470" y="374" class="use-case-label">Manage Users</text>
+    </g>
+    
+    <g>
+      <ellipse cx="470" cy="445" rx="107.5" ry="29" class="use-case use-case-admin" />
+      <text x="470" y="449" class="use-case-label">Manage Students</text>
+    </g>
+    
+    <g>
+      <ellipse cx="470" cy="520" rx="107.5" ry="29" class="use-case use-case-admin" />
+      <text x="470" y="524" class="use-case-label">Manage Teachers</text>
+    </g>
+    
+    <g>
+      <ellipse cx="470" cy="595" rx="107.5" ry="29" class="use-case use-case-admin" />
+      <text x="470" y="599" class="use-case-label">Manage Classrooms</text>
+    </g>
+    
+    <g>
+      <ellipse cx="470" cy="670" rx="107.5" ry="29" class="use-case use-case-admin" />
+      <text x="470" y="674" class="use-case-label">Manage Reports</text>
+    </g>
+    
+    <g>
+      <ellipse cx="470" cy="745" rx="107.5" ry="29" class="use-case use-case-admin" />
+      <text x="470" y="749" class="use-case-label">Manage Notifications</text>
+    </g>
+
+    
+    <g>
+      <ellipse cx="800" cy="315" rx="107.5" ry="29" class="use-case use-case-school" />
+      <text x="800" y="319" class="use-case-label">Manage Classes</text>
+    </g>
+    
+    <g>
+      <ellipse cx="800" cy="405" rx="107.5" ry="29" class="use-case use-case-school" />
+      <text x="800" y="409" class="use-case-label">Manage Timetable</text>
+    </g>
+    
+    <g>
+      <ellipse cx="800" cy="495" rx="107.5" ry="29" class="use-case use-case-school" />
+      <text x="800" y="499" class="use-case-label">Manage Attendance</text>
+    </g>
+    
+    <g>
+      <ellipse cx="800" cy="585" rx="107.5" ry="29" class="use-case use-case-school" />
+      <text x="800" y="589" class="use-case-label">Manage Scores</text>
+    </g>
+    
+    <g>
+      <ellipse cx="800" cy="675" rx="107.5" ry="29" class="use-case use-case-school" />
+      <text x="800" y="679" class="use-case-label">Manage Payments</text>
+    </g>
+
+    
+    <g>
+      <ellipse cx="1125" cy="295" rx="107.5" ry="29" class="use-case use-case-service" />
+      <text x="1125" y="299" class="use-case-label">View Schedule</text>
+    </g>
+    
+    <g>
+      <ellipse cx="1125" cy="375" rx="107.5" ry="29" class="use-case use-case-service" />
+      <text x="1125" y="379" class="use-case-label">Take Attendance</text>
+    </g>
+    
+    <g>
+      <ellipse cx="1125" cy="455" rx="107.5" ry="29" class="use-case use-case-service" />
+      <text x="1125" y="459" class="use-case-label">Add Scores</text>
+    </g>
+    
+    <g>
+      <ellipse cx="1125" cy="570" rx="107.5" ry="29" class="use-case use-case-service" />
+      <text x="1125" y="574" class="use-case-label">View Profile</text>
+    </g>
+    
+    <g>
+      <ellipse cx="1125" cy="650" rx="107.5" ry="29" class="use-case use-case-service" />
+      <text x="1125" y="654" class="use-case-label">View Results</text>
+    </g>
+    
+    <g>
+      <ellipse cx="1125" cy="730" rx="107.5" ry="29" class="use-case use-case-service" />
+      <text x="1125" y="734" class="use-case-label">View Payments</text>
+    </g>
+
+    <path d="M 265 457 H 322 M 322 295 V 745" class="spine" />
+    <path d="M 322 295 L 362 295" class="association" />
+    <path d="M 322 370 L 362 370" class="association" />
+    <path d="M 322 445 L 362 445" class="association" />
+    <path d="M 322 520 L 362 520" class="association" />
+    <path d="M 322 595 L 362 595" class="association" />
+    <path d="M 322 670 L 362 670" class="association" />
+    <path d="M 322 745 L 362 745" class="association" />
+
+    <path d="M 578 445 L 692 315" class="association" />
+    <path d="M 578 595 L 692 405" class="association" />
+    <path d="M 578 670 L 692 675" class="association" />
+
+    <path d="M 1335 307 H 1275 M 1275 295 V 455" class="spine" />
+    <path d="M 1275 295 L 1232 295" class="association" />
+    <path d="M 1275 375 L 1232 375" class="association" />
+    <path d="M 1275 455 L 1232 455" class="association" />
+
+    <path d="M 1335 627 H 1275 M 1275 570 V 730" class="spine" />
+    <path d="M 1275 570 L 1232 570" class="association" />
+    <path d="M 1275 650 L 1232 650" class="association" />
+    <path d="M 1275 730 L 1232 730" class="association" />
+  </g>
+</svg>

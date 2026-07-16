@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="888" viewBox="0 0 560 888" role="img" aria-labelledby="title desc">
+  <title id="title">students table</title>
+  <desc id="desc">Columns and keys for the students database table.</desc>
+  <defs>
+    <style>
+
+      .background { fill: #f8fafc; }
+      .headline { fill: #0f172a; font: 700 28px Arial, sans-serif; }
+      .subhead { fill: #475569; font: 14px Arial, sans-serif; }
+      .legend { fill: #334155; font: 12px Arial, sans-serif; }
+      .card-shadow { fill: #0f172a; opacity: 0.08; transform: translate(0, 2px); }
+      .card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1; }
+      .card-title, .card-title-fill { fill: #123c69; }
+      .table-name { fill: #ffffff; font: 700 16px Arial, sans-serif; }
+      .table-count { fill: #bfdbfe; font: 12px Arial, sans-serif; text-anchor: end; }
+      .column-marker { fill: #b45309; font: 700 11px Arial, sans-serif; }
+      .column-name { fill: #111827; font: 13px Arial, sans-serif; }
+      .column-type { fill: #64748b; font: 12px Arial, sans-serif; text-anchor: end; }
+
+      .single-headline { fill: #0f172a; font: 700 24px Arial, sans-serif; }
+      .single-subhead { fill: #475569; font: 13px Arial, sans-serif; }
+    </style>
+  </defs>
+  <rect width="560" height="888" class="background" />
+  <text x="32" y="34" class="single-headline">students</text>
+  <text x="32" y="57" class="single-subhead">No foreign-key relationships</text>
+  
+      <g>
+        <rect x="32" y="78" width="496" height="778" rx="8" class="card-shadow" />
+        <rect x="32" y="78" width="496" height="778" rx="8" class="card" />
+        <rect x="32" y="78" width="496" height="42" rx="8" class="card-title" />
+        <path d="M 32 112 H 528 V 120 H 32 Z" class="card-title-fill" />
+        <text x="50" y="105" class="table-name">students</text>
+        <text x="510" y="105" class="table-count">32 columns</text>
+        
+          
+          <text x="84" y="151" class="column-name">address</text>
+          <text x="510" y="151" class="column-type">string?</text>
+          
+          <text x="84" y="173" class="column-name">academic</text>
+          <text x="510" y="173" class="column-type">string?</text>
+          
+          <text x="84" y="195" class="column-name">avatar_url</text>
+          <text x="510" y="195" class="column-type">string?</text>
+          
+          <text x="84" y="217" class="column-name">class_name</text>
+          <text x="510" y="217" class="column-type">string?</text>
+          
+          <text x="84" y="239" class="column-name">created_at</text>
+          <text x="510" y="239" class="column-type">string</text>
+          
+          <text x="84" y="261" class="column-name">date_of_birth</text>
+          <text x="510" y="261" class="column-type">string?</text>
+          
+          <text x="84" y="283" class="column-name">email</text>
+          <text x="510" y="283" class="column-type">string?</text>
+          
+          <text x="84" y="305" class="column-name">enrollment_year</text>
+          <text x="510" y="305" class="column-type">number</text>
+          
+          <text x="84" y="327" class="column-name">father_job</text>
+          <text x="510" y="327" class="column-type">string?</text>
+          
+          <text x="84" y="349" class="column-name">father_name</text>
+          <text x="510" y="349" class="column-type">string?</text>
+          
+          <text x="84" y="371" class="column-name">full_name</text>
+          <text x="510" y="371" class="column-type">string</text>
+          
+          <text x="84" y="393" class="column-name">full_name_en</text>
+          <text x="510" y="393" class="column-type">string?</text>
+          
+          <text x="84" y="415" class="column-name">full_name_km</text>
+          <text x="510" y="415" class="column-type">string?</text>
+          
+          <text x="84" y="437" class="column-name">gender</text>
+          <text x="510" y="437" class="column-type">string?</text>
+          <text x="50" y="459" class="column-marker">PK</text>
+          <text x="84" y="459" class="column-name">id</text>
+          <text x="510" y="459" class="column-type">string</text>
+          
+          <text x="84" y="481" class="column-name">mother_job</text>
+          <text x="510" y="481" class="column-type">string?</text>
+          
+          <text x="84" y="503" class="column-name">mother_name</text>
+          <text x="510" y="503" class="column-type">string?</text>
+          
+          <text x="84" y="525" class="column-name">major</text>
+          <text x="510" y="525" class="column-type">string?</text>
+          
+          <text x="84" y="547" class="column-name">nationality</text>
+          <text x="510" y="547" class="column-type">string?</text>
+          
+          <text x="84" y="569" class="column-name">pay_year1</text>
+          <text x="510" y="569" class="column-type">string</text>
+          
+          <text x="84" y="591" class="column-name">pay_year2</text>
+          <text x="510" y="591" class="column-type">string</text>
+          
+          <text x="84" y="613" class="column-name">pay_year3</text>
+          <text x="510" y="613" class="column-type">string</text>
+          
+          <text x="84" y="635" class="column-name">pay_year4</text>
+          <text x="510" y="635" class="column-type">string</text>
+          
+          <text x="84" y="657" class="column-name">phone</text>
+          <text x="510" y="657" class="column-type">string?</text>
+          
+          <text x="84" y="679" class="column-name">place_of_birth</text>
+          <text x="510" y="679" class="column-type">string?</text>
+          
+          <text x="84" y="701" class="column-name">shift</text>
+          <text x="510" y="701" class="column-type">string?</text>
+          
+          <text x="84" y="723" class="column-name">status</text>
+          <text x="510" y="723" class="column-type">enum:student_status</text>
+          
+          <text x="84" y="745" class="column-name">student_type</text>
+          <text x="510" y="745" class="column-type">string?</text>
+          
+          <text x="84" y="767" class="column-name">study_year</text>
+          <text x="510" y="767" class="column-type">number?</text>
+          
+          <text x="84" y="789" class="column-name">student_code</text>
+          <text x="510" y="789" class="column-type">string</text>
+          
+          <text x="84" y="811" class="column-name">updated_at</text>
+          <text x="510" y="811" class="column-type">string</text>
+          
+          <text x="84" y="833" class="column-name">user_id</text>
+          <text x="510" y="833" class="column-type">string?</text>
+      </g>
+</svg>

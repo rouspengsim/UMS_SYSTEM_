@@ -16,15 +16,19 @@ import {
   KeyRound,
   CalendarDays,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { generateDemoAccountId, generateSchoolAccountId } from "@/lib/account-ids";
 import { pageTitle } from "@/lib/brand";
 import { createTeacherAccount } from "@/lib/teacher-accounts";
 import { ResetPasswordModal } from "@/components/app/reset-password-modal";
-import { DEFAULT_SUBJECT_OPTIONS, readDemoSubjects, subjectRowsToOptions } from "@/lib/subjects";
+import {
+  DEFAULT_SUBJECT_OPTIONS,
+  mergeSubjectOptions,
+  readDemoSubjects,
+  subjectRowsToOptions,
+} from "@/lib/subjects";
 import { decodeTimetableCell } from "@/lib/timetable-cell";
 
 export const Route = createFileRoute("/app/teachers")({
@@ -58,6 +62,29 @@ const dayLabels: Record<string, string> = {
   sat: "Sat",
   sun: "Sun",
 };
+
+function subjectFacultyName(description: string | null | undefined) {
+  return (
+    description
+      ?.split(" / ")
+      .map((part) => part.trim())
+      .filter(Boolean)[0] ?? ""
+  );
+}
+
+function filterSubjectsByFaculty(
+  options: typeof DEFAULT_SUBJECT_OPTIONS,
+  faculty: string | null | undefined,
+) {
+  const selectedFaculty = faculty?.trim();
+  if (!selectedFaculty) return options;
+
+  return options.filter(
+    (subject) =>
+      subjectFacultyName(subject.description) === selectedFaculty ||
+      subject.description?.includes(selectedFaculty),
+  );
+}
 
 type TeacherScheduleSlot = {
   id: string;
@@ -202,7 +229,7 @@ function TeachersPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["teachers", isDemo ? "demo" : "remote"] });
-      toast.success("Removed");
+      toast.success(t("teacher_removed"));
     },
     onError: (e) => toast.error(e.message),
   });
@@ -211,7 +238,7 @@ function TeachersPage() {
     <div>
       <PageHeader
         title={t("teachers")}
-        subtitle="Faculty profiles and assigned classes"
+        subtitle={t("teachers_subtitle")}
         actions={
           isAdmin && (
             <button
@@ -230,13 +257,13 @@ function TeachersPage() {
       ) : teachers.length === 0 ? (
         <SectionCard>
           <div className="py-10 text-center">
-            <p className="text-sm text-muted-foreground">No teachers yet.</p>
+            <p className="text-sm text-muted-foreground">{t("no_teachers_yet")}</p>
             {isAdmin && (
               <button
                 onClick={() => setShowAdd(true)}
                 className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
               >
-                <Plus className="h-3.5 w-3.5" /> Add first teacher
+                <Plus className="h-3.5 w-3.5" /> {t("add_first_teacher")}
               </button>
             )}
           </div>
@@ -295,14 +322,14 @@ function TeachersPage() {
                       onClick={() => setViewTeacher(tc)}
                       className="inline-flex h-9 items-center gap-1 rounded-full bg-muted px-3 text-xs font-bold text-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
                     >
-                      <Eye className="h-3.5 w-3.5" /> View
+                      <Eye className="h-3.5 w-3.5" /> {t("view")}
                     </button>
                     {isAdmin && (
                       <>
                         <button
                           onClick={() => setEditTeacher(tc)}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
-                          aria-label="Update teacher"
+                          aria-label={t("update_teacher")}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
@@ -310,25 +337,25 @@ function TeachersPage() {
                           to="/app/timetable"
                           search={{ teacherId: tc.id }}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
-                          aria-label="View teacher schedule"
-                          title="View schedule"
+                          aria-label={t("view_schedule")}
+                          title={t("view_schedule")}
                         >
                           <CalendarDays className="h-3.5 w-3.5" />
                         </Link>
                         <button
                           onClick={() => setPasswordTeacher(tc)}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-warning transition-colors hover:bg-warning/10"
-                          aria-label="Reset teacher password"
-                          title="Reset password"
+                          aria-label={t("reset_teacher_password")}
+                          title={t("reset_password")}
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => {
-                            if (confirm("Remove teacher?")) del.mutate(tc.id);
+                            if (confirm(t("remove_teacher_confirm"))) del.mutate(tc.id);
                           }}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted text-destructive transition-colors hover:bg-destructive/10"
-                          aria-label="Delete teacher"
+                          aria-label={t("delete_teacher")}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -358,7 +385,7 @@ function TeachersPage() {
       )}
       {passwordTeacher && (
         <ResetPasswordModal
-          title="Reset teacher password"
+          title={t("reset_teacher_password")}
           subtitle={`${passwordTeacher.full_name_en || passwordTeacher.full_name} · ${passwordTeacher.staff_code}`}
           userId={passwordTeacher.user_id}
           isDemo={isDemo}
@@ -380,11 +407,12 @@ function TeacherFormModal({
 }) {
   const qc = useQueryClient();
   const { session } = useAuth();
+  const { t } = useI18n();
   const isEdit = !!teacher;
   const [f, setF] = useState(() => ({
     full_name_en: teacher?.full_name_en ?? teacher?.full_name ?? "",
     full_name_km: teacher?.full_name_km ?? "",
-    staff_code: teacher?.staff_code ?? generateSchoolAccountId("teacher"),
+    staff_code: teacher?.staff_code ?? "",
     avatar_url: teacher?.avatar_url ?? "",
     email: teacher?.email ?? "",
     phone: teacher?.phone ?? "",
@@ -396,7 +424,7 @@ function TeacherFormModal({
   const { data: subjectOptions = DEFAULT_SUBJECT_OPTIONS } = useQuery({
     queryKey: ["subject-options", isDemo ? "demo" : "remote"],
     queryFn: async () => {
-      if (isDemo) return subjectRowsToOptions(readDemoSubjects());
+      if (isDemo) return mergeSubjectOptions(subjectRowsToOptions(readDemoSubjects()));
 
       const { data, error } = await supabase
         .from("subjects")
@@ -408,14 +436,28 @@ function TeacherFormModal({
         label: subject.subject_name || subject.subject_id,
         description: subject.description,
       }));
-      return options.length > 0 ? options : DEFAULT_SUBJECT_OPTIONS;
+      return mergeSubjectOptions(options);
     },
   });
+  const facultyOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          subjectOptions.map((subject) => subjectFacultyName(subject.description)).filter(Boolean),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [subjectOptions],
+  );
+  const filteredSubjectOptions = useMemo(
+    () => filterSubjectsByFaculty(subjectOptions, f.faculty),
+    [subjectOptions, f.faculty],
+  );
+  const subjectDatalistId = `teacher-subject-options-${teacher?.id ?? "new"}`;
 
   const handleImageUpload = async (file: File | null) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file");
+      toast.error(t("image_file_required"));
       return;
     }
 
@@ -430,7 +472,7 @@ function TeacherFormModal({
   const mut = useMutation({
     mutationFn: async () => {
       if (isDemo) {
-        const teacherCode = f.staff_code.trim() || generateDemoAccountId("teacher");
+        const teacherCode = f.staff_code.trim().toUpperCase();
         const nextTeacher: TeacherRow = {
           id: teacher?.id ?? `demo-teacher-${Date.now()}`,
           user_id: teacher?.user_id ?? `demo-teacher-user-${Date.now()}`,
@@ -459,7 +501,7 @@ function TeacherFormModal({
 
       if (!isEdit) {
         if (!session?.access_token) {
-          throw new Error("Your admin session expired. Please log in again.");
+          throw new Error(t("admin_session_expired_login"));
         }
 
         await createTeacherAccount({
@@ -507,11 +549,11 @@ function TeacherFormModal({
       toast.success(
         isEdit
           ? isDemo
-            ? "Demo teacher updated"
-            : "Teacher updated"
+            ? t("update_teacher")
+            : t("update_teacher")
           : isDemo
-            ? "Demo teacher added"
-            : "Teacher added",
+            ? t("add_teacher")
+            : t("add_teacher"),
       );
       onClose();
     },
@@ -528,39 +570,59 @@ function TeacherFormModal({
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-lg font-bold">
-            {isEdit ? "Update teacher" : "Add teacher"}
+            {isEdit ? t("update_teacher") : t("add_teacher")}
           </h3>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
         <form
+          autoComplete="off"
           onSubmit={(e) => {
             e.preventDefault();
-            if (!f.full_name_en.trim()) return toast.error("English name required");
-            if (!f.full_name_km.trim()) return toast.error("Khmer name required");
-            if (!f.staff_code.trim()) return toast.error("Teacher ID required");
-            if (!f.phone.trim()) return toast.error("Phone number required");
-            if (!f.faculty.trim()) return toast.error("Faculty required");
-            if (!f.specialization.trim()) return toast.error("Teaching subject required");
-            if (!isEdit && !f.password.trim()) return toast.error("Password required");
+            if (!f.full_name_en.trim()) return toast.error(t("english_name_required"));
+            if (!f.full_name_km.trim()) return toast.error(t("khmer_name_required"));
+            if (!f.staff_code.trim()) return toast.error(t("teacher_id_required"));
+            if (!f.phone.trim()) return toast.error(t("phone_required"));
+            if (!f.faculty.trim()) return toast.error(t("faculty_required"));
+            if (!f.specialization.trim()) return toast.error(t("teaching_subject_required"));
+            if (!isEdit && !f.password.trim()) return toast.error(t("password_required"));
             mut.mutate();
           }}
           className="grid gap-3 sm:grid-cols-2"
         >
+          <input
+            type="text"
+            name="username"
+            autoComplete="username"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="hidden"
+          />
+          <input
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="hidden"
+          />
           <div className="sm:col-span-2">
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Profile image
+              {t("profile_image")}
             </label>
             <div className="flex items-center gap-3 rounded-xl border border-border bg-surface p-3">
               {f.avatar_url ? (
                 <img
                   src={f.avatar_url}
-                  alt="Teacher profile preview"
+                  alt={t("teacher_profile_preview")}
                   className="h-16 w-16 rounded-xl object-cover ring-1 ring-border"
                 />
               ) : (
-                <Avatar name={f.full_name_en || f.full_name_km || "Teacher"} className="h-16 w-16" />
+                <Avatar
+                  name={f.full_name_en || f.full_name_km || t("teacher")}
+                  className="h-16 w-16"
+                />
               )}
               <div className="min-w-0 flex-1">
                 <input
@@ -572,7 +634,9 @@ function TeacherFormModal({
                 <input
                   value={f.avatar_url.startsWith("data:") ? "" : f.avatar_url}
                   onChange={(e) => setF({ ...f, avatar_url: e.target.value })}
-                  placeholder="Or paste image URL"
+                  placeholder={t("paste_image_url")}
+                  autoComplete="off"
+                  name="teacher-profile-image-url"
                   className="mt-2 h-9 w-full rounded-lg border border-border bg-background px-3 text-xs outline-none focus:border-primary"
                 />
               </div>
@@ -580,12 +644,11 @@ function TeacherFormModal({
           </div>
           {(
             [
-              ["Teacher ID", "staff_code"],
-              ["Name in English *", "full_name_en"],
-              ["Name in Khmer *", "full_name_km"],
-              ["Phone number *", "phone"],
-              ["Faculty *", "faculty"],
-              ["Email", "email"],
+              [`${t("teacher_id")} *`, "staff_code"],
+              [`${t("name_in_english")} *`, "full_name_en"],
+              [`${t("name_in_khmer")} *`, "full_name_km"],
+              [`${t("phone_number")} *`, "phone"],
+              [t("email"), "email"],
             ] as const
           ).map(([label, key]) => (
             <div key={key}>
@@ -600,46 +663,92 @@ function TeacherFormModal({
                     [key]: key === "staff_code" ? e.target.value.toUpperCase() : e.target.value,
                   })
                 }
-                placeholder={key === "staff_code" && !isEdit ? "RULE-TH123" : undefined}
-                autoComplete={key === "staff_code" ? "off" : undefined}
-                readOnly={key === "staff_code" && !isEdit}
-                className={
-                  "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary " +
-                  (key === "staff_code" && !isEdit ? "cursor-default text-muted-foreground" : "")
+                autoComplete="off"
+                name={
+                  key === "staff_code"
+                    ? "manual-teacher-id"
+                    : key === "email"
+                      ? "teacher-contact-email"
+                      : `teacher-${key}`
                 }
+                className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
               />
             </div>
           ))}
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Teaches / Subject *
+              {t("faculty")} *
             </label>
             <select
-              value={f.specialization}
-              onChange={(e) => setF({ ...f, specialization: e.target.value })}
+              value={f.faculty}
+              onChange={(e) => {
+                const faculty = e.target.value;
+                const nextSubjects = filterSubjectsByFaculty(subjectOptions, faculty);
+                const currentSubjectIsKnown = subjectOptions.some(
+                  (subject) => subject.label === f.specialization,
+                );
+                const currentSubjectStillAvailable = nextSubjects.some(
+                  (subject) => subject.label === f.specialization,
+                );
+                setF({
+                  ...f,
+                  faculty,
+                  specialization:
+                    currentSubjectIsKnown && !currentSubjectStillAvailable ? "" : f.specialization,
+                });
+              }}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
             >
-              <option value="">Select subject</option>
-              {subjectOptions.map((subject) => (
-                <option key={subject.code} value={subject.label}>
-                  {subject.label} ({subject.code})
+              <option value="">
+                {t("select")} {t("faculty")}
+              </option>
+              {facultyOptions.map((faculty) => (
+                <option key={faculty} value={faculty}>
+                  {faculty}
                 </option>
               ))}
-              {f.specialization &&
-                !subjectOptions.some((subject) => subject.label === f.specialization) && (
-                  <option value={f.specialization}>{f.specialization}</option>
-                )}
+              {f.faculty && !facultyOptions.includes(f.faculty) && (
+                <option value={f.faculty}>{f.faculty}</option>
+              )}
             </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {t("teaches_subject")} *
+            </label>
+            <input
+              key={f.faculty || "all-subjects"}
+              value={f.specialization}
+              onChange={(e) => setF({ ...f, specialization: e.target.value })}
+              list={subjectDatalistId}
+              placeholder={t("select_subject_option")}
+              autoComplete="off"
+              name="teacher-teaching-subject"
+              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+            />
+            <datalist id={subjectDatalistId}>
+              {filteredSubjectOptions.map((subject) => (
+                <option
+                  key={subject.code}
+                  value={subject.label}
+                  label={`${subject.code}${subject.description ? ` · ${subject.description}` : ""}`}
+                />
+              ))}
+            </datalist>
           </div>
           {!isEdit && (
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Password *
+                {t("password")} *
               </label>
               <input
                 type="password"
                 value={f.password}
                 onChange={(e) => setF({ ...f, password: e.target.value })}
+                autoComplete="one-time-code"
+                name="manual-teacher-passcode"
+                data-lpignore="true"
+                data-1p-ignore="true"
                 className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
               />
             </div>
@@ -652,9 +761,9 @@ function TeacherFormModal({
             {mut.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : isEdit ? (
-              "Update teacher"
+              t("update_teacher")
             ) : (
-              "Save teacher"
+              t("save_teacher")
             )}
           </button>
         </form>
@@ -741,7 +850,10 @@ function TeacherViewModal({
             />
           ) : (
             <div className="flex h-full items-center justify-center">
-              <Avatar name={teacher.full_name_en || teacher.full_name} className="h-24 w-24 text-2xl" />
+              <Avatar
+                name={teacher.full_name_en || teacher.full_name}
+                className="h-24 w-24 text-2xl"
+              />
             </div>
           )}
         </div>

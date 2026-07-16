@@ -4,6 +4,7 @@ import {
   Users,
   GraduationCap,
   School,
+  Building2,
   BookOpen,
   CalendarCheck,
   ClipboardList,
@@ -28,6 +29,7 @@ export const navItems: NavItem[] = [
   { to: "/app/students", icon: Users, key: "students" },
   { to: "/app/teachers", icon: GraduationCap, key: "teachers" },
   { to: "/app/classes", icon: School, key: "classes" },
+  { to: "/app/classrooms", icon: Building2, key: "classrooms" },
   { to: "/app/subjects", icon: BookOpen, key: "subjects" },
   { to: "/app/attendance", icon: CalendarCheck, key: "attendance" },
   { to: "/app/exams", icon: ClipboardList, key: "exams" },
@@ -53,7 +55,12 @@ export function Sidebar() {
   const profileName = profile?.full_name || t("my_information");
 
   return (
-    <aside className={cn("hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex", isStudent ? "w-60" : "w-64")}>
+    <aside
+      className={cn(
+        "hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex",
+        isStudent ? "w-60" : "w-64",
+      )}
+    >
       <div className="flex h-16 items-center gap-2 px-5">
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-white shadow-soft ring-1 ring-border/70">
           <img
@@ -64,9 +71,7 @@ export function Sidebar() {
         </div>
         <div className="leading-tight">
           <p className="font-display text-base font-bold tracking-tight">{UNIVERSITY_SHORT_NAME}</p>
-          <p className="text-[10px] tracking-wide text-muted-foreground">
-            {UNIVERSITY_NAME_EN}
-          </p>
+          <p className="text-[10px] tracking-wide text-muted-foreground">{UNIVERSITY_NAME_EN}</p>
         </div>
       </div>
 
@@ -134,9 +139,7 @@ export function Sidebar() {
         <div className="m-3 rounded-2xl bg-gradient-to-br from-primary to-primary/70 p-4 text-primary-foreground shadow-soft">
           <p className="text-sm font-semibold capitalize">{primaryRole ?? t("dashboard")}</p>
           <p className="mt-1 text-xs opacity-80">
-            {primaryRole === "admin"
-              ? t("customize_workspace")
-              : t("focused_teaching_workspace")}
+            {primaryRole === "admin" ? t("customize_workspace") : t("focused_teaching_workspace")}
           </p>
           <Link
             to="/app"

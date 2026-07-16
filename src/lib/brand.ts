@@ -30,10 +30,7 @@ export const UNIVERSITY_FULL_NAME = envText(
   "VITE_INSTITUTION_FULL_NAME",
   `${UNIVERSITY_NAME_KM} (${UNIVERSITY_NAME_EN})`,
 );
-export const UNIVERSITY_SYSTEM_NAME = envText(
-  "VITE_SYSTEM_NAME",
-  "University Management System",
-);
+export const UNIVERSITY_SYSTEM_NAME = envText("VITE_SYSTEM_NAME", "University Management System");
 export const UNIVERSITY_HERO_SUBTITLE = envText(
   "VITE_HERO_SUBTITLE",
   "ប្រព័ន្ធឌីជីថលសម្រាប់គ្រប់គ្រងសាកលវិទ្យាល័យ",

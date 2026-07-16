@@ -20,6 +20,11 @@ const dict: Dict = {
   students: { en: "Students", km: "សិស្ស" },
   teachers: { en: "Teachers", km: "គ្រូបង្រៀន" },
   classes: { en: "Classes", km: "ថ្នាក់រៀន" },
+  classrooms: { en: "Classrooms", km: "បន្ទប់រៀន" },
+  classrooms_subtitle: {
+    en: "Check which rooms are busy or free by day and time",
+    km: "ពិនិត្យបន្ទប់ណារវល់ ឬទំនេរ តាមថ្ងៃ និងម៉ោង",
+  },
   subjects: { en: "Subjects", km: "មុខវិជ្ជា" },
   attendance: { en: "Attendance", km: "វត្តមាន" },
   attendance_subtitle: {
@@ -46,6 +51,10 @@ const dict: Dict = {
   announcements_alerts: { en: "Announcements and alerts", km: "សេចក្ដីជូនដំណឹង និងការព្រមាន" },
   announce: { en: "Announce", km: "ជូនដំណឹង" },
   roles: { en: "Roles", km: "តួនាទី" },
+  roles_subtitle: {
+    en: "User role report and access assignments",
+    km: "របាយការណ៍តួនាទីអ្នកប្រើ និងសិទ្ធិចូលប្រើ",
+  },
   certificates: { en: "Certificates", km: "សញ្ញាបត្រ" },
   settings: { en: "Settings", km: "ការកំណត់" },
 
@@ -57,6 +66,7 @@ const dict: Dict = {
   add_subject: { en: "Add subject", km: "បន្ថែមមុខវិជ្ជា" },
   add_time_shift: { en: "Add time shift", km: "បន្ថែមវេនសិក្សា" },
   edit: { en: "Edit", km: "កែប្រែ" },
+  update: { en: "Update", km: "កែប្រែ" },
   edit_subject: { en: "Edit subject", km: "កែប្រែមុខវិជ្ជា" },
   delete: { en: "Delete", km: "លុប" },
   view: { en: "View", km: "មើល" },
@@ -68,6 +78,7 @@ const dict: Dict = {
   save_time_shift: { en: "Save time shift", km: "រក្សាទុកវេនសិក្សា" },
   cancel: { en: "Cancel", km: "បោះបង់" },
   export: { en: "Export", km: "នាំចេញ" },
+  print: { en: "Print", km: "បោះពុម្ព" },
   filter: { en: "Filter", km: "តម្រង" },
   all: { en: "All", km: "ទាំងអស់" },
   everyone: { en: "Everyone", km: "ទាំងអស់គ្នា" },
@@ -83,6 +94,7 @@ const dict: Dict = {
   evening: { en: "Evening", km: "ល្ងាច" },
   custom: { en: "Custom", km: "កំណត់ផ្ទាល់ខ្លួន" },
   id: { en: "ID", km: "ល.រ" },
+  no: { en: "No", km: "ល.រ" },
   action: { en: "Action", km: "សកម្មភាព" },
   description: { en: "Description", km: "ការពិពណ៌នា" },
   search: { en: "Search", km: "ស្វែងរក" },
@@ -91,11 +103,38 @@ const dict: Dict = {
   class: { en: "Class", km: "ថ្នាក់" },
   class_name: { en: "Class name", km: "ឈ្មោះថ្នាក់" },
   subject: { en: "Subject", km: "មុខវិជ្ជា" },
-  select_subject: { en: "Select a subject for this class.", km: "ជ្រើសរើសមុខវិជ្ជាសម្រាប់ថ្នាក់នេះ។" },
+  select_subject: {
+    en: "Select a subject for this class.",
+    km: "ជ្រើសរើសមុខវិជ្ជាសម្រាប់ថ្នាក់នេះ។",
+  },
   subject_id: { en: "Subject ID", km: "លេខសម្គាល់មុខវិជ្ជា" },
   subject_name: { en: "Subject name", km: "ឈ្មោះមុខវិជ្ជា" },
   subject_code: { en: "Subject code", km: "លេខកូដមុខវិជ្ជា" },
   room: { en: "Room", km: "បន្ទប់" },
+  building: { en: "Building", km: "អគារ" },
+  device_type: { en: "Device type", km: "ប្រភេទឧបករណ៍" },
+  used_date: { en: "Used date", km: "ថ្ងៃប្រើប្រាស់" },
+  total_rooms: { en: "Total rooms", km: "បន្ទប់សរុប" },
+  free_rooms: { en: "Free rooms", km: "បន្ទប់ទំនេរ" },
+  busy_rooms: { en: "Busy rooms", km: "បន្ទប់រវល់" },
+  free: { en: "Free", km: "ទំនេរ" },
+  busy: { en: "Busy", km: "រវល់" },
+  availability: { en: "Availability", km: "ស្ថានភាពទំនេរ" },
+  condition: { en: "Condition", km: "គុណភាពបន្ទប់" },
+  room_hour: { en: "Room hour", km: "ម៉ោងបន្ទប់" },
+  busy_room_schedule: { en: "Busy room schedule", km: "កាលវិភាគបន្ទប់រវល់" },
+  no_busy_rooms_for_time: {
+    en: "No busy rooms for the selected day and time.",
+    km: "មិនមានបន្ទប់រវល់សម្រាប់ថ្ងៃ និងម៉ោងដែលបានជ្រើស។",
+  },
+  good_status: { en: "Good", km: "ល្អ" },
+  medium_status: { en: "Medium", km: "មធ្យម" },
+  summary_table: { en: "Summary table", km: "តារាងសរុប" },
+  classroom_list: { en: "Classroom list", km: "បញ្ជីបន្ទប់រៀន" },
+  search_classrooms: {
+    en: "Search by building, room, or condition...",
+    km: "ស្វែងរកតាមអគារ បន្ទប់ ឬគុណភាព...",
+  },
   capacity: { en: "Capacity", km: "ចំនួនអាចទទួល" },
   semester: { en: "Semester", km: "ឆមាស" },
   unassigned: { en: "Unassigned", km: "មិនទាន់កំណត់" },
@@ -106,6 +145,7 @@ const dict: Dict = {
   address: { en: "Address", km: "អាសយដ្ឋាន" },
   status: { en: "Status", km: "ស្ថានភាព" },
   account_type: { en: "Account type", km: "ប្រភេទគណនី" },
+  type: { en: "Type", km: "ប្រភេទ" },
   name: { en: "Name", km: "ឈ្មោះ" },
   english_name: { en: "English name", km: "ឈ្មោះអង់គ្លេស" },
   khmer_name: { en: "Khmer name", km: "ឈ្មោះខ្មែរ" },
@@ -122,6 +162,7 @@ const dict: Dict = {
   mother_name: { en: "Mother Name", km: "ឈ្មោះម្តាយ" },
   mother_job: { en: "Mother Job", km: "មុខរបរម្តាយ" },
   academic: { en: "Academic", km: "មហាវិទ្យាល័យ" },
+  academic_year: { en: "Academic year", km: "ឆ្នាំសិក្សា" },
   type_of_student: { en: "Type of Student", km: "ប្រភេទនិស្សិត" },
   pay_year1: { en: "PayYear1", km: "បង់ឆ្នាំទី១" },
   pay_year2: { en: "PayYear2", km: "បង់ឆ្នាំទី២" },
@@ -138,7 +179,7 @@ const dict: Dict = {
     en: "JPG, PNG or WebP. The image will be compressed automatically.",
     km: "JPG, PNG ឬ WebP។ រូបភាពនឹងត្រូវបង្រួមដោយស្វ័យប្រវត្តិ។",
   },
-  year: { en: "Year", km: "ឆ្នាំសិក្សា" },
+  year: { en: "Study year", km: "ឆ្នាំទី" },
   phone: { en: "Phone", km: "លេខទូរស័ព្ទ" },
   student_id: { en: "Student ID", km: "លេខសម្គាល់សិស្ស" },
   students_in_class: { en: "Students in", km: "សិស្សក្នុងថ្នាក់" },
@@ -251,6 +292,33 @@ const dict: Dict = {
   sign_in_to: { en: "Sign in to your account", km: "ចូលគណនីរបស់អ្នក" },
   email: { en: "Email", km: "អ៊ីមែល" },
   password: { en: "Password", km: "ពាក្យសម្ងាត់" },
+  actions: { en: "Actions", km: "សកម្មភាព" },
+  user_name: { en: "User Name", km: "ឈ្មោះអ្នកប្រើ" },
+  role_as: { en: "Role as", km: "តួនាទីជា" },
+  update_password: { en: "Update password", km: "កែពាក្យសម្ងាត់" },
+  new_password: { en: "New password", km: "ពាក្យសម្ងាត់ថ្មី" },
+  confirm_password: { en: "Confirm password", km: "បញ្ជាក់ពាក្យសម្ងាត់" },
+  show_password: { en: "Show password", km: "បង្ហាញពាក្យសម្ងាត់" },
+  hide_password: { en: "Hide password", km: "លាក់ពាក្យសម្ងាត់" },
+  secure_password_hash_notice: {
+    en: "Existing passwords cannot be viewed because Supabase stores them securely as hashes.",
+    km: "មិនអាចមើលពាក្យសម្ងាត់ចាស់បានទេ ព្រោះ Supabase រក្សាទុកវាជា hash ដោយសុវត្ថិភាព។",
+  },
+  assign_role: { en: "Assign role", km: "កំណត់តួនាទី" },
+  user: { en: "User", km: "អ្នកប្រើ" },
+  role: { en: "Role", km: "តួនាទី" },
+  select: { en: "Select", km: "ជ្រើសរើស" },
+  no_role_assignments_yet: { en: "No role assignments yet.", km: "មិនទាន់មានការកំណត់តួនាទី។" },
+  remove_role_confirm: { en: "Remove this role?", km: "ដកតួនាទីនេះចេញឬ?" },
+  role_removed: { en: "Role removed", km: "បានដកតួនាទី" },
+  role_assigned: { en: "Role assigned", km: "បានកំណត់តួនាទី" },
+  password_updated: { en: "Password updated", km: "បានកែពាក្យសម្ងាត់" },
+  passwords_do_not_match: { en: "Passwords do not match.", km: "ពាក្យសម្ងាត់មិនដូចគ្នា។" },
+  pick_user: { en: "Pick a user", km: "ជ្រើសរើសអ្នកប្រើ" },
+  password_min_6: {
+    en: "Password must be at least 6 characters.",
+    km: "ពាក្យសម្ងាត់ត្រូវមានយ៉ាងតិច ៦ តួអក្សរ។",
+  },
   sign_in: { en: "Sign in", km: "ចូល" },
   admin_sign_in: { en: "Admin sign in", km: "ចូលជាអ្នកគ្រប់គ្រង" },
   create_your_account: { en: "Create your account", km: "បង្កើតគណនីរបស់អ្នក" },
@@ -269,6 +337,39 @@ const dict: Dict = {
   continue_as: { en: "Or quick sign in as", km: "ឬចូលរហ័សជា" },
   admin: { en: "Admin", km: "អ្នកគ្រប់គ្រង" },
   teacher: { en: "Teacher", km: "គ្រូ" },
+  teacher_id: { en: "Teacher ID", km: "លេខសម្គាល់គ្រូ" },
+  teachers_subtitle: {
+    en: "Faculty profiles and assigned classes",
+    km: "ប្រវត្តិគ្រូ និងថ្នាក់ដែលបានកំណត់",
+  },
+  no_teachers_yet: { en: "No teachers yet.", km: "មិនទាន់មានគ្រូ។" },
+  add_first_teacher: { en: "Add first teacher", km: "បន្ថែមគ្រូដំបូង" },
+  update_teacher: { en: "Update teacher", km: "កែព័ត៌មានគ្រូ" },
+  save_teacher: { en: "Save teacher", km: "រក្សាទុកគ្រូ" },
+  reset_password: { en: "Reset password", km: "កំណត់ពាក្យសម្ងាត់ឡើងវិញ" },
+  reset_teacher_password: {
+    en: "Reset teacher password",
+    km: "កំណត់ពាក្យសម្ងាត់គ្រូឡើងវិញ",
+  },
+  view_schedule: { en: "View schedule", km: "មើលកាលវិភាគ" },
+  delete_teacher: { en: "Delete teacher", km: "លុបគ្រូ" },
+  remove_teacher_confirm: { en: "Remove teacher?", km: "លុបគ្រូនេះឬ?" },
+  teacher_removed: { en: "Removed", km: "បានលុប" },
+  profile_image: { en: "Profile image", km: "រូបប្រវត្តិរូប" },
+  teacher_profile_preview: { en: "Teacher profile preview", km: "មើលរូបគ្រូជាមុន" },
+  paste_image_url: { en: "Or paste image URL", km: "ឬបិទភ្ជាប់ URL រូបភាព" },
+  phone_number: { en: "Phone number", km: "លេខទូរស័ព្ទ" },
+  faculty: { en: "Faculty", km: "មហាវិទ្យាល័យ" },
+  teaches_subject: { en: "Teaches / Subject", km: "បង្រៀន / មុខវិជ្ជា" },
+  select_subject_option: { en: "Select subject", km: "ជ្រើសរើសមុខវិជ្ជា" },
+  image_file_required: { en: "Please choose an image file", km: "សូមជ្រើសរើសឯកសាររូបភាព" },
+  english_name_required: { en: "English name required", km: "ត្រូវការឈ្មោះអង់គ្លេស" },
+  khmer_name_required: { en: "Khmer name required", km: "ត្រូវការឈ្មោះខ្មែរ" },
+  teacher_id_required: { en: "Teacher ID required", km: "ត្រូវការលេខសម្គាល់គ្រូ" },
+  phone_required: { en: "Phone number required", km: "ត្រូវការលេខទូរស័ព្ទ" },
+  faculty_required: { en: "Faculty required", km: "ត្រូវការមហាវិទ្យាល័យ" },
+  teaching_subject_required: { en: "Teaching subject required", km: "ត្រូវការមុខវិជ្ជាបង្រៀន" },
+  password_required: { en: "Password required", km: "ត្រូវការពាក្យសម្ងាត់" },
   student: { en: "Student", km: "សិស្ស" },
   sign_out: { en: "Sign out", km: "ចាកចេញ" },
 
@@ -348,6 +449,82 @@ const dict: Dict = {
   date_tba: { en: "Date TBA", km: "មិនទាន់កំណត់ថ្ងៃ" },
   tba: { en: "TBA", km: "មិនទាន់កំណត់" },
   pending: { en: "Pending", km: "កំពុងរង់ចាំ" },
+  invoice: { en: "Invoice", km: "វិក្កយបត្រ" },
+  amount: { en: "Amount", km: "ចំនួនទឹកប្រាក់" },
+  due: { en: "Due", km: "ថ្ងៃផុតកំណត់" },
+  payment_option: { en: "Payment option", km: "ជម្រើសបង់ប្រាក់" },
+  no_payments_yet: { en: "No payments yet.", km: "មិនទាន់មានការទូទាត់។" },
+  payments_subtitle: {
+    en: "Invoices, dues and revenue tracking",
+    km: "វិក្កយបត្រ កាលបរិច្ឆេទផុតកំណត់ និងចំណូល",
+  },
+  marked_paid: { en: "Marked paid", km: "បានកំណត់ថាបង់រួច" },
+  pay_by_khqr: { en: "Pay by KH QR", km: "បង់តាម KH QR" },
+  create_khqr_invoice: { en: "Create KH QR invoice", km: "បង្កើតវិក្កយបត្រ KH QR" },
+  create_invoice: { en: "Create invoice", km: "បង្កើតវិក្កយបត្រ" },
+  prepare_khqr_invoice: { en: "Prepare a KH QR invoice.", km: "រៀបចំវិក្កយបត្រ KH QR។" },
+  pay_to: { en: "Pay to", km: "បង់ទៅ" },
+  pay_for: { en: "Pay for", km: "បង់សម្រាប់" },
+  pay_one_semester: { en: "1 semester", km: "១ឆមាស" },
+  pay_one_year: { en: "1 year", km: "១ឆ្នាំ" },
+  total_due: { en: "Total due", km: "សរុបត្រូវបង់" },
+  annual_tuition: { en: "Annual tuition", km: "ថ្លៃសិក្សា ១ឆ្នាំ" },
+  paid_amount: { en: "Paid", km: "បានបង់" },
+  pending_amount: { en: "Pending invoices", km: "វិក្កយបត្ររង់ចាំ" },
+  payment_left: { en: "Payment left", km: "ប្រាក់នៅសល់ត្រូវបង់" },
+  payment_already_exists: {
+    en: "This study year/payment period already has a payment record.",
+    km: "ឆ្នាំសិក្សា/រយៈពេលបង់ប្រាក់នេះមានកំណត់ត្រាបង់ប្រាក់រួចហើយ។",
+  },
+  payment_already_exists_invoice: {
+    en: "Already has invoice {invoice} for this payment period.",
+    km: "មានវិក្កយបត្រ {invoice} សម្រាប់រយៈពេលបង់ប្រាក់នេះរួចហើយ។",
+  },
+  amount_usd: { en: "Amount (USD)", km: "ចំនួនទឹកប្រាក់ (USD)" },
+  due_date: { en: "Due date", km: "ថ្ងៃផុតកំណត់" },
+  payment_form: { en: "Payment form", km: "ទម្រង់បង់ប្រាក់" },
+  payment_status: { en: "Payment status", km: "ស្ថានភាពបង់ប្រាក់" },
+  your_student_information: { en: "Your student information", km: "ព័ត៌មានសិស្សរបស់អ្នក" },
+  student_lookup: { en: "Student lookup", km: "ស្វែងរកសិស្ស" },
+  loading_students: { en: "Loading students", km: "កំពុងផ្ទុកសិស្ស" },
+  no_student_found_for: { en: "No student found for {id}.", km: "រកមិនឃើញសិស្សសម្រាប់ {id}។" },
+  khmer_name_not_set: { en: "Khmer name not set", km: "មិនទាន់កំណត់ឈ្មោះខ្មែរ" },
+  invoice_details: { en: "Invoice details", km: "ព័ត៌មានវិក្កយបត្រ" },
+  khqr_ready: { en: "KH QR ready", km: "KH QR រួចរាល់" },
+  demo_khqr_ready: { en: "Demo KH QR ready", km: "Demo KH QR រួចរាល់" },
+  paid_create_receipt: { en: "Paid, create receipt", km: "បានបង់ បង្កើតបង្កាន់ដៃ" },
+  scan_khqr_admin_notice: {
+    en: "Scan this KH QR in your banking app. After the transfer is complete, confirm payment to mark the invoice paid and create the receipt PDF.",
+    km: "ស្កេន KH QR នេះក្នុងកម្មវិធីធនាគារ។ បន្ទាប់ពីផ្ទេររួច សូមបញ្ជាក់ការបង់ប្រាក់ ដើម្បីកំណត់វិក្កយបត្រថាបង់រួច និងបង្កើតបង្កាន់ដៃ PDF។",
+  },
+  scan_khqr_student_notice: {
+    en: "Scan this KH QR in your banking app. After the transfer is complete, contact the cashier/admin to confirm your payment and issue the receipt.",
+    km: "ស្កេន KH QR នេះក្នុងកម្មវិធីធនាគារ។ បន្ទាប់ពីផ្ទេររួច សូមទាក់ទងបេឡាករ/អ្នកគ្រប់គ្រង ដើម្បីបញ្ជាក់ការបង់ប្រាក់ និងចេញបង្កាន់ដៃ។",
+  },
+  enter_student_id: { en: "Enter Student ID", km: "បញ្ចូលលេខសម្គាល់សិស្ស" },
+  valid_student_id_required: {
+    en: "Enter a valid Student ID",
+    km: "បញ្ចូលលេខសម្គាល់សិស្សឱ្យត្រឹមត្រូវ",
+  },
+  valid_amount_required: { en: "Enter a valid amount", km: "បញ្ចូលចំនួនទឹកប្រាក់ឱ្យត្រឹមត្រូវ" },
+  no_student_linked: {
+    en: "No student record linked to this account",
+    km: "មិនមានប្រវត្តិសិស្សភ្ជាប់នឹងគណនីនេះទេ",
+  },
+  tuition_fee_placeholder: {
+    en: "Tuition fee, exam fee, materials...",
+    km: "ថ្លៃសិក្សា ថ្លៃប្រឡង សម្ភារៈ...",
+  },
+  print_save_pdf: { en: "Save as PDF / Print", km: "រក្សាទុកជា PDF / បោះពុម្ព" },
+  student_copy: { en: "Student copy", km: "ច្បាប់ចម្លងសម្រាប់សិស្ស" },
+  allow_popups_print_report: {
+    en: "Allow pop-ups to print this report.",
+    km: "សូមអនុញ្ញាត pop-up ដើម្បីបោះពុម្ពរបាយការណ៍នេះ។",
+  },
+  allow_popups_receipt: {
+    en: "Allow pop-ups to create the receipt PDF.",
+    km: "សូមអនុញ្ញាត pop-up ដើម្បីបង្កើតបង្កាន់ដៃ PDF។",
+  },
   no_invoice: { en: "No invoice", km: "មិនទាន់មានវិក្កយបត្រ" },
   students_subtitle: {
     en: "Manage enrollment, profiles, and history",
@@ -369,15 +546,149 @@ const dict: Dict = {
     en: "Weekly schedule across all classes",
     km: "កាលវិភាគប្រចាំសប្តាហ៍សម្រាប់ថ្នាក់ទាំងអស់",
   },
+  create_printable_schedule: {
+    en: "Create printable schedule",
+    km: "បង្កើតកាលវិភាគសម្រាប់បោះពុម្ព",
+  },
+  create_schedule: { en: "Create Schedule", km: "បង្កើតកាលវិភាគ" },
+  print_preview: { en: "Print Preview", km: "មើលមុនបោះពុម្ព" },
+  print_schedule: { en: "Print Schedule", km: "បោះពុម្ពកាលវិភាគ" },
+  select_created_class: { en: "Select created class", km: "ជ្រើសរើសថ្នាក់ដែលបានបង្កើត" },
+  create_class_first: { en: "Create a class first", km: "បង្កើតថ្នាក់ជាមុនសិន" },
+  schedule_title: { en: "Schedule title", km: "ចំណងជើងកាលវិភាគ" },
+  issue_date: { en: "Issue date", km: "កាលបរិច្ឆេទចេញផ្សាយ" },
+  left_header: { en: "Left header", km: "ក្បាលខាងឆ្វេង" },
+  footer_note: { en: "Footer note", km: "សម្គាល់ខាងក្រោម" },
+  center_signature: { en: "Center signature", km: "ហត្ថលេខាកណ្ដាល" },
+  right_signature: { en: "Right signature", km: "ហត្ថលេខាខាងស្ដាំ" },
+  time: { en: "Time", km: "ម៉ោង" },
+  add_time_row: { en: "Add time row", km: "បន្ថែមជួរម៉ោង" },
+  edit_latest: { en: "Edit latest", km: "កែចុងក្រោយ" },
+  delete_latest: { en: "Delete latest", km: "លុបចុងក្រោយ" },
+  schedule_type: { en: "Schedule type", km: "ប្រភេទកាលវិភាគ" },
+  student_schedule: { en: "Student schedule", km: "កាលវិភាគសិស្ស" },
+  teacher_schedule: { en: "Teacher schedule", km: "កាលវិភាគគ្រូ" },
+  class_schedule: { en: "Class schedule", km: "កាលវិភាគថ្នាក់" },
+  loading_saved_schedules: {
+    en: "Loading saved schedules...",
+    km: "កំពុងផ្ទុកកាលវិភាគដែលបានរក្សាទុក...",
+  },
+  could_not_load_saved_schedules: {
+    en: "Could not load saved schedules:",
+    km: "មិនអាចផ្ទុកកាលវិភាគដែលបានរក្សាទុក៖",
+  },
+  unknown_error: { en: "Unknown error", km: "កំហុសមិនស្គាល់" },
+  no_teacher_schedule: {
+    en: "No schedule is assigned to this teacher yet. Choose All teachers, or select this teacher inside a schedule cell.",
+    km: "មិនទាន់មានកាលវិភាគសម្រាប់គ្រូនេះទេ។ ជ្រើសគ្រូទាំងអស់ ឬជ្រើសគ្រូនេះក្នុងក្រឡាកាលវិភាគ។",
+  },
+  no_schedule_create_first: {
+    en: "Create a schedule first. The latest schedule will show here automatically.",
+    km: "បង្កើតកាលវិភាគជាមុនសិន។ កាលវិភាគចុងក្រោយនឹងបង្ហាញទីនេះដោយស្វ័យប្រវត្តិ។",
+  },
+  no_schedule_published: {
+    en: "No schedule published yet.",
+    km: "មិនទាន់មានកាលវិភាគផ្សព្វផ្សាយទេ។",
+  },
+  schedule_saved: { en: "Schedule saved", km: "បានរក្សាទុកកាលវិភាគ" },
+  schedule_saved_for: {
+    en: "Schedule saved for {{className}}. The result is shown below.",
+    km: "បានរក្សាទុកកាលវិភាគសម្រាប់ {{className}}។ លទ្ធផលបង្ហាញខាងក្រោម។",
+  },
+  could_not_save_schedule: { en: "Could not save schedule", km: "មិនអាចរក្សាទុកកាលវិភាគបានទេ" },
+  select_teacher: { en: "Select teacher", km: "ជ្រើសរើសគ្រូ" },
+  teacher_phone: { en: "Teacher phone", km: "លេខទូរស័ព្ទគ្រូ" },
+  all_teachers: { en: "All teachers", km: "គ្រូទាំងអស់" },
+  schedule_deleted: { en: "Schedule deleted", km: "បានលុបកាលវិភាគ" },
+  could_not_delete: { en: "Could not delete", km: "មិនអាចលុបបានទេ" },
+  admins_create_schedules: {
+    en: "Only admins can create schedules.",
+    km: "មានតែអ្នកគ្រប់គ្រងប៉ុណ្ណោះអាចបង្កើតកាលវិភាគ។",
+  },
+  class_required: { en: "Class is required", km: "ត្រូវការថ្នាក់" },
+  end_after_start: {
+    en: "End time must be after start time",
+    km: "ម៉ោងបញ្ចប់ត្រូវក្រោយម៉ោងចាប់ផ្តើម",
+  },
+  add_time_shift_title: { en: "Add time shift", km: "បន្ថែមវេនម៉ោង" },
+  time_shift_added: { en: "Time shift added", km: "បានបន្ថែមវេនម៉ោង" },
+  demo_time_shift_added: { en: "Demo time shift added", km: "បានបន្ថែមវេនម៉ោង Demo" },
+  time_shift: { en: "Time shift", km: "វេនម៉ោង" },
+  select_created_subject: { en: "Select subject", km: "ជ្រើសរើសមុខវិជ្ជា" },
+  reports_subtitle: {
+    en: "Aggregate insights from live data",
+    km: "របាយការណ៍សរុបពីទិន្នន័យផ្ទាល់",
+  },
+  student_registration_report: {
+    en: "Student registration report",
+    km: "របាយការណ៍ចុះឈ្មោះនិស្សិត",
+  },
+  no_registered_students_report: {
+    en: "No registered students match this report.",
+    km: "មិនមាននិស្សិតចុះឈ្មោះត្រូវនឹងរបាយការណ៍នេះទេ។",
+  },
+  revenue_paid: { en: "Revenue (paid)", km: "ចំណូល (បានបង់)" },
+  pay: { en: "Pay", km: "បង់ប្រាក់" },
+  partial: { en: "Partial", km: "បង់ខ្លះ" },
+  not_yet: { en: "Not yet", km: "មិនទាន់" },
+  date_of_birth: { en: "Date of Birth", km: "ថ្ងៃខែឆ្នាំកំណើត" },
+  no_students_in_class: {
+    en: "No students in this class yet.",
+    km: "មិនទាន់មានសិស្សក្នុងថ្នាក់នេះ។",
+  },
+  add_student_to_show_class: {
+    en: "Add a student with class {{className}} to show them here.",
+    km: "បន្ថែមសិស្សដែលមានថ្នាក់ {{className}} ដើម្បីបង្ហាញនៅទីនេះ។",
+  },
+  update_student_information: { en: "Update student information", km: "កែប្រែព័ត៌មានសិស្ស" },
+  student_information_updated: { en: "Student information updated", km: "បានកែប្រែព័ត៌មានសិស្ស" },
+  certificates_subtitle: { en: "Issued and verifiable", km: "បានចេញ និងអាចផ្ទៀងផ្ទាត់បាន" },
+  no_certificates_yet: { en: "No certificates issued yet.", km: "មិនទាន់បានចេញសញ្ញាបត្រ។" },
+  issue_certificate: { en: "Issue certificate", km: "ចេញសញ្ញាបត្រ" },
+  issue: { en: "Issue", km: "ចេញ" },
+  certificate_issued: { en: "Certificate issued", km: "បានចេញសញ្ញាបត្រ" },
+  demo_certificate_issued: { en: "Demo certificate issued", km: "បានចេញសញ្ញាបត្រ Demo" },
+  print_certificate: { en: "Print certificate", km: "បោះពុម្ពសញ្ញាបត្រ" },
+  photo: { en: "Photo", km: "រូបថត" },
+  issued_on: { en: "Issued on", km: "ចេញនៅថ្ងៃទី" },
+  issued: { en: "Issued", km: "បានចេញ" },
+  certificate_title_placeholder: {
+    en: "e.g. Course Completion: Mathematics 101",
+    km: "ឧ. បញ្ចប់វគ្គ៖ គណិតវិទ្យា ១០១",
+  },
+  completion: { en: "Completion", km: "បញ្ចប់វគ្គ" },
+  graduation: { en: "Graduation", km: "បញ្ចប់ការសិក្សា" },
+  award: { en: "Award", km: "ពានរង្វាន់" },
+  participation: { en: "Participation", km: "ការចូលរួម" },
+  all_fields_required: { en: "All fields required", km: "ត្រូវបំពេញគ្រប់វាល" },
+  allow_popups_certificate: {
+    en: "Allow pop-ups to create the certificate PDF.",
+    km: "សូមអនុញ្ញាត pop-up ដើម្បីបង្កើតសញ្ញាបត្រ PDF។",
+  },
 };
 
-export function t(key: keyof typeof dict | string, lang: Lang): string {
-  const entry = dict[key as keyof typeof dict];
-  if (!entry) return key;
-  return entry[lang];
+function interpolate(template: string, values?: Record<string, string | number>) {
+  if (!values) return template;
+  return template.replace(/\{(\w+)\}/g, (match, key) =>
+    Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : match,
+  );
 }
 
-type LangCtx = { lang: Lang; setLang: (l: Lang) => void; t: (k: string) => string };
+export function t(
+  key: keyof typeof dict | string,
+  lang: Lang = "en",
+  values?: Record<string, string | number>,
+): string {
+  const entry = dict[key as keyof typeof dict];
+  return interpolate(entry ? entry[lang] : key, values);
+}
+
+type TranslateValues = Record<string, string | number>;
+type LangCtx = {
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: (k: string, values?: TranslateValues) => string;
+};
 const Ctx = createContext<LangCtx | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -398,11 +709,20 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") localStorage.setItem("ums.lang", l);
   };
 
-  return <Ctx.Provider value={{ lang, setLang, t: (k) => t(k, lang) }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ lang, setLang, t: (k, values) => t(k, lang, values) }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useI18n() {
   const c = useContext(Ctx);
   if (!c) throw new Error("useI18n must be used within I18nProvider");
   return c;
+}
+
+export function T({ k, values }: { k: string; values?: TranslateValues }) {
+  const { t } = useI18n();
+  return <>{t(k, values)}</>;
 }

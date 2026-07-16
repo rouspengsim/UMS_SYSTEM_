@@ -16,7 +16,9 @@ export function PageHeader({
   return (
     <div className={cn("flex flex-wrap items-end justify-between gap-4 pb-6", className)}>
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{title}</h1>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          {title}
+        </h1>
         {subtitle && <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -47,12 +49,21 @@ export function StatCard({
     <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
-          <p className="mt-2 font-display text-2xl font-bold tracking-tight text-foreground">{value}</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {label}
+          </p>
+          <p className="mt-2 font-display text-2xl font-bold tracking-tight text-foreground">
+            {value}
+          </p>
           {delta && <p className="mt-1 text-xs font-medium text-success">{delta}</p>}
         </div>
         {icon && (
-          <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br", toneMap[tone])}>
+          <div
+            className={cn(
+              "flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br",
+              toneMap[tone],
+            )}
+          >
             {icon}
           </div>
         )}
@@ -61,12 +72,24 @@ export function StatCard({
   );
 }
 
-export function SectionCard({ title, action, children, className }: { title?: ReactNode; action?: ReactNode; children: ReactNode; className?: string }) {
+export function SectionCard({
+  title,
+  action,
+  children,
+  className,
+}: {
+  title?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <div className={cn("rounded-2xl border border-border bg-card p-5 shadow-soft", className)}>
       {(title || action) && (
         <div className="mb-4 flex items-center justify-between">
-          {title && <h3 className="font-display text-base font-semibold tracking-tight">{title}</h3>}
+          {title && (
+            <h3 className="font-display text-base font-semibold tracking-tight">{title}</h3>
+          )}
           {action}
         </div>
       )}
@@ -93,7 +116,12 @@ export function StatusPill({ status }: { status: string }) {
     excused: "bg-info/15 text-info",
   };
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize", map[status] ?? "bg-muted text-muted-foreground")}>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize",
+        map[status] ?? "bg-muted text-muted-foreground",
+      )}
+    >
       {t(status)}
     </span>
   );
@@ -121,11 +149,21 @@ export function Avatar({
     );
   }
 
-  const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("");
+  const initials = name
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("");
   const colors = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"];
   const color = colors[name.charCodeAt(0) % colors.length];
   return (
-    <span className={cn("inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white", color, className)}>
+    <span
+      className={cn(
+        "inline-flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white",
+        color,
+        className,
+      )}
+    >
       {initials}
     </span>
   );

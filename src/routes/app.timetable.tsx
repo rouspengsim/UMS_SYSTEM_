@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, SectionCard } from "@/components/app/ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useI18n } from "@/lib/i18n";
+import { t as translate, useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { Loader2, Plus, X, Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -9,7 +9,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { pageTitle } from "@/lib/brand";
-import { DEFAULT_SUBJECT_OPTIONS, readDemoSubjects, subjectRowsToOptions } from "@/lib/subjects";
+import {
+  DEFAULT_SUBJECT_OPTIONS,
+  groupSubjectOptionsByMajor,
+  mergeSubjectOptions,
+  readDemoSubjects,
+  subjectRowsToOptions,
+} from "@/lib/subjects";
 import { deleteClassSchedule, saveClassSchedule } from "@/lib/timetable-admin";
 import { decodeTimetableCell, encodeTimetableCell } from "@/lib/timetable-cell";
 import { findTeacherClassScope, type CurrentTeacher } from "@/lib/teacher-scope";
@@ -127,7 +133,14 @@ const MANUAL_SCHEDULES_KEY = "studentsphere.manual.schedules";
 function emptyScheduleCells(): Record<(typeof days)[number], ScheduleCell> {
   return days.reduce(
     (acc, day) => {
-      acc[day] = { teacherId: "", teacher: "", teacherPhone: "", subjectCode: "", subject: "", room: "" };
+      acc[day] = {
+        teacherId: "",
+        teacher: "",
+        teacherPhone: "",
+        subjectCode: "",
+        subject: "",
+        room: "",
+      };
       return acc;
     },
     {} as Record<(typeof days)[number], ScheduleCell>,
@@ -155,7 +168,10 @@ function createDefaultScheduleBuilder(): ScheduleBuilderData {
     leftOffice: "សាកលវិទ្យាល័យភូមិន្ទនីតិសាស្ត្រ\nនិងវិទ្យាសាស្ត្រសេដ្ឋកិច្ច\nការិយាល័យសិក្សា",
     centerSignature: "ប្រធានការិយាល័យសិក្សា",
     rightSignature: "អ្នករៀបចំកាលវិភាគ",
-    rows: [createScheduleRow("row-1", "07:00", "09:30"), createScheduleRow("row-2", "09:30", "12:00")],
+    rows: [
+      createScheduleRow("row-1", "07:00", "09:30"),
+      createScheduleRow("row-2", "09:30", "12:00"),
+    ],
   };
 }
 
@@ -208,8 +224,7 @@ function slotsToSchedules(slots: TimetableScheduleSlot[]): ScheduleBuilderData[]
         const end = formatTime(slot.end_time);
         const rowKey = `${start}-${end}`;
         const row =
-          rowMap.get(rowKey) ??
-          createScheduleRow(`row-${classId}-${start}-${end}`, start, end);
+          rowMap.get(rowKey) ?? createScheduleRow(`row-${classId}-${start}-${end}`, start, end);
 
         row.cells[slot.day] = {
           teacherId: slot.teacher_id ?? payload.teacherId ?? "",
@@ -233,14 +248,24 @@ function slotsToSchedules(slots: TimetableScheduleSlot[]): ScheduleBuilderData[]
         id: `remote-schedule-${classId}`,
         classId,
         className,
-        title: first.schedule_title || decodeTimetableCell(first.room).title || `កាលវិភាគសិក្សា ${className}`,
+        title:
+          first.schedule_title ||
+          decodeTimetableCell(first.room).title ||
+          `កាលវិភាគសិក្សា ${className}`,
         academicYear:
           first.academic_year ||
           decodeTimetableCell(first.room).academicYear ||
           `${new Date().getFullYear()} - ${new Date().getFullYear() + 1}`,
-        issueDate: first.issue_date || decodeTimetableCell(first.room).issueDate || new Date().toISOString().slice(0, 10),
-        note: first.note || decodeTimetableCell(first.room).note || createDefaultScheduleBuilder().note,
-        leftOffice: first.left_office || decodeTimetableCell(first.room).leftOffice || createDefaultScheduleBuilder().leftOffice,
+        issueDate:
+          first.issue_date ||
+          decodeTimetableCell(first.room).issueDate ||
+          new Date().toISOString().slice(0, 10),
+        note:
+          first.note || decodeTimetableCell(first.room).note || createDefaultScheduleBuilder().note,
+        leftOffice:
+          first.left_office ||
+          decodeTimetableCell(first.room).leftOffice ||
+          createDefaultScheduleBuilder().leftOffice,
         centerSignature:
           first.center_signature ||
           decodeTimetableCell(first.room).centerSignature ||
@@ -261,26 +286,35 @@ function normalizeMatchValue(value: string | null | undefined) {
 
 function teacherMatchValues(teacher: CurrentTeacher | null | undefined) {
   return new Set(
-    [teacher?.id, teacher?.full_name, teacher?.full_name_en, teacher?.full_name_km, teacher?.staff_code]
+    [
+      teacher?.id,
+      teacher?.full_name,
+      teacher?.full_name_en,
+      teacher?.full_name_km,
+      teacher?.staff_code,
+    ]
       .map(normalizeMatchValue)
       .filter(Boolean),
   );
 }
 
-function slotMatchesTeacher(slot: TimetableScheduleSlot, teacher: CurrentTeacher | null | undefined) {
+function slotMatchesTeacher(
+  slot: TimetableScheduleSlot,
+  teacher: CurrentTeacher | null | undefined,
+) {
   const values = teacherMatchValues(teacher);
   if (values.size === 0) return false;
 
   const payload = decodeTimetableCell(slot.room);
-  return [
-    slot.teacher_id,
-    slot.teacher_name,
-    payload.teacherId,
-    payload.teacher,
-  ].some((value) => values.has(normalizeMatchValue(value)));
+  return [slot.teacher_id, slot.teacher_name, payload.teacherId, payload.teacher].some((value) =>
+    values.has(normalizeMatchValue(value)),
+  );
 }
 
-function scheduleForTeacher(schedule: ScheduleBuilderData, teacher: CurrentTeacher | null | undefined) {
+function scheduleForTeacher(
+  schedule: ScheduleBuilderData,
+  teacher: CurrentTeacher | null | undefined,
+) {
   const values = teacherMatchValues(teacher);
   if (values.size === 0) return null;
 
@@ -348,7 +382,8 @@ function combineTeacherSchedules(
   teacherSchedules.forEach((schedule) => {
     schedule.rows.forEach((row) => {
       const rowKey = `${row.start}-${row.end}`;
-      const mergedRow = rowMap.get(rowKey) ?? createScheduleRow(`teacher-row-${rowKey}`, row.start, row.end);
+      const mergedRow =
+        rowMap.get(rowKey) ?? createScheduleRow(`teacher-row-${rowKey}`, row.start, row.end);
       days.forEach((day) => {
         const cell = row.cells[day];
         if (cell.teacher || cell.teacherPhone || cell.subject || cell.room || cell.className) {
@@ -387,7 +422,7 @@ function formatTime(value: string) {
 function printDocument(title: string, html: string) {
   const printWindow = window.open("", "_blank", "width=1200,height=800");
   if (!printWindow) {
-    toast.error("Allow pop-ups to print this schedule.");
+    toast.error(translate("allow_popups_print_report"));
     return;
   }
 
@@ -527,7 +562,7 @@ function printDocument(title: string, html: string) {
         </style>
       </head>
       <body>
-        <button class="no-print" onclick="window.print()">Print Schedule</button>
+        <button class="no-print" onclick="window.print()">${escapeHtml(translate("print_schedule"))}</button>
         ${html}
       </body>
     </html>
@@ -641,7 +676,10 @@ function manualScheduleReportHtml(data: ScheduleBuilderData, showClassInCells = 
                 <td>
                   <div class="time">${escapeHtml(row.start)}-${escapeHtml(row.end)}</div>
                   ${
-                    cell.teacher || cell.subject || cell.room || (showClassInCells && cell.className)
+                    cell.teacher ||
+                    cell.subject ||
+                    cell.room ||
+                    (showClassInCells && cell.className)
                       ? `<div class="slot">
                           ${cell.teacher ? `<div class="teacher">${escapeHtml(cell.teacher)}</div>` : ""}
                           ${cell.teacherPhone ? `<div class="phone">${escapeHtml(cell.teacherPhone)}</div>` : ""}
@@ -703,12 +741,15 @@ function readDemoClassesMin(
   if (typeof window === "undefined") return [];
   try {
     const teacherRaw = localStorage.getItem("studentsphere.demo.teachers");
-    const teacher = teacherRaw
-      ? (JSON.parse(teacherRaw) as Array<{ id: string }>)[0]
-      : null;
+    const teacher = teacherRaw ? (JSON.parse(teacherRaw) as Array<{ id: string }>)[0] : null;
     const raw = localStorage.getItem("studentsphere.demo.classes");
     const classes = raw
-      ? (JSON.parse(raw) as Array<{ id: string; name: string; subject_code: string; teacher_id?: string | null }>)
+      ? (JSON.parse(raw) as Array<{
+          id: string;
+          name: string;
+          subject_code: string;
+          teacher_id?: string | null;
+        }>)
       : [];
     const classItems = classes
       .filter((item) => !isTeacher || !teacher || item.teacher_id === teacher.id)
@@ -742,7 +783,11 @@ function readDemoClassesMin(
     });
 
     return [...classItems, ...studentClasses]
-      .filter((item) => (!isStudent || ownClassNames.has(item.name)) && (!isTeacher || classItems.some((classItem) => classItem.name === item.name)))
+      .filter(
+        (item) =>
+          (!isStudent || ownClassNames.has(item.name)) &&
+          (!isTeacher || classItems.some((classItem) => classItem.name === item.name)),
+      )
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch {
     return [];
@@ -870,11 +915,7 @@ function cleanOptional(value: unknown) {
 }
 
 function classKey(value: string) {
-  return value
-    .normalize("NFKC")
-    .replace(/\s+/g, "")
-    .trim()
-    .toUpperCase();
+  return value.normalize("NFKC").replace(/\s+/g, "").trim().toUpperCase();
 }
 
 function firstScheduleSubject(rows: ScheduleTimeRow[]) {
@@ -913,9 +954,7 @@ async function findOrCreateScheduleClass(schedule: ScheduleBuilderData, selected
     if (data) return data;
   }
 
-  const { data: allClasses, error: classError } = await supabase
-    .from("classes")
-    .select("id,name");
+  const { data: allClasses, error: classError } = await supabase.from("classes").select("id,name");
   if (classError) throw classError;
 
   const existingClass =
@@ -1027,9 +1066,7 @@ async function saveScheduleWithUserSession(schedule: ScheduleBuilderData, select
     .eq("class_id", classId);
   if (deleteError) throw deleteError;
 
-  const { error: insertError } = await supabase
-    .from("timetable_slots")
-    .insert(slotRows as never);
+  const { error: insertError } = await supabase.from("timetable_slots").insert(slotRows as never);
   if (insertError) {
     if (insertError.message.includes("schema cache") || insertError.message.includes("column")) {
       const { error: legacyInsertError } = await supabase
@@ -1053,10 +1090,7 @@ async function verifyScheduleRows(classId: string) {
   return (count ?? 0) > 0;
 }
 
-function findScheduleConflict(
-  draft: ScheduleBuilderData,
-  savedSchedules: ScheduleBuilderData[],
-) {
+function findScheduleConflict(draft: ScheduleBuilderData, savedSchedules: ScheduleBuilderData[]) {
   type FilledSlot = {
     scheduleId?: string;
     className: string;
@@ -1141,9 +1175,14 @@ function TimetablePage() {
   const { user, primaryRole, isDemo, session } = useAuth();
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
-  const [scheduleBuilder, setScheduleBuilder] = useState<ScheduleBuilderData>(() => createDefaultScheduleBuilder());
+  const [scheduleBuilder, setScheduleBuilder] = useState<ScheduleBuilderData>(() =>
+    createDefaultScheduleBuilder(),
+  );
   const [manualSchedules, setManualSchedules] = useState<ScheduleBuilderData[]>([]);
   const [selectedManualScheduleId, setSelectedManualScheduleId] = useState("");
+  const [scheduleAudience, setScheduleAudience] = useState<"student" | "teacher">(() =>
+    timetableSearch.teacherId || primaryRole === "teacher" ? "teacher" : "student",
+  );
   const [adminTeacherScheduleId, setAdminTeacherScheduleId] = useState(
     () => timetableSearch.teacherId ?? "",
   );
@@ -1159,6 +1198,7 @@ function TimetablePage() {
 
   useEffect(() => {
     if (isAdmin && timetableSearch.teacherId) {
+      setScheduleAudience("teacher");
       setAdminTeacherScheduleId(timetableSearch.teacherId);
     }
   }, [isAdmin, timetableSearch.teacherId]);
@@ -1177,10 +1217,9 @@ function TimetablePage() {
     },
   });
 
-  const selectedAdminTeacher =
-    adminTeacherScheduleId
-      ? teacherOptions.find((teacher) => teacher.id === adminTeacherScheduleId) ?? null
-      : null;
+  const selectedAdminTeacher = adminTeacherScheduleId
+    ? (teacherOptions.find((teacher) => teacher.id === adminTeacherScheduleId) ?? null)
+    : null;
 
   const { data: classOptions = EMPTY_CLASS_OPTIONS } = useQuery({
     queryKey: ["classes-min-timetable-builder", primaryRole, user?.id, isDemo ? "demo" : "remote"],
@@ -1260,23 +1299,25 @@ function TimetablePage() {
         const scopedClassesById = new Map(
           (teacherScope?.classes ?? []).map((classRow) => [classRow.id, classRow]),
         );
-        const teacherSlots = allSlots.filter(
-          (slot) =>
-            classIds.has(slot.class_id) ||
-            classNames.has(normalizeScheduleClass(slot.classes?.name)) ||
-            slotMatchesTeacher(slot, teacherScope?.teacher),
-        ).map((slot) => {
-          if (slot.classes?.name) return slot;
-          const scopedClass = scopedClassesById.get(slot.class_id);
-          if (!scopedClass) return slot;
-          return {
-            ...slot,
-            classes: {
-              name: scopedClass.name,
-              subject_code: scopedClass.subject_code,
-            },
-          };
-        });
+        const teacherSlots = allSlots
+          .filter(
+            (slot) =>
+              classIds.has(slot.class_id) ||
+              classNames.has(normalizeScheduleClass(slot.classes?.name)) ||
+              slotMatchesTeacher(slot, teacherScope?.teacher),
+          )
+          .map((slot) => {
+            if (slot.classes?.name) return slot;
+            const scopedClass = scopedClassesById.get(slot.class_id);
+            if (!scopedClass) return slot;
+            return {
+              ...slot,
+              classes: {
+                name: scopedClass.name,
+                subject_code: scopedClass.subject_code,
+              },
+            };
+          });
         return slotsToSchedules(teacherSlots);
       }
 
@@ -1301,8 +1342,10 @@ function TimetablePage() {
     );
   }, [isDemo, remoteSchedules, schedulesLoading, schedulesError]);
 
-  const isTeacherScheduleView = isTeacher || (isAdmin && !!selectedAdminTeacher);
+  const isTeacherScheduleView =
+    scheduleAudience === "teacher" && (isTeacher || (isAdmin && !!selectedAdminTeacher));
   const visibleSchedules = useMemo(() => {
+    if (scheduleAudience !== "teacher") return manualSchedules;
     if (isTeacher) {
       return combineTeacherSchedules(
         manualSchedules,
@@ -1314,7 +1357,7 @@ function TimetablePage() {
     if (isAdmin && selectedAdminTeacher) {
       return combineTeacherSchedules(manualSchedules, selectedAdminTeacher);
     }
-    return manualSchedules;
+    return [];
   }, [
     isAdmin,
     isTeacher,
@@ -1323,15 +1366,15 @@ function TimetablePage() {
     teacherScope?.teacher,
     teacherScope?.classIds,
     teacherScope?.classNames,
+    scheduleAudience,
   ]);
   const selectedManualSchedule =
     visibleSchedules.find((schedule) => schedule.id === selectedManualScheduleId) ??
     visibleSchedules[0] ??
     null;
-  const selectedFullSchedule =
-    isTeacherScheduleView
-      ? null
-      : manualSchedules.find((schedule) => schedule.id === selectedManualSchedule?.id) ?? null;
+  const selectedFullSchedule = isTeacherScheduleView
+    ? null
+    : (manualSchedules.find((schedule) => schedule.id === selectedManualSchedule?.id) ?? null);
 
   useEffect(() => {
     if (visibleSchedules.length === 0) {
@@ -1347,7 +1390,7 @@ function TimetablePage() {
   const { data: subjectOptions = DEFAULT_SUBJECT_OPTIONS } = useQuery({
     queryKey: ["subject-options", isDemo ? "demo" : "remote"],
     queryFn: async () => {
-      if (isDemo) return subjectRowsToOptions(readDemoSubjects());
+      if (isDemo) return mergeSubjectOptions(subjectRowsToOptions(readDemoSubjects()));
 
       const { data, error } = await supabase
         .from("subjects")
@@ -1359,9 +1402,13 @@ function TimetablePage() {
         label: subject.subject_name || subject.subject_id,
         description: subject.description,
       }));
-      return options.length > 0 ? options : DEFAULT_SUBJECT_OPTIONS;
+      return mergeSubjectOptions(options);
     },
   });
+  const subjectOptionGroups = useMemo(
+    () => groupSubjectOptionsByMajor(subjectOptions),
+    [subjectOptions],
+  );
 
   const updateBuilderCell = (
     rowId: string,
@@ -1459,11 +1506,11 @@ function TimetablePage() {
 
   const createManualSchedule = async () => {
     if (!isAdmin) {
-      toast.error("Only admins can create schedules.");
+      toast.error(t("admins_create_schedules"));
       return;
     }
     if (!scheduleBuilder.className.trim()) {
-      toast.error("Class is required");
+      toast.error(t("class_required"));
       return;
     }
     if (!isDemo && !session?.access_token) {
@@ -1535,15 +1582,15 @@ function TimetablePage() {
         setScheduleAlert({
           open: true,
           type: "success",
-          title: "Schedule saved",
-          message: `Schedule saved for ${savedSchedule.className}. The result is shown below.`,
+          title: t("schedule_saved"),
+          message: t("schedule_saved_for", { className: savedSchedule.className }),
         });
       } catch (error) {
         setScheduleAlert({
           open: true,
           type: "error",
-          title: "Could not save schedule",
-          message: error instanceof Error ? error.message : "Could not save schedule.",
+          title: t("could_not_save_schedule"),
+          message: error instanceof Error ? error.message : t("could_not_save_schedule"),
         });
       }
       return;
@@ -1552,7 +1599,9 @@ function TimetablePage() {
     const next = [
       schedule,
       ...manualSchedules.filter(
-        (item) => item.id !== schedule.id && item.className.toUpperCase() !== schedule.className.toUpperCase(),
+        (item) =>
+          item.id !== schedule.id &&
+          item.className.toUpperCase() !== schedule.className.toUpperCase(),
       ),
     ];
     setManualSchedules(next);
@@ -1562,8 +1611,8 @@ function TimetablePage() {
     setScheduleAlert({
       open: true,
       type: "success",
-      title: "Schedule saved",
-      message: `Schedule saved for ${schedule.className}. The result is shown below.`,
+      title: t("schedule_saved"),
+      message: t("schedule_saved_for", { className: schedule.className }),
     });
   };
 
@@ -1571,21 +1620,21 @@ function TimetablePage() {
     <div>
       <PageHeader
         title={t("timetable")}
-        subtitle="Weekly schedule across all classes"
+        subtitle={t("timetable_subtitle")}
         actions={
           isAdmin && (
             <button
               onClick={() => setShowAdd(true)}
               className="inline-flex h-10 items-center gap-2 rounded-xl gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:shadow-glow"
             >
-              <Plus className="h-4 w-4" /> Add time shift
+              <Plus className="h-4 w-4" /> {t("add_time_shift_title")}
             </button>
           )
         }
       />
       {isAdmin && (
         <SectionCard
-          title="Create printable schedule"
+          title={t("create_printable_schedule")}
           action={
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -1593,7 +1642,7 @@ function TimetablePage() {
                 disabled={!scheduleBuilder.className.trim() || scheduleBuilder.rows.length === 0}
                 className="inline-flex h-10 items-center gap-2 rounded-xl gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Plus className="h-4 w-4" /> Create Schedule
+                <Plus className="h-4 w-4" /> {t("create_schedule")}
               </button>
               <button
                 onClick={() => {
@@ -1610,21 +1659,21 @@ function TimetablePage() {
                 disabled={!scheduleBuilder.className.trim() || scheduleBuilder.rows.length === 0}
                 className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Printer className="h-4 w-4" /> Print Preview
+                <Printer className="h-4 w-4" /> {t("print_preview")}
               </button>
             </div>
           }
           className="mb-5"
         >
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-            <Field label="Class">
+            <Field label={t("class")}>
               {classOptions.length > 0 ? (
                 <select
                   value={selectedBuilderClassId}
                   onChange={(event) => setBuilderClass(event.target.value)}
                   className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
                 >
-                  <option value="">Select created class</option>
+                  <option value="">{t("select_created_class")}</option>
                   {classOptions.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -1636,186 +1685,211 @@ function TimetablePage() {
                 <input
                   value={scheduleBuilder.className}
                   onChange={(event) =>
-                    setScheduleBuilder({ ...scheduleBuilder, className: event.target.value.toUpperCase() })
+                    setScheduleBuilder({
+                      ...scheduleBuilder,
+                      className: event.target.value.toUpperCase(),
+                    })
                   }
-                  placeholder="Create a class first"
+                  placeholder={t("create_class_first")}
                   className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
                 />
               )}
             </Field>
-          <Field label="Schedule title">
-            <input
-              value={scheduleBuilder.title}
-              onChange={(event) => setScheduleBuilder({ ...scheduleBuilder, title: event.target.value })}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
-            />
-          </Field>
-          <Field label="Academic year">
-            <input
-              value={scheduleBuilder.academicYear}
-              onChange={(event) => setScheduleBuilder({ ...scheduleBuilder, academicYear: event.target.value })}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
-            />
-          </Field>
-          <Field label="Issue date">
-            <input
-              type="date"
-              value={scheduleBuilder.issueDate}
-              onChange={(event) => setScheduleBuilder({ ...scheduleBuilder, issueDate: event.target.value })}
-              className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
-            />
-          </Field>
-        </div>
-
-        <div className="mt-4 grid gap-3 lg:grid-cols-3">
-          <Field label="Left header">
-            <textarea
-              value={scheduleBuilder.leftOffice}
-              onChange={(event) => setScheduleBuilder({ ...scheduleBuilder, leftOffice: event.target.value })}
-              rows={3}
-              className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </Field>
-          <Field label="Footer note">
-            <textarea
-              value={scheduleBuilder.note}
-              onChange={(event) => setScheduleBuilder({ ...scheduleBuilder, note: event.target.value })}
-              rows={3}
-              className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </Field>
-          <div className="grid gap-3">
-            <Field label="Center signature">
+            <Field label={t("schedule_title")}>
               <input
-                value={scheduleBuilder.centerSignature}
+                value={scheduleBuilder.title}
                 onChange={(event) =>
-                  setScheduleBuilder({ ...scheduleBuilder, centerSignature: event.target.value })
+                  setScheduleBuilder({ ...scheduleBuilder, title: event.target.value })
                 }
                 className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
               />
             </Field>
-            <Field label="Right signature">
+            <Field label={t("academic_year")}>
               <input
-                value={scheduleBuilder.rightSignature}
+                value={scheduleBuilder.academicYear}
                 onChange={(event) =>
-                  setScheduleBuilder({ ...scheduleBuilder, rightSignature: event.target.value })
+                  setScheduleBuilder({ ...scheduleBuilder, academicYear: event.target.value })
+                }
+                className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+              />
+            </Field>
+            <Field label={t("issue_date")}>
+              <input
+                type="date"
+                value={scheduleBuilder.issueDate}
+                onChange={(event) =>
+                  setScheduleBuilder({ ...scheduleBuilder, issueDate: event.target.value })
                 }
                 className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
               />
             </Field>
           </div>
-        </div>
 
-        <div className="mt-5 overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[1180px] text-xs">
-            <thead>
-              <tr className="border-b border-border bg-muted/35 text-left font-semibold uppercase tracking-wider text-muted-foreground">
-                <th className="w-36 px-3 py-3">Time</th>
-                {days.map((day) => (
-                  <th key={day} className="px-3 py-3 text-center">
-                    {dayLabels[day]}
-                  </th>
-                ))}
-                <th className="w-14 px-3 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {scheduleBuilder.rows.map((row) => (
-                <tr key={row.id} className="border-b border-border/60 last:border-0 align-top">
-                  <td className="px-3 py-3">
-                    <div className="grid gap-2">
-                      <input
-                        type="time"
-                        value={row.start}
-                        onChange={(event) => updateBuilderRow(row.id, "start", event.target.value)}
-                        className="h-9 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
-                      />
-                      <input
-                        type="time"
-                        value={row.end}
-                        onChange={(event) => updateBuilderRow(row.id, "end", event.target.value)}
-                        className="h-9 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
-                      />
-                    </div>
-                  </td>
+          <div className="mt-4 grid gap-3 lg:grid-cols-3">
+            <Field label={t("left_header")}>
+              <textarea
+                value={scheduleBuilder.leftOffice}
+                onChange={(event) =>
+                  setScheduleBuilder({ ...scheduleBuilder, leftOffice: event.target.value })
+                }
+                rows={3}
+                className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+              />
+            </Field>
+            <Field label={t("footer_note")}>
+              <textarea
+                value={scheduleBuilder.note}
+                onChange={(event) =>
+                  setScheduleBuilder({ ...scheduleBuilder, note: event.target.value })
+                }
+                rows={3}
+                className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+              />
+            </Field>
+            <div className="grid gap-3">
+              <Field label={t("center_signature")}>
+                <input
+                  value={scheduleBuilder.centerSignature}
+                  onChange={(event) =>
+                    setScheduleBuilder({ ...scheduleBuilder, centerSignature: event.target.value })
+                  }
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+                />
+              </Field>
+              <Field label={t("right_signature")}>
+                <input
+                  value={scheduleBuilder.rightSignature}
+                  onChange={(event) =>
+                    setScheduleBuilder({ ...scheduleBuilder, rightSignature: event.target.value })
+                  }
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+                />
+              </Field>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[1180px] text-xs">
+              <thead>
+                <tr className="border-b border-border bg-muted/35 text-left font-semibold uppercase tracking-wider text-muted-foreground">
+                  <th className="w-36 px-3 py-3">{t("time")}</th>
                   {days.map((day) => (
-                    <td key={`${row.id}-${day}`} className="px-2 py-3">
-                      <div className="grid gap-1.5">
-                        <select
-                          value={row.cells[day].teacherId || ""}
-                          onChange={(event) => setBuilderTeacher(row.id, day, event.target.value)}
-                          className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
-                        >
-                          <option value="">Select teacher</option>
-                          {teacherOptions.map((teacher) => (
-                            <option key={teacher.id} value={teacher.id}>
-                              {teacher.full_name}
-                              {teacher.phone ? ` · ${teacher.phone}` : ""}
-                            </option>
-                          ))}
-                        </select>
+                    <th key={day} className="px-3 py-3 text-center">
+                      {dayLabels[day]}
+                    </th>
+                  ))}
+                  <th className="w-14 px-3 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {scheduleBuilder.rows.map((row) => (
+                  <tr key={row.id} className="border-b border-border/60 last:border-0 align-top">
+                    <td className="px-3 py-3">
+                      <div className="grid gap-2">
                         <input
-                          value={row.cells[day].teacherPhone}
+                          type="time"
+                          value={row.start}
                           onChange={(event) =>
-                            updateBuilderCell(row.id, day, "teacherPhone", event.target.value)
+                            updateBuilderRow(row.id, "start", event.target.value)
                           }
-                          placeholder="Teacher phone"
-                          className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
+                          className="h-9 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
                         />
-                        <select
-                          value={row.cells[day].subjectCode || ""}
-                          onChange={(event) => setBuilderSubject(row.id, day, event.target.value)}
-                          className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
-                        >
-                          <option value="">Select subject</option>
-                          {subjectOptions.map((subject) => (
-                            <option key={subject.code} value={subject.code}>
-                              {subject.label}
-                            </option>
-                          ))}
-                        </select>
                         <input
-                          value={row.cells[day].room}
-                          onChange={(event) => updateBuilderCell(row.id, day, "room", event.target.value)}
-                          placeholder="Room"
-                          className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
+                          type="time"
+                          value={row.end}
+                          onChange={(event) => updateBuilderRow(row.id, "end", event.target.value)}
+                          className="h-9 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
                         />
                       </div>
                     </td>
-                  ))}
-                  <td className="px-3 py-3 text-right">
-                    <button
-                      onClick={() =>
-                        setScheduleBuilder((current) => ({
-                          ...current,
-                          rows: current.rows.filter((item) => item.id !== row.id),
-                        }))
-                      }
-                      disabled={scheduleBuilder.rows.length === 1}
-                      className="rounded-lg p-2 text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <button
-          onClick={() =>
-            setScheduleBuilder((current) => ({
-              ...current,
-              rows: [
-                ...current.rows,
-                createScheduleRow(`row-${Date.now()}`, current.rows.at(-1)?.end ?? "12:00", "12:00"),
-              ],
-            }))
-          }
-          className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-medium hover:bg-muted"
-        >
-          <Plus className="h-4 w-4" /> Add time row
-        </button>
+                    {days.map((day) => (
+                      <td key={`${row.id}-${day}`} className="px-2 py-3">
+                        <div className="grid gap-1.5">
+                          <select
+                            value={row.cells[day].teacherId || ""}
+                            onChange={(event) => setBuilderTeacher(row.id, day, event.target.value)}
+                            className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
+                          >
+                            <option value="">{t("select_teacher")}</option>
+                            {teacherOptions.map((teacher) => (
+                              <option key={teacher.id} value={teacher.id}>
+                                {teacher.full_name}
+                                {teacher.phone ? ` · ${teacher.phone}` : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            value={row.cells[day].teacherPhone}
+                            onChange={(event) =>
+                              updateBuilderCell(row.id, day, "teacherPhone", event.target.value)
+                            }
+                            placeholder={t("teacher_phone")}
+                            className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
+                          />
+                          <select
+                            value={row.cells[day].subjectCode || ""}
+                            onChange={(event) => setBuilderSubject(row.id, day, event.target.value)}
+                            className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
+                          >
+                            <option value="">{t("select_created_subject")}</option>
+                            {subjectOptionGroups.map((group) => (
+                              <optgroup key={group.label} label={group.label}>
+                                {group.options.map((subject) => (
+                                  <option key={subject.code} value={subject.code}>
+                                    {subject.label}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                          <input
+                            value={row.cells[day].room}
+                            onChange={(event) =>
+                              updateBuilderCell(row.id, day, "room", event.target.value)
+                            }
+                            placeholder={t("room")}
+                            className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
+                          />
+                        </div>
+                      </td>
+                    ))}
+                    <td className="px-3 py-3 text-right">
+                      <button
+                        onClick={() =>
+                          setScheduleBuilder((current) => ({
+                            ...current,
+                            rows: current.rows.filter((item) => item.id !== row.id),
+                          }))
+                        }
+                        disabled={scheduleBuilder.rows.length === 1}
+                        className="rounded-lg p-2 text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button
+            onClick={() =>
+              setScheduleBuilder((current) => ({
+                ...current,
+                rows: [
+                  ...current.rows,
+                  createScheduleRow(
+                    `row-${Date.now()}`,
+                    current.rows.at(-1)?.end ?? "12:00",
+                    "12:00",
+                  ),
+                ],
+              }))
+            }
+            className="mt-3 inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-medium hover:bg-muted"
+          >
+            <Plus className="h-4 w-4" /> {t("add_time_row")}
+          </button>
         </SectionCard>
       )}
       <SectionCard
@@ -1843,11 +1917,65 @@ function TimetablePage() {
             disabled={!selectedManualSchedule}
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Printer className="h-4 w-4" /> Print Schedule
+            <Printer className="h-4 w-4" /> {t("print_schedule")}
           </button>
         }
         className="mb-5"
       >
+        {(isAdmin || isTeacher) && (
+          <div className="mb-5 grid gap-3 md:max-w-3xl md:grid-cols-2">
+            <Field label={t("schedule_type")}>
+              <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setScheduleAudience("student");
+                    setAdminTeacherScheduleId("");
+                  }}
+                  className={
+                    "h-9 rounded-lg px-3 text-sm font-semibold transition " +
+                    (scheduleAudience === "student"
+                      ? "bg-primary text-primary-foreground shadow-soft"
+                      : "text-muted-foreground hover:bg-muted")
+                  }
+                >
+                  {t("student_schedule")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScheduleAudience("teacher")}
+                  className={
+                    "h-9 rounded-lg px-3 text-sm font-semibold transition " +
+                    (scheduleAudience === "teacher"
+                      ? "bg-primary text-primary-foreground shadow-soft"
+                      : "text-muted-foreground hover:bg-muted")
+                  }
+                >
+                  {t("teacher_schedule")}
+                </button>
+              </div>
+            </Field>
+
+            {isAdmin && scheduleAudience === "teacher" && (
+              <Field label={t("select_teacher")}>
+                <select
+                  value={adminTeacherScheduleId}
+                  onChange={(event) => setAdminTeacherScheduleId(event.target.value)}
+                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
+                >
+                  <option value="">{t("select_teacher")}</option>
+                  {teacherOptions.map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacher.full_name}
+                      {teacher.staff_code ? ` (${teacher.staff_code})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+          </div>
+        )}
+
         {isAdmin && selectedManualSchedule && !isTeacherScheduleView && (
           <div className="mb-5 flex flex-wrap items-end gap-3">
             <button
@@ -1858,7 +1986,7 @@ function TimetablePage() {
               disabled={!selectedManualSchedule}
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Edit latest
+              {t("edit_latest")}
             </button>
             <button
               onClick={async () => {
@@ -1884,47 +2012,31 @@ function TimetablePage() {
                       qc.invalidateQueries({ queryKey: ["teacher-dashboard"] }),
                     ]);
                     setSelectedManualScheduleId("");
-                    toast.success("Schedule deleted");
+                    toast.success(t("schedule_deleted"));
                   } catch (error) {
-                    toast.error(error instanceof Error ? error.message : "Could not delete schedule.");
+                    toast.error(error instanceof Error ? error.message : t("could_not_delete"));
                   }
                   return;
                 }
-                const next = manualSchedules.filter((schedule) => schedule.id !== scheduleToDelete.id);
+                const next = manualSchedules.filter(
+                  (schedule) => schedule.id !== scheduleToDelete.id,
+                );
                 setManualSchedules(next);
                 writeManualSchedules(next);
                 setSelectedManualScheduleId(next[0]?.id ?? "");
-                toast.success("Schedule deleted");
+                toast.success(t("schedule_deleted"));
               }}
               disabled={!selectedManualSchedule}
               className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Delete latest
+              {t("delete_latest")}
             </button>
           </div>
         )}
 
-        {(isAdmin || visibleSchedules.length > 1) && (
+        {visibleSchedules.length > 1 && !isTeacherScheduleView && (
           <div className="mb-5 grid gap-3 md:max-w-3xl md:grid-cols-2">
-            {isAdmin && (
-              <Field label="Teacher schedule">
-                <select
-                  value={adminTeacherScheduleId}
-                  onChange={(event) => setAdminTeacherScheduleId(event.target.value)}
-                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
-                >
-                  <option value="">All teachers</option>
-                  {teacherOptions.map((teacher) => (
-                    <option key={teacher.id} value={teacher.id}>
-                      {teacher.full_name}
-                      {teacher.staff_code ? ` (${teacher.staff_code})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
-            {visibleSchedules.length > 1 && !isTeacherScheduleView && (
-            <Field label="Class schedule">
+            <Field label={t("class_schedule")}>
               <select
                 value={selectedManualSchedule?.id ?? ""}
                 onChange={(event) => setSelectedManualScheduleId(event.target.value)}
@@ -1937,29 +2049,31 @@ function TimetablePage() {
                 ))}
               </select>
             </Field>
-            )}
           </div>
         )}
 
         {schedulesLoading ? (
           <p className="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-            Loading saved schedules...
+            {t("loading_saved_schedules")}
           </p>
         ) : schedulesError ? (
           <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4 text-sm text-destructive">
-            Could not load saved schedules:{" "}
-            {schedulesLoadError instanceof Error ? schedulesLoadError.message : "Unknown error"}
+            {t("could_not_load_saved_schedules")}{" "}
+            {schedulesLoadError instanceof Error ? schedulesLoadError.message : t("unknown_error")}
           </div>
         ) : !selectedManualSchedule ? (
           <p className="rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
             {isTeacherScheduleView
-              ? "No schedule is assigned to this teacher yet. Choose All teachers, or select this teacher inside a schedule cell."
+              ? t("no_teacher_schedule")
               : isAdmin
-                ? "Create a schedule first. The latest schedule will show here automatically."
-                : "No schedule published yet."}
+                ? t("no_schedule_create_first")
+                : t("no_schedule_published")}
           </p>
         ) : (
-          <ManualSchedulePaper schedule={selectedManualSchedule} showClassInCells={isTeacherScheduleView} />
+          <ManualSchedulePaper
+            schedule={selectedManualSchedule}
+            showClassInCells={isTeacherScheduleView}
+          />
         )}
       </SectionCard>
       {showAdd && (
@@ -2015,6 +2129,7 @@ function AddTimeShift({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { t } = useI18n();
   const [form, setForm] = useState({
     class_id: "",
     day: "mon",
@@ -2034,8 +2149,8 @@ function AddTimeShift({
 
   const createSlot = useMutation({
     mutationFn: async () => {
-      if (!form.class_id) throw new Error("Class is required");
-      if (form.end_time <= form.start_time) throw new Error("End time must be after start time");
+      if (!form.class_id) throw new Error(t("class_required"));
+      if (form.end_time <= form.start_time) throw new Error(t("end_after_start"));
 
       if (isDemo) {
         const classRow = classes.find((item) => item.id === form.class_id);
@@ -2048,9 +2163,7 @@ function AddTimeShift({
             start_time: form.start_time,
             end_time: form.end_time,
             room: form.room || null,
-            classes: classRow
-              ? { name: classRow.name, subject_code: classRow.subject_code }
-              : null,
+            classes: classRow ? { name: classRow.name, subject_code: classRow.subject_code } : null,
           } as TimetableSlot,
           ...readDemoTimetable(),
         ]);
@@ -2069,7 +2182,7 @@ function AddTimeShift({
     },
     onSuccess: () => {
       onCreated();
-      toast.success(isDemo ? "Demo time shift added" : "Time shift added");
+      toast.success(isDemo ? t("demo_time_shift_added") : t("time_shift_added"));
       onClose();
     },
     onError: (error) => toast.error(error.message),
@@ -2085,7 +2198,7 @@ function AddTimeShift({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-display text-lg font-bold">Add time shift</h3>
+          <h3 className="font-display text-lg font-bold">{t("add_time_shift_title")}</h3>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
@@ -2098,13 +2211,13 @@ function AddTimeShift({
           }}
           className="space-y-3"
         >
-          <Field label="Class *">
+          <Field label={`${t("class")} *`}>
             <select
               value={form.class_id}
               onChange={(e) => setForm({ ...form, class_id: e.target.value })}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
             >
-              <option value="">Select class</option>
+              <option value="">{t("select_class")}</option>
               {classes.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name} {item.subject_code ? `(${item.subject_code})` : ""}
@@ -2113,7 +2226,7 @@ function AddTimeShift({
             </select>
           </Field>
 
-          <Field label="Day *">
+          <Field label={`${t("day")} *`}>
             <select
               value={form.day}
               onChange={(e) => setForm({ ...form, day: e.target.value })}
@@ -2127,7 +2240,7 @@ function AddTimeShift({
             </select>
           </Field>
 
-          <Field label="Time shift *">
+          <Field label={`${t("time_shift")} *`}>
             <div className="grid grid-cols-2 gap-2">
               {shiftOptions.map((shift) => (
                 <button
@@ -2156,7 +2269,7 @@ function AddTimeShift({
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Start time *">
+            <Field label={`${t("start_time")} *`}>
               <input
                 type="time"
                 value={form.start_time}
@@ -2164,7 +2277,7 @@ function AddTimeShift({
                 className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
               />
             </Field>
-            <Field label="End time *">
+            <Field label={`${t("end_time")} *`}>
               <input
                 type="time"
                 value={form.end_time}
@@ -2174,11 +2287,11 @@ function AddTimeShift({
             </Field>
           </div>
 
-          <Field label="Room">
+          <Field label={t("room")}>
             <input
               value={form.room}
               onChange={(e) => setForm({ ...form, room: e.target.value })}
-              placeholder="e.g. A-201"
+              placeholder={t("room")}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
             />
           </Field>
@@ -2191,7 +2304,7 @@ function AddTimeShift({
             {createSlot.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              "Save time shift"
+              t("save_time_shift")
             )}
           </button>
         </form>
@@ -2211,7 +2324,9 @@ function ManualSchedulePaper({
     <div className="overflow-x-auto rounded-xl border border-border bg-white p-4">
       <div className="min-w-[980px] text-[11px] text-slate-600">
         <div className="mb-2 grid grid-cols-[1fr_1.8fr_1fr] items-start gap-5">
-          <div className="pt-5 text-center leading-8 whitespace-pre-line">{schedule.leftOffice}</div>
+          <div className="pt-5 text-center leading-8 whitespace-pre-line">
+            {schedule.leftOffice}
+          </div>
           <div className="text-center leading-6 text-slate-700">
             <h2 className="m-0 text-sm font-bold">ព្រះរាជាណាចក្រកម្ពុជា</h2>
             <h3 className="m-0 text-[13px] font-bold">ជាតិ សាសនា ព្រះមហាក្សត្រ</h3>
@@ -2228,7 +2343,10 @@ function ManualSchedulePaper({
           <thead>
             <tr>
               {days.map((day) => (
-                <th key={day} className="border border-slate-500 bg-slate-50 px-2 py-1 text-center font-bold text-slate-900">
+                <th
+                  key={day}
+                  className="border border-slate-500 bg-slate-50 px-2 py-1 text-center font-bold text-slate-900"
+                >
                   {dayLabels[day]}
                 </th>
               ))}
@@ -2240,7 +2358,10 @@ function ManualSchedulePaper({
                 {days.map((day) => {
                   const cell = row.cells[day];
                   return (
-                    <td key={`${row.id}-${day}`} className="h-24 border border-slate-500 p-0 text-center align-top">
+                    <td
+                      key={`${row.id}-${day}`}
+                      className="h-24 border border-slate-500 p-0 text-center align-top"
+                    >
                       <div className="border-b border-slate-300 px-2 py-1 font-mono text-[9px] text-slate-500">
                         {row.start}-{row.end}
                       </div>
@@ -2250,9 +2371,13 @@ function ManualSchedulePaper({
                         cell.room ||
                         (showClassInCells && cell.className)) && (
                         <div className="px-2 py-2 leading-5">
-                          {cell.teacher && <p className="font-bold text-slate-900">{cell.teacher}</p>}
+                          {cell.teacher && (
+                            <p className="font-bold text-slate-900">{cell.teacher}</p>
+                          )}
                           {cell.teacherPhone && (
-                            <p className="font-mono text-[10px] text-slate-500">{cell.teacherPhone}</p>
+                            <p className="font-mono text-[10px] text-slate-500">
+                              {cell.teacherPhone}
+                            </p>
                           )}
                           {cell.subject && <p className="font-semibold">{cell.subject}</p>}
                           {cell.room && <p>{cell.room}</p>}

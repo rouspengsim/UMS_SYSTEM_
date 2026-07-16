@@ -26,7 +26,12 @@ function parseEnvFile(path) {
 }
 
 function getEnv(name, fallbackName) {
-  return process.env[name] || process.env[fallbackName || name] || fileEnv[name] || fileEnv[fallbackName || name];
+  return (
+    process.env[name] ||
+    process.env[fallbackName || name] ||
+    fileEnv[name] ||
+    fileEnv[fallbackName || name]
+  );
 }
 
 function fail(message) {

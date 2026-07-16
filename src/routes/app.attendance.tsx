@@ -22,13 +22,16 @@ import {
   ShieldCheck,
   Printer,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { FLAT_MAJOR_OPTIONS } from "@/lib/academic-options";
 import {
   DEFAULT_SUBJECT_OPTIONS,
+  filterSubjectOptionsByMajor,
+  groupSubjectOptionsByMajor,
+  mergeSubjectOptions,
   readDemoSubjects,
   subjectRowsToOptions,
 } from "@/lib/subjects";
@@ -164,7 +167,11 @@ function escapeHtml(value: string | number | null | undefined) {
     .replaceAll("'", "&#039;");
 }
 
-function printDocument(title: string, html: string, orientation: "portrait" | "landscape" = "landscape") {
+function printDocument(
+  title: string,
+  html: string,
+  orientation: "portrait" | "landscape" = "landscape",
+) {
   const printWindow = window.open("", "_blank", "width=1200,height=800");
   if (!printWindow) {
     toast.error("Allow pop-ups to print this report.");
@@ -258,7 +265,7 @@ function AttendancePage() {
     queryFn: async () => {
       if (isDemo) {
         const rows = readDemoSubjects();
-        if (!isTeacher) return subjectRowsToOptions(rows);
+        if (!isTeacher) return mergeSubjectOptions(subjectRowsToOptions(rows));
 
         const teacher = readDemoList<{ id: string }>("studentsphere.demo.teachers")[0];
         const subjectCodes = new Set(
@@ -309,19 +316,34 @@ function AttendancePage() {
         label: subject.subject_name || subject.subject_id,
         description: subject.description,
       }));
-      return options.length > 0 ? options : DEFAULT_SUBJECT_OPTIONS;
+      return mergeSubjectOptions(options);
     },
   });
+  const filteredSubjectOptions = useMemo(
+    () =>
+      filterSubjectOptionsByMajor(
+        subjectOptions,
+        selectedMajor === ALL_MAJORS ? null : selectedMajor,
+      ),
+    [subjectOptions, selectedMajor],
+  );
+  const filteredSubjectGroups = useMemo(
+    () => groupSubjectOptionsByMajor(filteredSubjectOptions),
+    [filteredSubjectOptions],
+  );
   const selectedSubject =
-    subjectOptions.find((subject) => subject.code === subjectCode) ?? subjectOptions[0];
+    filteredSubjectOptions.find((subject) => subject.code === subjectCode) ??
+    filteredSubjectOptions[0];
 
   useEffect(() => {
-    if (!subjectOptions.some((subject) => subject.code === subjectCode)) {
-      setSubjectCode(subjectOptions[0]?.code ?? DEFAULT_SUBJECT_OPTIONS[0]?.code ?? "Subject 1");
+    if (!filteredSubjectOptions.some((subject) => subject.code === subjectCode)) {
+      setSubjectCode(
+        filteredSubjectOptions[0]?.code ?? DEFAULT_SUBJECT_OPTIONS[0]?.code ?? "Subject 1",
+      );
     }
-  }, [subjectCode, subjectOptions]);
+  }, [subjectCode, filteredSubjectOptions]);
 
-  const { data: classes = [] } = useQuery({
+  const { data: classes = [] } = useQuery<AttendanceClass[]>({
     queryKey: ["classes-min-attendance", primaryRole, user?.id, isDemo ? "demo" : "remote"],
     queryFn: async () => {
       if (isDemo) {
@@ -330,9 +352,7 @@ function AttendancePage() {
         );
         const visibleDemoStudents =
           isStudent && demoStudents.length > 0
-            ? demoStudents.filter(
-                (student) => student.class_name === demoStudents[0]?.class_name,
-              )
+            ? demoStudents.filter((student) => student.class_name === demoStudents[0]?.class_name)
             : demoStudents;
         const majorsByClass = new Map<string, Set<string>>();
         visibleDemoStudents.forEach((student) => {
@@ -344,9 +364,11 @@ function AttendancePage() {
         });
 
         const teacher = readDemoList<{ id: string }>("studentsphere.demo.teachers")[0];
-        const storedClasses = readDemoList<{ id: string; name: string; teacher_id?: string | null }>(
-          "studentsphere.demo.classes",
-        )
+        const storedClasses = readDemoList<{
+          id: string;
+          name: string;
+          teacher_id?: string | null;
+        }>("studentsphere.demo.classes")
           .filter((c) => !isTeacher || !teacher || c.teacher_id === teacher.id)
           .map((c) => ({
             id: c.id,
@@ -422,10 +444,10 @@ function AttendancePage() {
       const storedClasses = (classesResult.data ?? [])
         .filter((c) => !isStudent || ownClassNames.has(c.name))
         .map((c) => ({
-        id: c.id,
-        name: c.name,
-        majors: Array.from(majorsByClass.get(c.name) ?? []),
-      }));
+          id: c.id,
+          name: c.name,
+          majors: Array.from(majorsByClass.get(c.name) ?? []),
+        }));
       const storedNames = new Set(storedClasses.map((c) => c.name));
       const syntheticClasses = Array.from(majorsByClass.keys())
         .filter((name) => !storedNames.has(name))
@@ -501,19 +523,21 @@ function AttendancePage() {
       if (isStudent) {
         const { data, error } = await supabase.rpc("list_student_classmates");
         if (error) throw error;
-        return ((data ?? []) as Array<{
-          id: string;
-          full_name: string;
-          full_name_en?: string | null;
-          full_name_km?: string | null;
-          student_code: string;
-          gender?: string | null;
-          date_of_birth?: string | null;
-          address?: string | null;
-          major?: string | null;
-          class_name?: string | null;
-          status?: string | null;
-        }>)
+        return (
+          (data ?? []) as Array<{
+            id: string;
+            full_name: string;
+            full_name_en?: string | null;
+            full_name_km?: string | null;
+            student_code: string;
+            gender?: string | null;
+            date_of_birth?: string | null;
+            address?: string | null;
+            major?: string | null;
+            class_name?: string | null;
+            status?: string | null;
+          }>
+        )
           .filter(
             (student) =>
               student.class_name === selectedClassName &&
@@ -565,7 +589,9 @@ function AttendancePage() {
 
       let query = supabase
         .from("students")
-        .select("id,full_name,full_name_km,student_code,gender,date_of_birth,address,major,class_name")
+        .select(
+          "id,full_name,full_name_km,student_code,gender,date_of_birth,address,major,class_name",
+        )
         .eq("class_name", selectedClassName)
         .eq("status", "active")
         .order("full_name");
@@ -875,10 +901,7 @@ function AttendancePage() {
   };
   return (
     <div>
-      <PageHeader
-        title={t("attendance")}
-        subtitle={t("attendance_subtitle")}
-      />
+      <PageHeader title={t("attendance")} subtitle={t("attendance_subtitle")} />
       <div className="mb-4 flex flex-wrap gap-2">
         <select
           value={selectedMajor}
@@ -944,26 +967,28 @@ function AttendancePage() {
               <CommandInput placeholder={t("search_subjects")} />
               <CommandList>
                 <CommandEmpty>{t("no_subjects_yet")}</CommandEmpty>
-                <CommandGroup>
-                  {subjectOptions.map((subject) => (
-                    <CommandItem
-                      key={subject.code}
-                      value={`${subject.label} ${subject.code}`}
-                      onSelect={() => {
-                        setSubjectCode(subject.code);
-                        setSubjectSearchOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "h-4 w-4",
-                          subject.code === subjectCode ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                      <span className="truncate">{subject.label}</span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
+                {filteredSubjectGroups.map((group) => (
+                  <CommandGroup key={group.label} heading={group.label}>
+                    {group.options.map((subject) => (
+                      <CommandItem
+                        key={subject.code}
+                        value={`${subject.label} ${subject.code}`}
+                        onSelect={() => {
+                          setSubjectCode(subject.code);
+                          setSubjectSearchOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "h-4 w-4",
+                            subject.code === subjectCode ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        <span className="truncate">{subject.label}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                ))}
               </CommandList>
             </Command>
           </PopoverContent>

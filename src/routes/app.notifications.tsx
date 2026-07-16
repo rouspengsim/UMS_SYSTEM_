@@ -108,53 +108,53 @@ function NotificationsPage() {
                   const mediaUrl = n.media_url ?? content.mediaUrl;
                   const mediaType = n.media_type ?? content.mediaType;
                   return (
-                <div className="flex items-start gap-3">
-                  <span
-                    className={
-                      "mt-1 h-2 w-2 shrink-0 rounded-full " +
-                      (n.kind === "warning"
-                        ? "bg-warning"
-                        : n.kind === "success"
-                          ? "bg-success"
-                          : n.kind === "announcement"
-                            ? "bg-primary"
-                            : "bg-info")
-                    }
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold">{n.title}</p>
-                      {targetRole && (
-                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold capitalize text-primary">
-                          {t(targetRole)}
-                        </span>
-                      )}
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={
+                          "mt-1 h-2 w-2 shrink-0 rounded-full " +
+                          (n.kind === "warning"
+                            ? "bg-warning"
+                            : n.kind === "success"
+                              ? "bg-success"
+                              : n.kind === "announcement"
+                                ? "bg-primary"
+                                : "bg-info")
+                        }
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold">{n.title}</p>
+                          {targetRole && (
+                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold capitalize text-primary">
+                              {t(targetRole)}
+                            </span>
+                          )}
+                        </div>
+                        {mediaUrl && mediaType === "image" && (
+                          <img
+                            src={mediaUrl}
+                            alt={n.title}
+                            className="mt-3 max-h-[420px] w-full max-w-3xl rounded-lg border border-border object-contain bg-muted/30"
+                          />
+                        )}
+                        {mediaUrl && mediaType === "video" && (
+                          <video
+                            src={mediaUrl}
+                            controls
+                            preload="metadata"
+                            className="mt-3 max-h-[460px] w-full max-w-3xl rounded-lg border border-border bg-black"
+                          />
+                        )}
+                        {content.description && (
+                          <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                            {content.description}
+                          </p>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {new Date(n.created_at).toLocaleDateString()}
+                      </span>
                     </div>
-                    {mediaUrl && mediaType === "image" && (
-                      <img
-                        src={mediaUrl}
-                        alt={n.title}
-                        className="mt-3 max-h-[420px] w-full max-w-3xl rounded-lg border border-border object-contain bg-muted/30"
-                      />
-                    )}
-                    {mediaUrl && mediaType === "video" && (
-                      <video
-                        src={mediaUrl}
-                        controls
-                        preload="metadata"
-                        className="mt-3 max-h-[460px] w-full max-w-3xl rounded-lg border border-border bg-black"
-                      />
-                    )}
-                    {content.description && (
-                      <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                        {content.description}
-                      </p>
-                    )}
-                  </div>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                    {new Date(n.created_at).toLocaleDateString()}
-                  </span>
-                </div>
                   );
                 })()}
               </li>
@@ -307,9 +307,7 @@ function AddNotif({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="font-display text-lg font-bold">{t("new_announcement")}</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {t("send_media_notice")}
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("send_media_notice")}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1 hover:bg-muted">
             <X className="h-4 w-4" />

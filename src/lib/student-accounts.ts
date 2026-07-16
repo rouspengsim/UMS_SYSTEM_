@@ -67,17 +67,19 @@ export const createStudentAccount = createServerFn({ method: "POST" })
       throw new Error(`Student ID ${studentCode} already exists.`);
     }
 
-    const { data: createdUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
-      email: loginEmail,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: fullName,
-        role: "student",
-        login_code: studentCode,
-        contact_email: data.student.email || null,
+    const { data: createdUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser(
+      {
+        email: loginEmail,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: fullName,
+          role: "student",
+          login_code: studentCode,
+          contact_email: data.student.email || null,
+        },
       },
-    });
+    );
 
     if (createUserError || !createdUser.user) {
       throw createUserError ?? new Error("Could not create student login account.");

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="272" viewBox="0 0 560 272" role="img" aria-labelledby="title desc">
+  <title id="title">user_roles table</title>
+  <desc id="desc">Columns and keys for the user_roles database table.</desc>
+  <defs>
+    <style>
+
+      .background { fill: #f8fafc; }
+      .headline { fill: #0f172a; font: 700 28px Arial, sans-serif; }
+      .subhead { fill: #475569; font: 14px Arial, sans-serif; }
+      .legend { fill: #334155; font: 12px Arial, sans-serif; }
+      .card-shadow { fill: #0f172a; opacity: 0.08; transform: translate(0, 2px); }
+      .card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1; }
+      .card-title, .card-title-fill { fill: #123c69; }
+      .table-name { fill: #ffffff; font: 700 16px Arial, sans-serif; }
+      .table-count { fill: #bfdbfe; font: 12px Arial, sans-serif; text-anchor: end; }
+      .column-marker { fill: #b45309; font: 700 11px Arial, sans-serif; }
+      .column-name { fill: #111827; font: 13px Arial, sans-serif; }
+      .column-type { fill: #64748b; font: 12px Arial, sans-serif; text-anchor: end; }
+
+      .single-headline { fill: #0f172a; font: 700 24px Arial, sans-serif; }
+      .single-subhead { fill: #475569; font: 13px Arial, sans-serif; }
+    </style>
+  </defs>
+  <rect width="560" height="272" class="background" />
+  <text x="32" y="34" class="single-headline">user_roles</text>
+  <text x="32" y="57" class="single-subhead">No foreign-key relationships</text>
+  
+      <g>
+        <rect x="32" y="78" width="496" height="162" rx="8" class="card-shadow" />
+        <rect x="32" y="78" width="496" height="162" rx="8" class="card" />
+        <rect x="32" y="78" width="496" height="42" rx="8" class="card-title" />
+        <path d="M 32 112 H 528 V 120 H 32 Z" class="card-title-fill" />
+        <text x="50" y="105" class="table-name">user_roles</text>
+        <text x="510" y="105" class="table-count">4 columns</text>
+        
+          
+          <text x="84" y="151" class="column-name">created_at</text>
+          <text x="510" y="151" class="column-type">string</text>
+          <text x="50" y="173" class="column-marker">PK</text>
+          <text x="84" y="173" class="column-name">id</text>
+          <text x="510" y="173" class="column-type">string</text>
+          
+          <text x="84" y="195" class="column-name">role</text>
+          <text x="510" y="195" class="column-type">enum:app_role</text>
+          
+          <text x="84" y="217" class="column-name">user_id</text>
+          <text x="510" y="217" class="column-type">string</text>
+      </g>
+</svg>

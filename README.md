@@ -104,7 +104,8 @@ This app is configured for TanStack Start on Vercel with Nitro.
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_PUBLISHABLE_KEY`
    - `VITE_SUPABASE_PROJECT_ID`
-   
+
    `SUPABASE_SERVICE_ROLE_KEY` must be added as a normal server environment
    variable in Vercel, not with a `VITE_` prefix. Redeploy after adding it.
+
 4. Deploy with the default project settings. Vercel runs `npm install` and `npm run build`.

@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { accountLoginEmail, generateSchoolAccountId } from "@/lib/account-ids";
+import { accountLoginEmail } from "@/lib/account-ids";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -19,26 +19,17 @@ function requireString(value: unknown, field: string) {
   return value.trim();
 }
 
-async function uniqueTeacherCode(preferredCode?: string | null) {
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const code = (attempt === 0 && preferredCode?.trim()
-      ? preferredCode
-      : generateSchoolAccountId("teacher")
-    )
-      .trim()
-      .toUpperCase();
+async function requireUniqueTeacherCode(value?: string | null) {
+  const code = requireString(value, "Teacher ID").toUpperCase();
+  const { data, error } = await supabaseAdmin
+    .from("teachers")
+    .select("id")
+    .eq("staff_code", code)
+    .maybeSingle();
 
-    const { data, error } = await supabaseAdmin
-      .from("teachers")
-      .select("id")
-      .eq("staff_code", code)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) return code;
-  }
-
-  throw new Error("Could not generate a unique teacher ID. Please try again.");
+  if (error) throw error;
+  if (data) throw new Error(`Teacher ID ${code} already exists.`);
+  return code;
 }
 
 export const createTeacherAccount = createServerFn({ method: "POST" })
@@ -69,20 +60,22 @@ export const createTeacherAccount = createServerFn({ method: "POST" })
       throw new Error("Only admins can create teacher accounts.");
     }
 
-    const staffCode = await uniqueTeacherCode(data.teacher.staff_code);
+    const staffCode = await requireUniqueTeacherCode(data.teacher.staff_code);
     const loginEmail = accountLoginEmail("teacher", staffCode).toLowerCase();
 
-    const { data: createdUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
-      email: loginEmail,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: fullName,
-        role: "teacher",
-        login_code: staffCode,
-        contact_email: data.teacher.email || null,
+    const { data: createdUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser(
+      {
+        email: loginEmail,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: fullName,
+          role: "teacher",
+          login_code: staffCode,
+          contact_email: data.teacher.email || null,
+        },
       },
-    });
+    );
 
     if (createUserError || !createdUser.user) {
       throw createUserError ?? new Error("Could not create teacher login account.");

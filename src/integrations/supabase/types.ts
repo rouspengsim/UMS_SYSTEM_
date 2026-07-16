@@ -580,6 +580,7 @@ export type Database = {
           id: string;
           mother_job: string | null;
           mother_name: string | null;
+          major: string | null;
           nationality: string | null;
           pay_year1: string;
           pay_year2: string;
@@ -613,6 +614,7 @@ export type Database = {
           id?: string;
           mother_job?: string | null;
           mother_name?: string | null;
+          major?: string | null;
           nationality?: string | null;
           pay_year1?: string;
           pay_year2?: string;
@@ -646,6 +648,7 @@ export type Database = {
           id?: string;
           mother_job?: string | null;
           mother_name?: string | null;
+          major?: string | null;
           nationality?: string | null;
           pay_year1?: string;
           pay_year2?: string;
