@@ -8,9 +8,9 @@ import { motion } from "framer-motion";
 import gsap from "gsap";
 import { ArrowRight, GraduationCap, IdCard, Lock, Mail, Loader2, ShieldCheck } from "lucide-react";
 import {
-  accountEmailForLogin,
   authErrorMessage,
   roleDisplayName,
+  signInWithRoleCredentials,
   verifySignedInRole,
 } from "@/lib/login-auth";
 import {
@@ -205,11 +205,12 @@ export function LoginPage({ portal }: { portal: "public" | "admin" }) {
         navigate({ to: "/app" });
       } else {
         const expectedRole: LoginRole = isAdminPortal ? "admin" : loginRole;
-        const accountEmail = accountEmailForLogin(expectedRole, loginId, email);
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: accountEmail,
+        const { data, error } = await signInWithRoleCredentials(
+          expectedRole,
+          loginId,
+          email,
           password,
-        });
+        );
         if (error) {
           throw error;
         }
@@ -490,7 +491,10 @@ export function LoginPage({ portal }: { portal: "public" | "admin" }) {
                   <input
                     type="text"
                     value={loginId}
-                    onChange={(e) => setLoginId(e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      const nextValue = e.target.value;
+                      setLoginId(nextValue.includes("@") ? nextValue : nextValue.toUpperCase());
+                    }}
                     required
                     autoComplete="username"
                     className={iconFieldClass}

@@ -1,5 +1,5 @@
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { accountLoginEmail, type LoginRole } from "@/lib/account-ids";
+import { accountLoginEmail, accountLoginEmailCandidates, type LoginRole } from "@/lib/account-ids";
 import { supabase } from "@/integrations/supabase/client";
 
 export function isNetworkAuthError(err: unknown) {
@@ -43,6 +43,44 @@ export function roleDisplayName(role: LoginRole) {
 
 export function accountEmailForLogin(role: LoginRole, loginId: string, email: string) {
   return role === "admin" ? email.trim() : accountLoginEmail(role, loginId);
+}
+
+function isInvalidLoginCredentials(err: unknown) {
+  const msg = err instanceof Error ? err.message.toLowerCase() : "";
+  return msg.includes("invalid login credentials");
+}
+
+export async function signInWithRoleCredentials(
+  role: LoginRole,
+  loginId: string,
+  email: string,
+  password: string,
+) {
+  if (role === "admin") {
+    return supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+  }
+
+  let lastError: unknown = null;
+  const emails = accountLoginEmailCandidates(role, loginId);
+
+  for (const candidateEmail of emails) {
+    const result = await supabase.auth.signInWithPassword({
+      email: candidateEmail,
+      password,
+    });
+
+    if (!result.error) return result;
+    if (!isInvalidLoginCredentials(result.error)) return result;
+    lastError = result.error;
+  }
+
+  return {
+    data: { user: null, session: null },
+    error: lastError instanceof Error ? lastError : new Error("Invalid login credentials"),
+  };
 }
 
 export async function verifySignedInRole(user: SupabaseUser, role: LoginRole) {

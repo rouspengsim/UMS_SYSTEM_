@@ -179,6 +179,7 @@ function ExamsPage() {
   const weekNumber = 1;
   const isStudent = primaryRole === "student";
   const isTeacher = primaryRole === "teacher";
+  const canManageScores = primaryRole === "admin" || primaryRole === "teacher";
 
   const { data: scoreSubjectOptions = SCORE_SUBJECT_OPTIONS } = useQuery({
     queryKey: ["subject-options", primaryRole, user?.id, isDemo ? "demo" : "remote"],
@@ -461,6 +462,11 @@ function ExamsPage() {
     enrolled.find((student) => student.student_id === selectedScoreStudentId) ?? enrolled[0];
 
   const setSubjectScore = (studentId: string, subject: string, rawValue: string) => {
+    if (!canManageScores) {
+      toast.error("Only teachers and admins can enter scores.");
+      return;
+    }
+
     const score = rawValue.trim() === "" ? null : Number(rawValue);
     if (score !== null && Number.isNaN(score)) return;
     if (score !== null && (score < 0 || score > SCORE_MAX)) {
@@ -777,133 +783,139 @@ function ExamsPage() {
             {enrolled.length} students · {subjectScores.length} saved score entries
           </p>
         )}
-        {classId && !studentsLoading && enrolled.length > 0 && selectedScoreStudent && (
-          <div className="mt-6">
-            <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(280px,420px)]">
-              <div>
-                <p className="font-display text-base font-semibold tracking-tight text-foreground">
-                  Student Score Form
-                </p>
-                <p className="text-xs font-semibold text-muted-foreground">
-                  {semester} · Scores out of {SCORE_MAX}
-                </p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-semibold text-muted-foreground">
-                    Select student to input score
-                  </span>
-                  <select
-                    value={selectedScoreStudent.student_id}
-                    onChange={(event) => setSelectedScoreStudentId(event.currentTarget.value)}
-                    className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+        {classId &&
+          canManageScores &&
+          !studentsLoading &&
+          enrolled.length > 0 &&
+          selectedScoreStudent && (
+            <div className="mt-6">
+              <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(280px,420px)]">
+                <div>
+                  <p className="font-display text-base font-semibold tracking-tight text-foreground">
+                    Student Score Form
+                  </p>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {semester} · Scores out of {SCORE_MAX}
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                      Select student to input score
+                    </span>
+                    <select
+                      value={selectedScoreStudent.student_id}
+                      onChange={(event) => setSelectedScoreStudentId(event.currentTarget.value)}
+                      className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    >
+                      {enrolled.map((student) => (
+                        <option key={student.student_id} value={student.student_id}>
+                          {student.students.student_code} · {student.students.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    onClick={() => printDocument("Student Score Table", scoreReportHtml())}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm font-medium hover:bg-muted"
                   >
-                    {enrolled.map((student) => (
-                      <option key={student.student_id} value={student.student_id}>
-                        {student.students.student_code} · {student.students.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  onClick={() => printDocument("Student Score Table", scoreReportHtml())}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 text-sm font-medium hover:bg-muted"
-                >
-                  <Printer className="h-4 w-4" /> Print Score Table
-                </button>
+                    <Printer className="h-4 w-4" /> Print Score Table
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-              <div className="border-b border-border bg-muted/35 px-4 py-3">
-                <p className="font-khmer text-lg font-black text-foreground">បញ្ចូលពិន្ទុនិស្សិត</p>
-                <p className="text-xs font-semibold text-muted-foreground">
-                  {selectedClassLabel} · {selectedScoreStudent.students.student_code}
-                </p>
-              </div>
-              <div className="space-y-5 p-4">
-                <div className="grid gap-x-6 gap-y-2 md:grid-cols-3">
-                  <ScoreInfoField
-                    label={t("student_id")}
-                    value={selectedScoreStudent.students.student_code}
-                  />
-                  <ScoreInfoField
-                    label={t("khmer_name")}
-                    value={
-                      selectedScoreStudent.students.full_name_km ||
-                      selectedScoreStudent.students.full_name
-                    }
-                  />
-                  <ScoreInfoField
-                    label={t("name_in_latin")}
-                    value={selectedScoreStudent.students.full_name}
-                  />
-                  <ScoreInfoField
-                    label={t("gender")}
-                    value={
-                      selectedScoreStudent.students.gender?.toLowerCase().startsWith("f")
-                        ? "F"
-                        : selectedScoreStudent.students.gender
-                          ? "M"
-                          : "-"
-                    }
-                  />
-                  <ScoreInfoField
-                    label={t("dob")}
-                    value={selectedScoreStudent.students.date_of_birth ?? ""}
-                  />
-                  <ScoreInfoField
-                    label={t("group")}
-                    value={selectedScoreStudent.students.class_name ?? selectedClassLabel}
-                  />
-                  <div className="md:col-span-2">
+              <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+                <div className="border-b border-border bg-muted/35 px-4 py-3">
+                  <p className="font-khmer text-lg font-black text-foreground">
+                    បញ្ចូលពិន្ទុនិស្សិត
+                  </p>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {selectedClassLabel} · {selectedScoreStudent.students.student_code}
+                  </p>
+                </div>
+                <div className="space-y-5 p-4">
+                  <div className="grid gap-x-6 gap-y-2 md:grid-cols-3">
                     <ScoreInfoField
-                      label={t("place_of_birth")}
-                      value={selectedScoreStudent.students.address ?? ""}
+                      label={t("student_id")}
+                      value={selectedScoreStudent.students.student_code}
                     />
+                    <ScoreInfoField
+                      label={t("khmer_name")}
+                      value={
+                        selectedScoreStudent.students.full_name_km ||
+                        selectedScoreStudent.students.full_name
+                      }
+                    />
+                    <ScoreInfoField
+                      label={t("name_in_latin")}
+                      value={selectedScoreStudent.students.full_name}
+                    />
+                    <ScoreInfoField
+                      label={t("gender")}
+                      value={
+                        selectedScoreStudent.students.gender?.toLowerCase().startsWith("f")
+                          ? "F"
+                          : selectedScoreStudent.students.gender
+                            ? "M"
+                            : "-"
+                      }
+                    />
+                    <ScoreInfoField
+                      label={t("dob")}
+                      value={selectedScoreStudent.students.date_of_birth ?? ""}
+                    />
+                    <ScoreInfoField
+                      label={t("group")}
+                      value={selectedScoreStudent.students.class_name ?? selectedClassLabel}
+                    />
+                    <div className="md:col-span-2">
+                      <ScoreInfoField
+                        label={t("place_of_birth")}
+                        value={selectedScoreStudent.students.address ?? ""}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-x-6 gap-y-3 border-t border-border pt-4 md:grid-cols-2">
+                    <h4 className="font-khmer text-sm font-black text-foreground">
+                      មុខវិជ្ជាពិសេសទូទៅ ថ្នាក់ទី១
+                    </h4>
+                    <h4 className="font-khmer text-sm font-black text-foreground">
+                      មុខវិជ្ជាឯកទេសនិង ថ្នាក់ទី១
+                    </h4>
+                    {scoreSubjectOptions.map((subject) => {
+                      const score = scoreFor(selectedScoreStudent.student_id, subject.code);
+                      return (
+                        <label key={subject.code} className="block">
+                          <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                            {subject.label}
+                          </span>
+                          <input
+                            key={`${selectedScoreStudent.student_id}-${subject.code}-${
+                              score ?? "blank"
+                            }`}
+                            type="number"
+                            min={0}
+                            max={SCORE_MAX}
+                            step="0.01"
+                            defaultValue={score ?? ""}
+                            onBlur={(event) =>
+                              setSubjectScore(
+                                selectedScoreStudent.student_id,
+                                subject.code,
+                                event.currentTarget.value,
+                              )
+                            }
+                            className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-semibold text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15"
+                          />
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
-
-                <div className="grid gap-x-6 gap-y-3 border-t border-border pt-4 md:grid-cols-2">
-                  <h4 className="font-khmer text-sm font-black text-foreground">
-                    មុខវិជ្ជាពិសេសទូទៅ ថ្នាក់ទី១
-                  </h4>
-                  <h4 className="font-khmer text-sm font-black text-foreground">
-                    មុខវិជ្ជាឯកទេសនិង ថ្នាក់ទី១
-                  </h4>
-                  {scoreSubjectOptions.map((subject) => {
-                    const score = scoreFor(selectedScoreStudent.student_id, subject.code);
-                    return (
-                      <label key={subject.code} className="block">
-                        <span className="mb-1 block text-xs font-semibold text-muted-foreground">
-                          {subject.label}
-                        </span>
-                        <input
-                          key={`${selectedScoreStudent.student_id}-${subject.code}-${
-                            score ?? "blank"
-                          }`}
-                          type="number"
-                          min={0}
-                          max={SCORE_MAX}
-                          step="0.01"
-                          defaultValue={score ?? ""}
-                          onBlur={(event) =>
-                            setSubjectScore(
-                              selectedScoreStudent.student_id,
-                              subject.code,
-                              event.currentTarget.value,
-                            )
-                          }
-                          className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm font-semibold text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15"
-                        />
-                      </label>
-                    );
-                  })}
-                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
         {!classId ? (
           <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
             Select a class to show results.
