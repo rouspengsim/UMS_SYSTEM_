@@ -137,6 +137,23 @@ function nextAvailableClassName({
   return generateClassName(major, studyYear, shift, 99);
 }
 
+function nextClassNameForForm({
+  major,
+  studyYear,
+  shift,
+  students,
+  classes,
+}: {
+  major: string | null | undefined;
+  studyYear: number | string | null | undefined;
+  shift: string | null | undefined;
+  students: Array<{ class_name?: string | null }>;
+  classes: ClassCapacityRow[];
+}) {
+  if (!major || !studyYear || !shift) return "";
+  return nextAvailableClassName({ major, studyYear, shift, students, classes });
+}
+
 function shiftLabel(value: string | null | undefined, t: (key: string) => string) {
   const shift = SHIFT_OPTIONS.find((option) => option.value === value);
   return shift ? t(shift.labelKey) : "—";
@@ -1220,26 +1237,26 @@ function AddStudentModal({
       student_code: generateSchoolAccountId("student", currentEnrollmentYear),
       full_name_km: "",
       full_name_en: "",
-      gender: "male",
+      gender: "",
       date_of_birth: "",
-      nationality: "Khmer",
+      nationality: "",
       place_of_birth: "",
       father_name: "",
       father_job: "",
       mother_name: "",
       mother_job: "",
       phone: "",
-      academic: ACADEMIC_OPTIONS[0],
+      academic: "",
       enrollment_year: currentEnrollmentYear,
       study_year: 1,
-      major: MAJOR_OPTIONS[0].options[0].value,
-      student_type: STUDENT_TYPE_OPTIONS[0],
-      class_name: generateClassName(MAJOR_OPTIONS[0].options[0].value, 1, "morning"),
-      shift: "morning",
-      pay_year1: "not_yet",
-      pay_year2: "not_yet",
-      pay_year3: "not_yet",
-      pay_year4: "not_yet",
+      major: "",
+      student_type: "",
+      class_name: "",
+      shift: "",
+      pay_year1: "",
+      pay_year2: "",
+      pay_year3: "",
+      pay_year4: "",
       email: "",
       password: "",
       avatar_url: "",
@@ -1258,7 +1275,7 @@ function AddStudentModal({
         Number(form.enrollment_year) || currentEnrollmentYear,
         currentEnrollmentYear,
       );
-      const assignedClassName = nextAvailableClassName({
+      const assignedClassName = nextClassNameForForm({
         major: form.major,
         studyYear: form.study_year,
         shift: form.shift,
@@ -1357,7 +1374,7 @@ function AddStudentModal({
     onError: (e) => toast.error(e.message),
   });
   const selectedMajorGroups = majorGroupsForAcademic(form.academic);
-  const assignedClassName = nextAvailableClassName({
+  const assignedClassName = nextClassNameForForm({
     major: form.major,
     studyYear: form.study_year,
     shift: form.shift,
@@ -1389,6 +1406,7 @@ function AddStudentModal({
             e.preventDefault();
             if (!form.full_name_km.trim()) return toast.error(t("khmer_name"));
             if (!form.full_name_en.trim()) return toast.error(t("english_name"));
+            if (!form.gender.trim()) return toast.error(t("gender"));
             if (!form.major.trim()) return toast.error(t("major"));
             if (!assignedClassName.trim()) return toast.error(t("class"));
             if (!form.password.trim()) return toast.error(t("password"));
@@ -1423,6 +1441,7 @@ function AddStudentModal({
               value={form.gender}
               onChange={(v) => setForm({ ...form, gender: v })}
               options={[
+                { value: "", label: "" },
                 { value: "male", label: t("male") },
                 { value: "female", label: t("female") },
                 { value: "other", label: t("other") },
@@ -1432,10 +1451,13 @@ function AddStudentModal({
               label={t("nationality")}
               value={form.nationality}
               onChange={(v) => setForm({ ...form, nationality: v })}
-              options={NATIONALITY_OPTIONS.map((nationality) => ({
-                value: nationality,
-                label: nationality,
-              }))}
+              options={[
+                { value: "", label: "" },
+                ...NATIONALITY_OPTIONS.map((nationality) => ({
+                  value: nationality,
+                  label: nationality,
+                })),
+              ]}
             />
             <Input
               label={t("dob")}
@@ -1484,15 +1506,17 @@ function AddStudentModal({
               label={t("academic")}
               value={form.academic}
               onChange={(v) => {
-                const major = firstMajorForAcademic(v);
                 setForm({
                   ...form,
                   academic: v,
-                  major,
-                  class_name: generateClassName(major, form.study_year, form.shift),
+                  major: "",
+                  class_name: "",
                 });
               }}
-              options={ACADEMIC_OPTIONS.map((academic) => ({ value: academic, label: academic }))}
+              options={[
+                { value: "", label: "" },
+                ...ACADEMIC_OPTIONS.map((academic) => ({ value: academic, label: academic })),
+              ]}
             />
             <Select
               label={`${t("academic_year")} *`}
@@ -1517,7 +1541,10 @@ function AddStudentModal({
                 setForm({
                   ...form,
                   major: v,
-                  class_name: generateClassName(v, form.study_year, form.shift),
+                  class_name:
+                    v && form.study_year && form.shift
+                      ? generateClassName(v, form.study_year, form.shift)
+                      : "",
                 })
               }
               groups={selectedMajorGroups}
@@ -1526,7 +1553,10 @@ function AddStudentModal({
               label={t("type_of_student")}
               value={form.student_type}
               onChange={(v) => setForm({ ...form, student_type: v })}
-              options={STUDENT_TYPE_OPTIONS.map((type) => ({ value: type, label: type }))}
+              options={[
+                { value: "", label: "" },
+                ...STUDENT_TYPE_OPTIONS.map((type) => ({ value: type, label: type })),
+              ]}
             />
             <Input
               label={`${t("class")} *`}
@@ -1542,13 +1572,19 @@ function AddStudentModal({
                 setForm({
                   ...form,
                   shift: v,
-                  class_name: generateClassName(form.major, form.study_year, v),
+                  class_name:
+                    form.major && form.study_year && v
+                      ? generateClassName(form.major, form.study_year, v)
+                      : "",
                 })
               }
-              options={SHIFT_OPTIONS.map((shift) => ({
-                value: shift.value,
-                label: t(shift.labelKey),
-              }))}
+              options={[
+                { value: "", label: "" },
+                ...SHIFT_OPTIONS.map((shift) => ({
+                  value: shift.value,
+                  label: t(shift.labelKey),
+                })),
+              ]}
             />
             <Input
               label={`${t("year")} *`}
@@ -1559,7 +1595,10 @@ function AddStudentModal({
                 setForm({
                   ...form,
                   study_year: studyYear,
-                  class_name: generateClassName(form.major, studyYear, form.shift),
+                  class_name:
+                    form.major && studyYear && form.shift
+                      ? generateClassName(form.major, studyYear, form.shift)
+                      : "",
                 });
               }}
             />
@@ -2174,6 +2213,7 @@ function PaymentYearSelect({
           onChange={(e) => onChange(e.target.value)}
           className="h-10 min-w-0 border-0 bg-transparent px-3 text-sm outline-none"
         >
+          <option value=""></option>
           {tuitionPaymentOptions(major, studentType).map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -2348,6 +2388,7 @@ function GroupedSelect({
         onChange={(e) => onChange(e.target.value)}
         className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
       >
+        <option value=""></option>
         {groups.map((group) => (
           <optgroup key={group.group} label={group.group}>
             {group.options.map((option) => (
