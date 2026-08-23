@@ -125,9 +125,23 @@ function syntheticClassId(className: string) {
   return `${SYNTHETIC_CLASS_PREFIX}${className}`;
 }
 
+function normalizeClassNameForMatch(className: string | null | undefined) {
+  return (className ?? "").normalize("NFKC").trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+function classNamesMatch(left: string | null | undefined, right: string | null | undefined) {
+  const leftKey = normalizeClassNameForMatch(left);
+  const rightKey = normalizeClassNameForMatch(right);
+  return !!leftKey && leftKey === rightKey;
+}
+
 function classNameFromId(classId: string, classes: AttendanceClass[]) {
   const selectedClass = classes.find((c) => c.id === classId);
   return selectedClass?.name ?? classId.replace(SYNTHETIC_CLASS_PREFIX, "");
+}
+
+function attendanceClassIds(classId: string, className: string) {
+  return Array.from(new Set([classId, syntheticClassId(className), className].filter(Boolean)));
 }
 
 function uniqueAttendanceClasses(classes: AttendanceClass[]) {
@@ -180,9 +194,7 @@ function classMatchesMajor(classRow: AttendanceClass, major: string) {
 
 function studentMatchesMajor(studentMajor: string | null | undefined, selectedMajor: string) {
   return (
-    !selectedMajor ||
-    selectedMajor === ALL_MAJORS_VALUE ||
-    majorsMatch(selectedMajor, studentMajor)
+    !selectedMajor || selectedMajor === ALL_MAJORS_VALUE || majorsMatch(selectedMajor, studentMajor)
   );
 }
 
@@ -563,7 +575,9 @@ function AttendancePage() {
         );
         const visibleDemoStudents =
           isStudent && demoStudents.length > 0
-            ? demoStudents.filter((student) => student.class_name === demoStudents[0]?.class_name)
+            ? demoStudents.filter((student) =>
+                classNamesMatch(student.class_name, demoStudents[0]?.class_name),
+              )
             : demoStudents;
         const majorsByClass = new Map<string, Set<string>>();
         visibleDemoStudents.forEach((student) => {
@@ -742,12 +756,14 @@ function AttendancePage() {
         }>("studentsphere.demo.students");
         const visibleDemoStudents =
           isStudent && demoStudents.length > 0
-            ? demoStudents.filter((student) => student.class_name === demoStudents[0]?.class_name)
+            ? demoStudents.filter((student) =>
+                classNamesMatch(student.class_name, demoStudents[0]?.class_name),
+              )
             : demoStudents;
         return visibleDemoStudents
           .filter(
             (s) =>
-              s.class_name === selectedClassName &&
+              classNamesMatch(s.class_name, selectedClassName) &&
               studentMatchesMajor(s.major, attendanceMajorFilter),
           )
           .map((s) => ({
@@ -787,7 +803,7 @@ function AttendancePage() {
         )
           .filter(
             (student) =>
-              student.class_name === selectedClassName &&
+              classNamesMatch(student.class_name, selectedClassName) &&
               student.status === "active" &&
               studentMatchesMajor(student.major, attendanceMajorFilter),
           )
@@ -826,8 +842,9 @@ function AttendancePage() {
             date_of_birth: string | null;
             address: string | null;
             class_name: string | null;
-          };
+          } | null;
         }>;
+        enrolledRows = enrolledRows.filter((row) => !!row.students);
         if (attendanceMajorFilter) {
           enrolledRows = enrolledRows.filter((row) =>
             studentMatchesMajor(row.students?.major, attendanceMajorFilter),
@@ -841,14 +858,18 @@ function AttendancePage() {
         .select(
           "id,full_name,full_name_km,student_code,gender,date_of_birth,address,major,class_name",
         )
-        .eq("class_name", selectedClassName)
+        .not("class_name", "is", null)
         .eq("status", "active")
         .order("full_name");
       const { data: classNameStudents, error } = await query;
       if (error) throw error;
 
       return (classNameStudents ?? [])
-        .filter((student) => studentMatchesMajor(student.major, attendanceMajorFilter))
+        .filter(
+          (student) =>
+            classNamesMatch(student.class_name, selectedClassName) &&
+            studentMatchesMajor(student.major, attendanceMajorFilter),
+        )
         .map((student) => ({
           student_id: student.id,
           students: {
@@ -878,11 +899,13 @@ function AttendancePage() {
     ],
     enabled: !!classId && !!subjectCode,
     queryFn: async () => {
+      const selectedClassName = classNameFromId(classId, classes);
+      const matchingClassIds = attendanceClassIds(classId, selectedClassName);
       if (isDemo) {
         return readDemoList<DemoAttendanceRow>(DEMO_ATTENDANCE_KEY)
           .filter(
             (r) =>
-              r.class_id === classId &&
+              matchingClassIds.includes(r.class_id) &&
               (r.semester ?? "Semester 1") === semester &&
               visibleWeeks.includes(r.week_number ?? 1) &&
               (r.subject_code ?? DEFAULT_SUBJECT_OPTIONS[0]?.code) === subjectCode,
@@ -898,7 +921,7 @@ function AttendancePage() {
       const { data } = await supabase
         .from("attendance")
         .select("student_id,status,week_number,day_of_week")
-        .eq("class_id", classId)
+        .in("class_id", matchingClassIds)
         .eq("semester", semester)
         .gte("week_number", weekNumber)
         .lte("week_number", visibleWeeks.at(-1) ?? weekNumber)
@@ -930,12 +953,14 @@ function AttendancePage() {
     }) => {
       if (!subjectCode) throw new Error("Select a subject before recording attendance.");
       if (isDemo) {
+        const selectedClassName = classNameFromId(classId, classes);
+        const matchingClassIds = attendanceClassIds(classId, selectedClassName);
         const rows = readDemoList<DemoAttendanceRow>(DEMO_ATTENDANCE_KEY);
         const next = rows.filter(
           (r) =>
             !(
               r.student_id === sid &&
-              r.class_id === classId &&
+              matchingClassIds.includes(r.class_id) &&
               (r.semester ?? "Semester 1") === semester &&
               (r.week_number ?? 1) === week &&
               (r.day_of_week ?? 1) === day &&
@@ -955,6 +980,19 @@ function AttendancePage() {
         writeDemoAttendance(next);
         return;
       }
+
+      const selectedClassName = classNameFromId(classId, classes);
+      const matchingClassIds = attendanceClassIds(classId, selectedClassName);
+      const deleteResult = await supabase
+        .from("attendance")
+        .delete()
+        .eq("student_id", sid)
+        .in("class_id", matchingClassIds)
+        .eq("semester", semester)
+        .eq("week_number", week)
+        .eq("day_of_week", day)
+        .eq("subject_code", subjectCode);
+      if (deleteResult.error) throw deleteResult.error;
 
       const { error } = await supabase.from("attendance").upsert(
         {
@@ -995,12 +1033,14 @@ function AttendancePage() {
   ) => {
     if (!status) {
       if (isDemo) {
+        const selectedClassName = classNameFromId(classId, classes);
+        const matchingClassIds = attendanceClassIds(classId, selectedClassName);
         const rows = readDemoList<DemoAttendanceRow>(DEMO_ATTENDANCE_KEY);
         const next = rows.filter(
           (r) =>
             !(
               r.student_id === studentId &&
-              r.class_id === classId &&
+              matchingClassIds.includes(r.class_id) &&
               (r.semester ?? "Semester 1") === semester &&
               (r.week_number ?? 1) === week &&
               (r.day_of_week ?? 1) === day &&
@@ -1022,11 +1062,13 @@ function AttendancePage() {
         return;
       }
 
+      const selectedClassName = classNameFromId(classId, classes);
+      const matchingClassIds = attendanceClassIds(classId, selectedClassName);
       supabase
         .from("attendance")
         .delete()
         .eq("student_id", studentId)
-        .eq("class_id", classId)
+        .in("class_id", matchingClassIds)
         .eq("semester", semester)
         .eq("week_number", week)
         .eq("day_of_week", day)
