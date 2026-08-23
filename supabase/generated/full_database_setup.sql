@@ -293,15 +293,19 @@ CREATE INDEX idx_payments_status ON public.payments(status);
 CREATE TABLE public.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   target_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  target_role public.app_role,
   title TEXT NOT NULL,
   body TEXT,
   kind public.notification_kind NOT NULL DEFAULT 'info',
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  media_url TEXT,
+  media_type TEXT CHECK (media_type IS NULL OR media_type IN ('image', 'video')),
   created_by UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 CREATE INDEX idx_notifications_target ON public.notifications(target_user_id);
+CREATE INDEX idx_notifications_role ON public.notifications(target_role);
 
 -- =====================================================
 -- CERTIFICATES
@@ -448,7 +452,15 @@ CREATE POLICY "Admins manage payments"
 -- notifications
 CREATE POLICY "Read notifications"
   ON public.notifications FOR SELECT TO authenticated USING (
-    target_user_id IS NULL OR target_user_id = auth.uid() OR public.has_role(auth.uid(), 'admin')
+    public.has_role(auth.uid(), 'admin')
+    OR target_user_id = auth.uid()
+    OR (
+      target_user_id IS NULL
+      AND (
+        target_role IS NULL
+        OR public.has_role(auth.uid(), target_role)
+      )
+    )
   );
 CREATE POLICY "Users mark own as read"
   ON public.notifications FOR UPDATE TO authenticated
@@ -929,6 +941,10 @@ CREATE TABLE public.subject_scores (
   semester TEXT NOT NULL DEFAULT 'Semester 1',
   week_number INTEGER NOT NULL DEFAULT 1,
   subject_code TEXT NOT NULL DEFAULT 'Subject 1',
+  attendance_score NUMERIC(6,2),
+  assignment_score NUMERIC(6,2),
+  midterm_score NUMERIC(6,2),
+  final_score NUMERIC(6,2),
   score NUMERIC(6,2),
   max_score NUMERIC(6,2) NOT NULL DEFAULT 100,
   recorded_by UUID REFERENCES auth.users(id),
@@ -936,6 +952,11 @@ CREATE TABLE public.subject_scores (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT subject_scores_week_number_check CHECK (week_number BETWEEN 1 AND 48),
   CONSTRAINT subject_scores_score_check CHECK (score IS NULL OR score >= 0),
+  CONSTRAINT subject_scores_attendance_score_check CHECK (attendance_score IS NULL OR (attendance_score >= 0 AND attendance_score <= 10)),
+  CONSTRAINT subject_scores_assignment_score_check CHECK (assignment_score IS NULL OR (assignment_score >= 0 AND assignment_score <= 20)),
+  CONSTRAINT subject_scores_midterm_score_check CHECK (midterm_score IS NULL OR (midterm_score >= 0 AND midterm_score <= 25)),
+  CONSTRAINT subject_scores_final_score_check CHECK (final_score IS NULL OR (final_score >= 0 AND final_score <= 45)),
+  CONSTRAINT subject_scores_total_score_check CHECK (score IS NULL OR (score >= 0 AND score <= 100)),
   UNIQUE (student_id, class_id, semester, week_number, subject_code)
 );
 

@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">User Permission - University Management System</title>
+  <desc id="desc">Premium presentation style user permission diagram for Admin, Teacher, and Student roles.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8faf7"/>
+      <stop offset="0.55" stop-color="#eef7f4"/>
+      <stop offset="1" stop-color="#fff5ec"/>
+    </linearGradient>
+    <linearGradient id="adminGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="teacherGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6d28d9"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="studentGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ea580c"/>
+      <stop offset="1" stop-color="#be123c"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#12211c" flood-opacity="0.15"/>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#12211c" flood-opacity="0.1"/>
+    </filter>
+    <style>
+      .title { font: 800 58px Arial, sans-serif; fill: #12211c; letter-spacing: 0; }
+      .subtitle { font: 500 23px Arial, sans-serif; fill: #61726a; }
+      .badge { font: 800 18px Arial, sans-serif; fill: #173b2f; text-anchor: middle; }
+      .card { fill: #fff; stroke: #dce8e0; stroke-width: 2; filter: url(#shadow); }
+      .role { font: 800 34px Arial, sans-serif; fill: #fff; text-anchor: middle; }
+      .roleSub { font: 500 17px Arial, sans-serif; fill: #eef8f7; text-anchor: middle; }
+      .permission { font: 700 22px Arial, sans-serif; fill: #1a2a23; }
+      .note { font: 500 17px Arial, sans-serif; fill: #687970; }
+      .checkCircle { fill: #ecfdf5; stroke: #b9e7c8; stroke-width: 2; }
+      .check { font: 900 22px Arial, sans-serif; fill: #16a34a; text-anchor: middle; }
+      .iconRing { fill: rgba(255,255,255,0.22); stroke: rgba(255,255,255,0.45); stroke-width: 2; }
+      .icon { font: 900 42px Arial, sans-serif; fill: #fff; text-anchor: middle; }
+      .footer { font: 700 19px Arial, sans-serif; fill: #43534c; text-anchor: middle; }
+      .line { stroke: #d4e2da; stroke-width: 3; stroke-linecap: round; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1445" cy="86" r="190" fill="#dff0e5" opacity="0.52"/>
+  <circle cx="70" cy="810" r="230" fill="#ffe4cf" opacity="0.48"/>
+  <path d="M1285 810 C1405 690 1480 535 1538 335" fill="none" stroke="#cbded3" stroke-width="5" opacity="0.55"/>
+  <path d="M58 152 C185 96 308 112 420 178" fill="none" stroke="#d7e8dc" stroke-width="5" opacity="0.7"/>
+
+  <text class="title" x="96" y="92">User Permission</text>
+  <text class="subtitle" x="100" y="130">University Management System</text>
+  <rect x="101" y="155" width="285" height="8" rx="4" fill="#ea580c"/>
+
+  <rect x="1110" y="70" width="380" height="72" rx="36" fill="#fff" stroke="#dce8e0" stroke-width="2" filter="url(#softShadow)"/>
+  <text class="badge" x="1300" y="115">Role-Based Access Control</text>
+
+  <line class="line" x1="327" y1="450" x2="1273" y2="450"/>
+  <circle cx="327" cy="450" r="9" fill="#0f766e"/>
+  <circle cx="800" cy="450" r="9" fill="#6d28d9"/>
+  <circle cx="1273" cy="450" r="9" fill="#ea580c"/>
+
+  <g>
+    <rect class="card" x="115" y="238" width="390" height="505" rx="34"/>
+    <rect x="115" y="238" width="390" height="158" rx="34" fill="url(#adminGrad)"/>
+    <circle class="iconRing" cx="310" cy="300" r="38"/>
+    <text class="icon" x="310" y="314">A</text>
+    <text class="role" x="310" y="354">Admin</text>
+    <text class="roleSub" x="310" y="381">Full system control</text>
+
+    <circle class="checkCircle" cx="160" cy="450" r="17"/>
+    <text class="check" x="160" y="458">✓</text>
+    <text class="permission" x="192" y="458">Manage users</text>
+    <text class="note" x="192" y="484">Create, update, and remove accounts</text>
+
+    <circle class="checkCircle" cx="160" cy="535" r="17"/>
+    <text class="check" x="160" y="543">✓</text>
+    <text class="permission" x="192" y="543">Manage university data</text>
+    <text class="note" x="192" y="569">Students, teachers, classes, subjects</text>
+
+    <circle class="checkCircle" cx="160" cy="620" r="17"/>
+    <text class="check" x="160" y="628">✓</text>
+    <text class="permission" x="192" y="628">View reports</text>
+    <text class="note" x="192" y="654">Attendance, score, payment reports</text>
+  </g>
+
+  <g>
+    <rect class="card" x="605" y="238" width="390" height="505" rx="34"/>
+    <rect x="605" y="238" width="390" height="158" rx="34" fill="url(#teacherGrad)"/>
+    <circle class="iconRing" cx="800" cy="300" r="38"/>
+    <text class="icon" x="800" y="314">T</text>
+    <text class="role" x="800" y="354">Teacher</text>
+    <text class="roleSub" x="800" y="381">Academic management</text>
+
+    <circle class="checkCircle" cx="650" cy="450" r="17"/>
+    <text class="check" x="650" y="458">✓</text>
+    <text class="permission" x="682" y="458">Manage attendance</text>
+    <text class="note" x="682" y="484">Record attendance for assigned classes</text>
+
+    <circle class="checkCircle" cx="650" cy="535" r="17"/>
+    <text class="check" x="650" y="543">✓</text>
+    <text class="permission" x="682" y="543">Manage scores</text>
+    <text class="note" x="682" y="569">Add exam scores and student results</text>
+
+    <circle class="checkCircle" cx="650" cy="620" r="17"/>
+    <text class="check" x="650" y="628">✓</text>
+    <text class="permission" x="682" y="628">View class information</text>
+    <text class="note" x="682" y="654">Subjects, schedules, and student lists</text>
+  </g>
+
+  <g>
+    <rect class="card" x="1095" y="238" width="390" height="505" rx="34"/>
+    <rect x="1095" y="238" width="390" height="158" rx="34" fill="url(#studentGrad)"/>
+    <circle class="iconRing" cx="1290" cy="300" r="38"/>
+    <text class="icon" x="1290" y="314">S</text>
+    <text class="role" x="1290" y="354">Student</text>
+    <text class="roleSub" x="1290" y="381">Personal access only</text>
+
+    <circle class="checkCircle" cx="1140" cy="450" r="17"/>
+    <text class="check" x="1140" y="458">✓</text>
+    <text class="permission" x="1172" y="458">View profile</text>
+    <text class="note" x="1172" y="484">Personal and academic information</text>
+
+    <circle class="checkCircle" cx="1140" cy="535" r="17"/>
+    <text class="check" x="1140" y="543">✓</text>
+    <text class="permission" x="1172" y="543">View results</text>
+    <text class="note" x="1172" y="569">Attendance, scores, and reports</text>
+
+    <circle class="checkCircle" cx="1140" cy="620" r="17"/>
+    <text class="check" x="1140" y="628">✓</text>
+    <text class="permission" x="1172" y="628">View payment status</text>
+    <text class="note" x="1172" y="654">Payment records and notifications</text>
+  </g>
+
+  <rect x="382" y="795" width="835" height="58" rx="29" fill="#fff" stroke="#dce8e0" stroke-width="2" filter="url(#softShadow)"/>
+  <text class="footer" x="800" y="831">Each user can access only the functions allowed by their role.</text>
+</svg>

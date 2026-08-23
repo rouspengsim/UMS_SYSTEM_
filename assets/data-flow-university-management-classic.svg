@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Data Flow - University Management System</title>
+  <desc id="desc">Classic PowerPoint style data flow diagram for a University Management System.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#333333"/>
+    </marker>
+    <style>
+      .page { fill: #e8efd5; }
+      .side-line { fill: none; stroke: #6f6b4c; stroke-width: 4; opacity: 0.85; }
+      .side-line-light { fill: none; stroke: #cbd5ad; stroke-width: 4; opacity: 0.75; }
+      .red { fill: #b42b10; }
+      .title { font: 400 118px Georgia, "Times New Roman", serif; fill: #000; }
+      .canvas { fill: #fff; }
+      .entity { fill: #fff; stroke: #333; stroke-width: 2.5; }
+      .process { fill: #fff; stroke: #333; stroke-width: 2.5; }
+      .store-line { stroke: #333; stroke-width: 2.5; }
+      .flow { fill: none; stroke: #333; stroke-width: 2.3; marker-end: url(#arrow); }
+      .text { font: 700 20px Georgia, "Times New Roman", serif; fill: #0b2845; text-anchor: middle; }
+      .small { font: 700 18px Georgia, "Times New Roman", serif; fill: #0b2845; text-anchor: middle; }
+      .label { font: 700 17px Georgia, "Times New Roman", serif; fill: #0b2845; text-anchor: middle; }
+      .num { font: 700 16px Georgia, "Times New Roman", serif; fill: #0b2845; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <rect class="page" width="1600" height="900"/>
+
+  <path class="red" d="M0 78 H160 L195 112 L160 146 H0 Z"/>
+  <path class="side-line" d="M70 155 C35 360 45 550 155 900"/>
+  <path class="side-line" d="M18 270 C15 475 55 675 135 900"/>
+  <path class="side-line" d="M170 580 C112 700 106 805 172 900"/>
+  <path class="side-line-light" d="M135 505 C92 635 82 785 118 900"/>
+  <path class="side-line-light" d="M190 205 C178 445 198 690 280 900"/>
+
+  <text class="title" x="230" y="120">Data Flow</text>
+  <line x1="228" y1="142" x2="790" y2="142" stroke="#000" stroke-width="8"/>
+
+  <rect class="canvas" x="165" y="170" width="1250" height="665"/>
+
+  <!-- Left side: admin access -->
+  <rect class="entity" x="245" y="340" width="160" height="78"/>
+  <text class="text" x="325" y="386">Admin</text>
+
+  <circle class="process" cx="325" cy="505" r="58"/>
+  <text class="num" x="325" y="474">1</text>
+  <text class="text" x="325" y="505">Login</text>
+  <text class="text" x="325" y="529">Form</text>
+  <path class="flow" d="M325 418 V442"/>
+
+  <circle class="process" cx="570" cy="270" r="62"/>
+  <text class="num" x="570" y="236">2</text>
+  <text class="text" x="570" y="267">Admin</text>
+  <text class="text" x="570" y="291">Dashboard</text>
+  <path class="flow" d="M378 465 C430 390 485 330 512 295"/>
+
+  <line class="store-line" x1="520" y1="420" x2="690" y2="420"/>
+  <line class="store-line" x1="520" y1="482" x2="690" y2="482"/>
+  <text class="text" x="605" y="445">tbl</text>
+  <text class="text" x="605" y="470">Users</text>
+  <path class="flow" d="M570 333 V412"/>
+  <path class="flow" d="M520 452 H390"/>
+  <text class="label" x="475" y="395">Add Users</text>
+  <text class="label" x="708" y="390">Users Report</text>
+
+  <!-- Center access -->
+  <circle class="process" cx="850" cy="412" r="58"/>
+  <text class="num" x="850" y="380">3</text>
+  <text class="text" x="850" y="411">Login</text>
+  <text class="text" x="850" y="435">Form</text>
+
+  <rect class="entity" x="760" y="225" width="175" height="76"/>
+  <text class="text" x="848" y="270">Teacher</text>
+  <path class="flow" d="M848 301 V350"/>
+
+  <rect class="entity" x="1015" y="295" width="175" height="76"/>
+  <text class="text" x="1102" y="340">Student</text>
+  <path class="flow" d="M1015 355 L907 392"/>
+
+  <rect class="entity" x="600" y="520" width="185" height="76"/>
+  <text class="text" x="692" y="568">Subject</text>
+  <path class="flow" d="M785 520 L806 478"/>
+
+  <path class="flow" d="M792 412 H692"/>
+
+  <!-- Schedule -->
+  <circle class="process" cx="855" cy="680" r="58"/>
+  <text class="num" x="855" y="648">4</text>
+  <text class="text" x="855" y="679">Manage</text>
+  <text class="text" x="855" y="703">Schedule</text>
+  <path class="flow" d="M850 470 V620"/>
+
+  <line class="store-line" x1="485" y1="657" x2="660" y2="657"/>
+  <line class="store-line" x1="485" y1="720" x2="660" y2="720"/>
+  <text class="text" x="572" y="682">tbl</text>
+  <text class="text" x="572" y="707">Schedule</text>
+  <path class="flow" d="M797 680 H662"/>
+  <path class="flow" d="M660 704 H797"/>
+  <text class="label" x="720" y="656">Add Schedule</text>
+  <text class="label" x="715" y="733">Schedule Report</text>
+
+  <!-- Student management and score -->
+  <circle class="process" cx="1270" cy="420" r="58"/>
+  <text class="num" x="1270" y="388">5</text>
+  <text class="text" x="1270" y="420">Student</text>
+  <text class="text" x="1270" y="444">Manage</text>
+  <path class="flow" d="M908 412 H1212"/>
+
+  <line class="store-line" x1="1190" y1="585" x2="1372" y2="585"/>
+  <line class="store-line" x1="1190" y1="648" x2="1372" y2="648"/>
+  <text class="text" x="1281" y="610">tbl Student</text>
+  <text class="text" x="1281" y="635">Score</text>
+  <path class="flow" d="M1270 478 V584"/>
+  <path class="flow" d="M1305 585 V480"/>
+  <text class="label" x="1208" y="530">Add Score</text>
+  <text class="label" x="1340" y="530">Report</text>
+
+  <line class="store-line" x1="1190" y1="730" x2="1372" y2="730"/>
+  <line class="store-line" x1="1190" y1="792" x2="1372" y2="792"/>
+  <text class="text" x="1281" y="755">tbl</text>
+  <text class="text" x="1281" y="780">Student</text>
+  <path class="flow" d="M1281 648 V730"/>
+
+  <circle class="process" cx="830" cy="760" r="55"/>
+  <text class="num" x="830" y="729">6</text>
+  <text class="text" x="830" y="758">Register</text>
+  <text class="text" x="830" y="782">Student</text>
+  <path class="flow" d="M885 782 H1190"/>
+  <path class="flow" d="M1190 748 H886"/>
+  <text class="label" x="1035" y="728">Student Report</text>
+  <text class="label" x="1038" y="808">Add Student</text>
+
+  <!-- Payment -->
+  <circle class="process" cx="1062" cy="574" r="58"/>
+  <text class="num" x="1062" y="542">7</text>
+  <text class="text" x="1062" y="580">Payment</text>
+  <path class="flow" d="M895 455 L1018 534"/>
+  <path class="flow" d="M1105 612 L1212 730"/>
+  <path class="flow" d="M1190 735 L1108 610"/>
+  <text class="label" x="1160" y="674" transform="rotate(51 1160 674)">Student Pay</text>
+  <text class="label" x="1160" y="640" transform="rotate(51 1160 640)">Pay Report</text>
+
+  <!-- Outer feedback line -->
+  <path class="flow" d="M775 760 H205 V505 H267"/>
+  <path class="flow" d="M325 563 V695 H775"/>
+</svg>

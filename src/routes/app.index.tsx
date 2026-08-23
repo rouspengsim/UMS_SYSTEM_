@@ -40,9 +40,14 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { pageTitle } from "@/lib/brand";
-import { decodeNotificationContent } from "@/lib/notification-content";
+import {
+  decodeNotificationContent,
+  isNotificationVisibleForRole,
+} from "@/lib/notification-content";
 import { decodeTimetableCell } from "@/lib/timetable-cell";
 import { findTeacherClassScope } from "@/lib/teacher-scope";
+import { formatDateDisplay } from "@/lib/utils";
+import { normalizeMajorLabel } from "@/lib/academic-options";
 
 export const Route = createFileRoute("/app/")({
   head: () => ({ meta: [{ title: pageTitle("Dashboard") }] }),
@@ -109,11 +114,7 @@ type TodayTimetableSlot = {
 function Dashboard() {
   const { t } = useI18n();
   const { user, profile, primaryRole, isDemo } = useAuth();
-  const today = new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const today = formatDateDisplay(new Date());
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats", isDemo ? "demo" : "remote"],
@@ -528,7 +529,7 @@ function Dashboard() {
                     <div>
                       <p className="text-sm font-semibold">{studentName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {p.method ?? "—"} · {(p.paid_date ?? p.created_at).slice(0, 10)}
+                        {p.method ?? "—"} · {formatDateDisplay(p.paid_date ?? p.created_at)}
                       </p>
                     </div>
                     <div className="text-right">
@@ -695,7 +696,11 @@ function TeacherDashboard({ userId, userEmail }: { userId: string; userEmail: st
             title: string;
             body?: string | null;
             created_at: string;
-          }>("studentsphere.demo.notifications").slice(0, 4),
+            target_role?: "admin" | "teacher" | "student" | null;
+            target_user_id?: string | null;
+          }>("studentsphere.demo.notifications")
+            .filter((notification) => isNotificationVisibleForRole(notification, "teacher"))
+            .slice(0, 4),
         };
       }
 
@@ -724,9 +729,9 @@ function TeacherDashboard({ userId, userEmail }: { userId: string; userEmail: st
           : Promise.resolve({ data: [] }),
         supabase
           .from("notifications")
-          .select("id,title,body,created_at")
+          .select("id,title,body,created_at,target_role,target_user_id")
           .order("created_at", { ascending: false })
-          .limit(4),
+          .limit(20),
       ]);
 
       const classes = classesResult.data ?? [];
@@ -776,7 +781,9 @@ function TeacherDashboard({ userId, userEmail }: { userId: string; userEmail: st
             room: payload.room ?? slot.room ?? "",
           };
         }),
-        notifications: notificationsResult.data ?? [],
+        notifications: (notificationsResult.data ?? [])
+          .filter((notification) => isNotificationVisibleForRole(notification, "teacher", userId))
+          .slice(0, 4),
       };
     },
   });
@@ -935,15 +942,27 @@ function StudentDashboard({ userId, userEmail }: { userId: string; userEmail: st
         const numericScores = scores
           .map((row) => row.score)
           .filter((score): score is number => typeof score === "number");
-        const payments = readDemoList<{ status: string; amount: number }>(
-          "studentsphere.demo.payments",
+        const payments = readDemoList<{
+          status: string;
+          amount: number;
+          student_id?: string | null;
+          students?: { student_code?: string | null } | null;
+        }>("studentsphere.demo.payments").filter(
+          (payment) =>
+            !student ||
+            payment.student_id === student.id ||
+            payment.students?.student_code === student.student_code,
         );
         const notifications = readDemoList<{
           id: string;
           title: string;
           body?: string | null;
           created_at: string;
-        }>("studentsphere.demo.notifications").slice(0, 4);
+          target_role?: "admin" | "teacher" | "student" | null;
+          target_user_id?: string | null;
+        }>("studentsphere.demo.notifications")
+          .filter((notification) => isNotificationVisibleForRole(notification, "student"))
+          .slice(0, 4);
         const schedules = readDemoList<{
           className: string;
           rows: Array<{
@@ -1011,14 +1030,20 @@ function StudentDashboard({ userId, userEmail }: { userId: string; userEmail: st
                 .select("subject_code,score")
                 .eq("student_id", student.id)
             : Promise.resolve({ data: [] }),
-          supabase.from("payments").select("status,amount,due_date,paid_date").order("created_at", {
-            ascending: false,
-          }),
+          student
+            ? supabase
+                .from("payments")
+                .select("status,amount,due_date,paid_date")
+                .eq("student_id", student.id)
+                .order("created_at", {
+                  ascending: false,
+                })
+            : Promise.resolve({ data: [] }),
           supabase
             .from("notifications")
-            .select("id,title,body,created_at")
+            .select("id,title,body,created_at,target_role,target_user_id")
             .order("created_at", { ascending: false })
-            .limit(4),
+            .limit(20),
         ]);
 
       const classIds = (classesResult.data ?? []).map((row) => row.id);
@@ -1063,7 +1088,9 @@ function StudentDashboard({ userId, userEmail }: { userId: string; userEmail: st
             : payments.length > 0
               ? "paid"
               : "no_invoice",
-        notifications: notificationsResult.data ?? [],
+        notifications: (notificationsResult.data ?? [])
+          .filter((notification) => isNotificationVisibleForRole(notification, "student", userId))
+          .slice(0, 4),
         todaySchedule: timetableResult.map((slot) => {
           const payload = decodeTimetableCell(slot.room);
           return {
@@ -1087,11 +1114,7 @@ function StudentDashboard({ userId, userEmail }: { userId: string; userEmail: st
   const studentName =
     data?.student?.full_name_en || data?.student?.full_name || profile?.full_name || "Student";
   const studentFirstName = studentName.split(" ")[0];
-  const todayLabel = new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  const todayLabel = formatDateDisplay(new Date());
   const feeTone =
     data?.feeStatus === "paid"
       ? "border-success/25 bg-success/8 text-success"
@@ -1118,7 +1141,8 @@ function StudentDashboard({ userId, userEmail }: { userId: string; userEmail: st
               {t("hello")} <span className="text-primary">{studentFirstName}</span>
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {data?.className || t("class")} · {data?.student?.major || t("student_portal")}
+              {data?.className || t("class")} ·{" "}
+              {normalizeMajorLabel(data?.student?.major) || t("student_portal")}
             </p>
           </div>
         </div>

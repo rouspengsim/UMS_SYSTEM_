@@ -1,3 +1,5 @@
+const IE_MAJOR_VALUE = "បរិញ្ញាបត្រសេដ្ឋកិច្ចព័ត៌មាន - Information Economics (IE)";
+
 export const MAJOR_OPTIONS = [
   {
     group: "១. មហាវិទ្យាល័យនីតិសាស្ត្រ - Faculty of Law (LAW)",
@@ -49,8 +51,8 @@ export const MAJOR_OPTIONS = [
     group: "៤. មហាវិទ្យាល័យសេដ្ឋកិច្ចព័ត៌មានវិទ្យា - Faculty of Economics Informatics (FEI)",
     options: [
       {
-        value: "បរិញ្ញាបត្រសេដ្ឋកិច្ចព័ត៌មានវិទ្យា - Economics Informatics (EI)",
-        label: "៤.១ បរិញ្ញាបត្រសេដ្ឋកិច្ចព័ត៌មានវិទ្យា - Economics Informatics (EI)",
+        value: IE_MAJOR_VALUE,
+        label: `៤.១ ${IE_MAJOR_VALUE}`,
       },
       {
         value: "បរិញ្ញាបត្រព័ត៌មានវិទ្យា - Information Technology (IT)",
@@ -85,9 +87,26 @@ export const MAJOR_OPTIONS = [
 
 export const FLAT_MAJOR_OPTIONS = MAJOR_OPTIONS.flatMap((group) => group.options);
 
+export function normalizeMajorLabel(major: string | null | undefined) {
+  const value = (major ?? "").replace(/\(EI\)/g, "(IE)");
+
+  return (
+    value
+      .replace(
+        /បរិញ្ញាបត្រសេដ្ឋកិច្ចព័ត៌មានវិទ្យា\s*-\s*(?:Economics?|Economic)\s+(?:Informatics|Information|Infomation)\s*\(IE\)/gi,
+        IE_MAJOR_VALUE,
+      )
+      .replace(
+        /(?:Economics?|Economic)\s+(?:Informatics|Information|Infomation)\s*\(IE\)/gi,
+        "Information Economics (IE)",
+      ) || null
+  );
+}
+
 export function majorCode(major: string | null | undefined) {
   const matches = Array.from((major ?? "").matchAll(/\(([A-Z]{2,5})\)/g));
-  return matches.at(-1)?.[1] ?? "GEN";
+  const code = matches.at(-1)?.[1] ?? "GEN";
+  return code === "EI" ? "IE" : code;
 }
 
 export function shiftCode(shift: string | null | undefined) {

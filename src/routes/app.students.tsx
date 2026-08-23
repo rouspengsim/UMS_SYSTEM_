@@ -28,13 +28,20 @@ import {
   FLAT_MAJOR_OPTIONS,
   MAJOR_OPTIONS,
   generateClassName,
+  normalizeMajorLabel,
 } from "@/lib/academic-options";
+import { formatDateDisplay } from "@/lib/utils";
 import { generateSchoolAccountId } from "@/lib/account-ids";
 import { pageTitle } from "@/lib/brand";
 import { createStudentAccount } from "@/lib/student-accounts";
 import { ResetPasswordModal } from "@/components/app/reset-password-modal";
 import { findTeacherClassScope } from "@/lib/teacher-scope";
-import { tuitionPaymentLabel, tuitionPaymentOptions, tuitionPaymentPrice } from "@/lib/tuition";
+import {
+  isScholarshipStudent,
+  tuitionPaymentLabel,
+  tuitionPaymentOptions,
+  tuitionPaymentPrice,
+} from "@/lib/tuition";
 
 export const Route = createFileRoute("/app/students")({
   head: () => ({ meta: [{ title: pageTitle("Students") }] }),
@@ -264,6 +271,17 @@ function printDocument(
           th, td { border: 1px solid #4b5563; padding: 3px 4px; text-align: center; vertical-align: middle; }
           th { font-weight: 700; background: #f3f4f6; }
           td.name, th.name { text-align: left; }
+          .student-id {
+            white-space: nowrap;
+            word-break: keep-all;
+          }
+          .major-cell {
+            text-align: left;
+            white-space: nowrap;
+            word-break: keep-all;
+            font-size: 9px;
+            letter-spacing: 0;
+          }
           .footer {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -289,19 +307,19 @@ function printDocument(
 }
 
 function studentListReportHtml(students: StudentRow[], reportTitle: string) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatDateDisplay(new Date());
   const rows = students
     .map(
       (student, index) => `
         <tr>
           <td style="width: 28px">${index + 1}</td>
-          <td style="width: 76px">${escapeHtml(student.student_code)}</td>
-          <td class="name">${escapeHtml(student.full_name_km)}</td>
-          <td class="name">${escapeHtml(student.full_name_en || student.full_name)}</td>
+          <td class="student-id" style="width: 96px">${escapeHtml(student.student_code)}</td>
+          <td class="name" style="width: 130px">${escapeHtml(student.full_name_km)}</td>
+          <td class="name" style="width: 150px">${escapeHtml(student.full_name_en || student.full_name)}</td>
           <td style="width: 34px">${escapeHtml(student.gender?.toLowerCase().startsWith("f") ? "F" : "M")}</td>
-          <td style="width: 72px">${escapeHtml(student.date_of_birth)}</td>
+          <td style="width: 72px">${escapeHtml(formatDateDisplay(student.date_of_birth))}</td>
           <td style="width: 68px">${escapeHtml(student.class_name)}</td>
-          <td style="width: 70px">${escapeHtml(student.major)}</td>
+          <td class="major-cell" style="width: 260px">${escapeHtml(normalizeMajorLabel(student.major))}</td>
           <td style="width: 70px">${escapeHtml(student.status)}</td>
         </tr>
       `,
@@ -331,13 +349,13 @@ function studentListReportHtml(students: StudentRow[], reportTitle: string) {
         <thead>
           <tr>
             <th style="width: 28px">ល.រ</th>
-            <th style="width: 76px">អត្តលេខ</th>
-            <th class="name">គោត្តនាម និង នាម</th>
-            <th class="name">នាមជាអក្សរឡាតាំង</th>
+            <th class="student-id" style="width: 96px">អត្តលេខ</th>
+            <th class="name" style="width: 130px">គោត្តនាម និង នាម</th>
+            <th class="name" style="width: 150px">នាមជាអក្សរឡាតាំង</th>
             <th style="width: 34px">ភេទ</th>
             <th style="width: 72px">ថ្ងៃខែកំណើត</th>
             <th style="width: 68px">ក្រុម</th>
-            <th style="width: 70px">ជំនាញ</th>
+            <th class="major-cell" style="width: 260px">ជំនាញ</th>
             <th style="width: 70px">ផ្សេងៗ</th>
           </tr>
         </thead>
@@ -465,6 +483,29 @@ function StudentsPage() {
       ),
     ).sort((a, b) => a.localeCompare(b));
   }, [students]);
+  const visibleMajorOptions = useMemo(() => {
+    const visibleMajors = new Set(
+      students.map((student) => student.major?.trim()).filter((major): major is string => !!major),
+    );
+    const options = FLAT_MAJOR_OPTIONS.filter((major) => visibleMajors.has(major.value));
+    if (options.length > 0) return options;
+    return isAdmin ? FLAT_MAJOR_OPTIONS : [];
+  }, [isAdmin, students]);
+
+  useEffect(() => {
+    if (
+      majorFilter !== "all" &&
+      !visibleMajorOptions.some((major) => major.value === majorFilter)
+    ) {
+      setMajorFilter("all");
+    }
+  }, [majorFilter, visibleMajorOptions]);
+
+  useEffect(() => {
+    if (classFilter !== "all" && !classOptions.includes(classFilter)) {
+      setClassFilter("all");
+    }
+  }, [classFilter, classOptions]);
 
   const printTitle =
     classFilter === "all" ? "បញ្ជីរាយនាមនិស្សិត" : `បញ្ជីរាយនាមនិស្សិត ថ្នាក់ ${classFilter}`;
@@ -507,6 +548,7 @@ function StudentsPage() {
                 printDocument(
                   classFilter === "all" ? "Student List" : `Student List - ${classFilter}`,
                   studentListReportHtml(filtered, printTitle),
+                  "landscape",
                 )
               }
               disabled={filtered.length === 0}
@@ -597,9 +639,9 @@ function StudentsPage() {
                 className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
               >
                 <option value="all">{t("all_majors")}</option>
-                {FLAT_MAJOR_OPTIONS.map((major) => (
+                {visibleMajorOptions.map((major) => (
                   <option key={major.value} value={major.value}>
-                    {major.label}
+                    {normalizeMajorLabel(major.label)}
                   </option>
                 ))}
               </select>
@@ -644,122 +686,184 @@ function StudentsPage() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="py-3 pr-4">{t("student_id")}</th>
-                  <th className="py-3 pr-4">{t("name")}</th>
-                  <th className="py-3 pr-4">{t("gender")}</th>
-                  <th className="py-3 pr-4">{t("dob")}</th>
-                  <th className="py-3 pr-4">{t("year")}</th>
-                  <th className="py-3 pr-4">{t("major")}</th>
-                  <th className="py-3 pr-4">{t("class")}</th>
-                  <th className="py-3 pr-4">{t("shift")}</th>
-                  <th className="py-3 pr-4">{t("address")}</th>
-                  <th className="py-3 pr-4">{t("status")}</th>
-                  <th className="py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => {
-                  const canViewDetails = primaryRole !== "student" || isOwnStudent(s);
-                  return (
-                    <tr
-                      key={s.id}
-                      className="group border-b border-border/60 transition-colors hover:bg-muted/40"
-                    >
-                      <td className="py-3 pr-4 font-mono text-xs">{s.student_code}</td>
-                      <td className="py-3 pr-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={s.full_name_en || s.full_name} src={s.avatar_url} />
-                          <div>
-                            <p className="font-semibold leading-tight">
+          <>
+            <div className="hidden overflow-hidden rounded-xl border border-border md:block">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1080px] text-sm">
+                  <thead className="bg-muted/50">
+                    <tr className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <th className="px-4 py-3">{t("student_id")}</th>
+                      <th className="px-4 py-3">{t("name")}</th>
+                      <th className="px-4 py-3">{t("gender")}</th>
+                      <th className="px-4 py-3">{t("dob")}</th>
+                      <th className="px-4 py-3">{t("year")}</th>
+                      <th className="px-4 py-3">{t("major")}</th>
+                      <th className="px-4 py-3">{t("class")}</th>
+                      <th className="px-4 py-3">{t("shift")}</th>
+                      <th className="px-4 py-3">{t("address")}</th>
+                      <th className="px-4 py-3">{t("status")}</th>
+                      <th className="px-4 py-3 text-right">{t("actions")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/70 bg-card">
+                    {filtered.map((s) => {
+                      const canViewDetails = primaryRole !== "student" || isOwnStudent(s);
+                      return (
+                        <tr key={s.id} className="group transition-colors hover:bg-muted/45">
+                          <td className="px-4 py-3 align-middle">
+                            <span className="rounded-lg bg-primary/10 px-2.5 py-1 font-mono text-xs font-semibold text-primary">
+                              {s.student_code}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            <div className="flex min-w-[220px] items-center gap-3">
+                              <Avatar
+                                name={s.full_name_en || s.full_name}
+                                src={s.avatar_url}
+                                className="h-10 w-10"
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold leading-tight text-foreground">
+                                  {s.full_name_en || s.full_name}
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {s.full_name_km || t("khmer_name")}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 align-middle capitalize">{s.gender ?? "—"}</td>
+                          <td className="whitespace-nowrap px-4 py-3 align-middle text-xs">
+                            {formatDateDisplay(s.date_of_birth)}
+                          </td>
+                          <td className="px-4 py-3 align-middle font-semibold">
+                            {s.study_year ?? s.enrollment_year}
+                          </td>
+                          <td className="px-4 py-3 align-middle text-xs">
+                            <span className="line-clamp-2 max-w-72">
+                              {normalizeMajorLabel(s.major) ?? "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            <span className="whitespace-nowrap rounded-lg border border-border bg-surface px-2.5 py-1 text-xs font-semibold">
+                              {s.class_name ?? "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            <span className="whitespace-nowrap rounded-full bg-info/10 px-2.5 py-1 text-[11px] font-semibold text-info">
+                              {shiftLabel(s.shift, t)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 align-middle text-xs">
+                            <span className="line-clamp-2 max-w-52">{s.address ?? "—"}</span>
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            <StatusPill status={s.status} />
+                          </td>
+                          <td className="px-4 py-3 align-middle">
+                            <StudentRowActions
+                              student={s}
+                              canViewDetails={canViewDetails}
+                              canUploadAvatar={isAdmin || isOwnStudent(s)}
+                              isAdmin={isAdmin}
+                              onView={() => setSelectedStudent(s)}
+                              onAvatar={() => setAvatarStudent(s)}
+                              onEdit={() => setEditingStudent(s)}
+                              onPassword={() => setPasswordStudent(s)}
+                              onDelete={() => {
+                                if (confirm(`Delete ${s.full_name}?`)) deleteMut.mutate(s.id);
+                              }}
+                              t={t}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:hidden">
+              {filtered.map((s) => {
+                const canViewDetails = primaryRole !== "student" || isOwnStudent(s);
+                return (
+                  <article
+                    key={s.id}
+                    className="rounded-xl border border-border bg-surface p-4 shadow-soft"
+                  >
+                    <div className="flex items-start gap-3">
+                      <Avatar
+                        name={s.full_name_en || s.full_name}
+                        src={s.avatar_url}
+                        className="h-12 w-12"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-foreground">
                               {s.full_name_en || s.full_name}
                             </p>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="truncate text-xs text-muted-foreground">
                               {s.full_name_km || t("khmer_name")}
                             </p>
                           </div>
+                          <StatusPill status={s.status} />
                         </div>
-                      </td>
-                      <td className="py-3 pr-4 capitalize">{s.gender ?? "—"}</td>
-                      <td className="py-3 pr-4 whitespace-nowrap text-xs">
-                        {s.date_of_birth ?? "—"}
-                      </td>
-                      <td className="py-3 pr-4">{s.study_year ?? s.enrollment_year}</td>
-                      <td className="max-w-64 py-3 pr-4 text-xs">
-                        <span className="line-clamp-2">{s.major ?? "—"}</span>
-                      </td>
-                      <td className="py-3 pr-4 font-semibold">{s.class_name ?? "—"}</td>
-                      <td className="py-3 pr-4">
-                        <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
-                          {shiftLabel(s.shift, t)}
-                        </span>
-                      </td>
-                      <td className="max-w-48 py-3 pr-4 text-xs">
-                        <span className="line-clamp-2">{s.address ?? "—"}</span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <StatusPill status={s.status} />
-                      </td>
-                      <td className="py-3 text-right">
-                        <div className="flex justify-end gap-1.5">
-                          {canViewDetails && (
-                            <button
-                              onClick={() => setSelectedStudent(s)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary hover:bg-primary/10"
-                              aria-label={`${t("view")} ${s.full_name}`}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                          )}
-                          {(isAdmin || isOwnStudent(s)) && (
-                            <button
-                              onClick={() => setAvatarStudent(s)}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-success hover:bg-success/10"
-                              aria-label={`${t("upload_profile_image")} ${s.full_name}`}
-                              title={t("upload_profile_image")}
-                            >
-                              <Camera className="h-4 w-4" />
-                            </button>
-                          )}
-                          {isAdmin && (
-                            <>
-                              <button
-                                onClick={() => setEditingStudent(s)}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-info opacity-0 transition-opacity hover:bg-info/10 group-hover:opacity-100"
-                                aria-label={`Update ${s.full_name}`}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => setPasswordStudent(s)}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-warning opacity-0 transition-opacity hover:bg-warning/10 group-hover:opacity-100"
-                                aria-label={`Reset password for ${s.full_name}`}
-                                title="Reset password"
-                              >
-                                <KeyRound className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Delete ${s.full_name}?`)) deleteMut.mutate(s.id);
-                                }}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-destructive opacity-0 transition-opacity hover:bg-destructive/10 group-hover:opacity-100"
-                                aria-label={`${t("delete")} ${s.full_name}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </>
-                          )}
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-lg bg-primary/10 px-2 py-1 font-mono text-[11px] font-semibold text-primary">
+                            {s.student_code}
+                          </span>
+                          <span className="rounded-lg border border-border bg-card px-2 py-1 text-[11px] font-semibold">
+                            {s.class_name ?? "—"}
+                          </span>
+                          <span className="rounded-full bg-info/10 px-2 py-1 text-[11px] font-semibold text-info">
+                            {shiftLabel(s.shift, t)}
+                          </span>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                      <StudentMobileMeta label={t("gender")} value={s.gender ?? "—"} />
+                      <StudentMobileMeta
+                        label={t("dob")}
+                        value={formatDateDisplay(s.date_of_birth)}
+                      />
+                      <StudentMobileMeta
+                        label={t("year")}
+                        value={String(s.study_year ?? s.enrollment_year)}
+                      />
+                      <StudentMobileMeta label={t("address")} value={s.address ?? "—"} />
+                      <div className="col-span-2">
+                        <StudentMobileMeta
+                          label={t("major")}
+                          value={normalizeMajorLabel(s.major) ?? "—"}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex justify-end border-t border-border pt-3">
+                      <StudentRowActions
+                        student={s}
+                        canViewDetails={canViewDetails}
+                        canUploadAvatar={isAdmin || isOwnStudent(s)}
+                        isAdmin={isAdmin}
+                        onView={() => setSelectedStudent(s)}
+                        onAvatar={() => setAvatarStudent(s)}
+                        onEdit={() => setEditingStudent(s)}
+                        onPassword={() => setPasswordStudent(s)}
+                        onDelete={() => {
+                          if (confirm(`Delete ${s.full_name}?`)) deleteMut.mutate(s.id);
+                        }}
+                        t={t}
+                      />
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
         )}
 
         <div className="mt-4 text-xs text-muted-foreground">
@@ -947,8 +1051,12 @@ function StudentAvatarModal({
   );
 }
 
-function payYearLabel(value: string | null | undefined, major: string | null | undefined) {
-  return tuitionPaymentLabel(value, major);
+function payYearLabel(
+  value: string | null | undefined,
+  major: string | null | undefined,
+  studentType: string | null | undefined,
+) {
+  return tuitionPaymentLabel(value, major, studentType);
 }
 
 function academicYearLabel(enrollmentYear: number | null | undefined) {
@@ -1008,7 +1116,7 @@ function StudentInfoModal({ student, onClose }: { student: StudentRow; onClose: 
             />
             <InfoField label={t("gender")} value={student.gender} />
             <InfoField label={t("nationality")} value={student.nationality} />
-            <InfoField label={t("dob")} value={student.date_of_birth} />
+            <InfoField label={t("dob")} value={formatDateDisplay(student.date_of_birth)} />
             <InfoField label={t("place_of_birth")} value={student.place_of_birth} />
             <InfoField label={t("father_name")} value={student.father_name} />
             <InfoField label={t("father_job")} value={student.father_job} />
@@ -1024,26 +1132,26 @@ function StudentInfoModal({ student, onClose }: { student: StudentRow; onClose: 
                 label={t("academic_year")}
                 value={academicYearLabel(student.enrollment_year)}
               />
-              <InfoField label={t("major")} value={student.major} />
+              <InfoField label={t("major")} value={normalizeMajorLabel(student.major)} />
               <InfoField label={t("type_of_student")} value={student.student_type} />
               <InfoField label={t("class")} value={student.class_name} />
               <InfoField label={t("shift")} value={shiftLabel(student.shift, t)} />
               <InfoField label={t("year")} value={student.study_year} />
               <InfoField
                 label={t("pay_year1")}
-                value={payYearLabel(student.pay_year1, student.major)}
+                value={payYearLabel(student.pay_year1, student.major, student.student_type)}
               />
               <InfoField
                 label={t("pay_year2")}
-                value={payYearLabel(student.pay_year2, student.major)}
+                value={payYearLabel(student.pay_year2, student.major, student.student_type)}
               />
               <InfoField
                 label={t("pay_year3")}
-                value={payYearLabel(student.pay_year3, student.major)}
+                value={payYearLabel(student.pay_year3, student.major, student.student_type)}
               />
               <InfoField
                 label={t("pay_year4")}
-                value={payYearLabel(student.pay_year4, student.major)}
+                value={payYearLabel(student.pay_year4, student.major, student.student_type)}
               />
               <InfoField label={t("email")} value={student.email} />
               <InfoField label={t("image")} value={student.avatar_url} />
@@ -1458,6 +1566,7 @@ function AddStudentModal({
             <PaymentYearSelect
               label={t(`pay_year${paymentStudyYear(form.study_year)}`)}
               major={form.major}
+              studentType={form.student_type}
               value={
                 paymentStudyYear(form.study_year) === 1
                   ? form.pay_year1
@@ -1833,6 +1942,7 @@ function EditStudentModal({
             <PaymentYearSelect
               label={t(`pay_year${paymentStudyYear(form.study_year)}`)}
               major={form.major}
+              studentType={form.student_type}
               value={
                 paymentStudyYear(form.study_year) === 1
                   ? form.pay_year1
@@ -2033,14 +2143,26 @@ function ImageUploadField({
 function PaymentYearSelect({
   label,
   major,
+  studentType,
   value,
   onChange,
 }: {
   label: string;
   major: string | null | undefined;
+  studentType: string | null | undefined;
   value: string;
   onChange: (v: string) => void;
 }) {
+  const displayValue =
+    isScholarshipStudent(studentType) &&
+    (value === "semester_300" ||
+      value === "semester1_300" ||
+      value === "semester2_300" ||
+      value === "semester1_2_600" ||
+      value === "paid")
+      ? "full_year_580"
+      : value;
+
   return (
     <div>
       <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -2048,11 +2170,11 @@ function PaymentYearSelect({
       </label>
       <div className="grid overflow-hidden rounded-xl border border-border bg-surface focus-within:border-primary sm:grid-cols-[1fr_120px]">
         <select
-          value={value}
+          value={displayValue}
           onChange={(e) => onChange(e.target.value)}
           className="h-10 min-w-0 border-0 bg-transparent px-3 text-sm outline-none"
         >
-          {tuitionPaymentOptions(major).map((option) => (
+          {tuitionPaymentOptions(major, studentType).map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -2063,10 +2185,98 @@ function PaymentYearSelect({
             Price
           </span>
           <span className="font-mono text-sm font-bold text-primary">
-            {tuitionPaymentPrice(value, major)}
+            {tuitionPaymentPrice(displayValue, major, studentType)}
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function StudentRowActions({
+  student,
+  canViewDetails,
+  canUploadAvatar,
+  isAdmin,
+  onView,
+  onAvatar,
+  onEdit,
+  onPassword,
+  onDelete,
+  t,
+}: {
+  student: StudentRow;
+  canViewDetails: boolean;
+  canUploadAvatar: boolean;
+  isAdmin: boolean;
+  onView: () => void;
+  onAvatar: () => void;
+  onEdit: () => void;
+  onPassword: () => void;
+  onDelete: () => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <div className="flex justify-end gap-1.5">
+      {canViewDetails && (
+        <button
+          onClick={onView}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-primary transition-colors hover:bg-primary/10"
+          aria-label={`${t("view")} ${student.full_name}`}
+          title={t("view")}
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+      )}
+      {canUploadAvatar && (
+        <button
+          onClick={onAvatar}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-success transition-colors hover:bg-success/10"
+          aria-label={`${t("upload_profile_image")} ${student.full_name}`}
+          title={t("upload_profile_image")}
+        >
+          <Camera className="h-4 w-4" />
+        </button>
+      )}
+      {isAdmin && (
+        <>
+          <button
+            onClick={onEdit}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-info transition-colors hover:bg-info/10"
+            aria-label={`Update ${student.full_name}`}
+            title="Update"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onPassword}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-warning transition-colors hover:bg-warning/10"
+            aria-label={`Reset password for ${student.full_name}`}
+            title="Reset password"
+          >
+            <KeyRound className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onDelete}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-destructive transition-colors hover:bg-destructive/10"
+            aria-label={`${t("delete")} ${student.full_name}`}
+            title={t("delete")}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function StudentMobileMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-card px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 truncate font-semibold text-foreground">{value}</p>
     </div>
   );
 }

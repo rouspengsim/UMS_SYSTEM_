@@ -506,10 +506,14 @@ export type Database = {
       };
       subject_scores: {
         Row: {
+          assignment_score: number | null;
+          attendance_score: number | null;
           class_id: string;
           created_at: string;
+          final_score: number | null;
           id: string;
           max_score: number;
+          midterm_score: number | null;
           recorded_by: string | null;
           score: number | null;
           semester: string;
@@ -519,10 +523,14 @@ export type Database = {
           week_number: number;
         };
         Insert: {
+          assignment_score?: number | null;
+          attendance_score?: number | null;
           class_id: string;
           created_at?: string;
+          final_score?: number | null;
           id?: string;
           max_score?: number;
+          midterm_score?: number | null;
           recorded_by?: string | null;
           score?: number | null;
           semester?: string;
@@ -532,10 +540,14 @@ export type Database = {
           week_number?: number;
         };
         Update: {
+          assignment_score?: number | null;
+          attendance_score?: number | null;
           class_id?: string;
           created_at?: string;
+          final_score?: number | null;
           id?: string;
           max_score?: number;
+          midterm_score?: number | null;
           recorded_by?: string | null;
           score?: number | null;
           semester?: string;

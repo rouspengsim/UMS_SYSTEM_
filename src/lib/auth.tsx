@@ -43,12 +43,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isDemo, setIsDemo] = useState(false);
 
   const loadAuxData = async (uid: string, fallbackRole: Role | null = null) => {
-    const [{ data: prof }, { data: roleRows }] = await Promise.all([
+    const [profileResult, rolesResult] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", uid).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", uid),
     ]);
-    const loadedRoles = ((roleRows ?? []) as { role: Role }[]).map((r) => r.role);
-    setProfile((prof as Profile | null) ?? null);
+
+    const loadedRoles =
+      rolesResult.error || !rolesResult.data
+        ? []
+        : ((rolesResult.data ?? []) as { role: Role }[]).map((r) => r.role);
+
+    setProfile(profileResult.error ? null : ((profileResult.data as Profile | null) ?? null));
     setRoles(loadedRoles.length > 0 ? loadedRoles : fallbackRole ? [fallbackRole] : []);
   };
 
@@ -83,14 +88,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // Then fetch existing session
-    supabase.auth.getSession().then(async ({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      if (data.session?.user) {
-        await loadAuxData(data.session.user.id, metadataRole(data.session.user));
-      }
-      setLoading(false);
-    });
+    supabase.auth
+      .getSession()
+      .then(async ({ data }) => {
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+        if (data.session?.user) {
+          await loadAuxData(data.session.user.id, metadataRole(data.session.user));
+        }
+        setLoading(false);
+      })
+      .catch(() => {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setRoles([]);
+        setLoading(false);
+      });
 
     return () => {
       sub.subscription.unsubscribe();

@@ -13,7 +13,15 @@ import {
   UNIVERSITY_NAME_EN,
   UNIVERSITY_NAME_KM,
 } from "@/lib/brand";
-import { DEFAULT_SUBJECT_OPTIONS, readDemoSubjects, subjectRowsToOptions } from "@/lib/subjects";
+import {
+  DEFAULT_SUBJECT_OPTIONS,
+  filterSubjectOptionsByScope,
+  readDemoSubjects,
+  subjectDescriptionSemesterNumber,
+  subjectRowsToOptions,
+} from "@/lib/subjects";
+import { normalizeMajorLabel } from "@/lib/academic-options";
+import { formatDateDisplay } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/certificates")({
   head: () => ({ meta: [{ title: pageTitle("Certificates") }] }),
@@ -36,6 +44,8 @@ type CertificateRow = {
     avatar_url: string | null;
     date_of_birth: string | null;
     gender?: string | null;
+    enrollment_year?: number | null;
+    study_year?: number | null;
     major: string | null;
     class_name?: string | null;
   } | null;
@@ -76,13 +86,7 @@ function escapeHtml(value: string | number | null | undefined) {
 }
 
 function formatCertificateDate(value: string) {
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  return formatDateDisplay(value);
 }
 
 function formatKhmerCertificateDate(value: string) {
@@ -120,6 +124,20 @@ function certificateKindLabel(kind: string) {
   return "Certificate of Completion";
 }
 
+function khmerGenderLabel(gender: string | null | undefined) {
+  const normalized = gender?.trim().toLowerCase() ?? "";
+  if (["male", "m", "ប្រុស"].includes(normalized)) return "ប្រុស";
+  if (["female", "f", "ស្រី"].includes(normalized)) return "ស្រី";
+  return gender || "—";
+}
+
+function academicYearLabel(enrollmentYear: number | null | undefined, issueDate: string) {
+  const issueYear = new Date(`${issueDate}T00:00:00`).getFullYear();
+  const year =
+    Number(enrollmentYear) || (Number.isFinite(issueYear) ? issueYear : new Date().getFullYear());
+  return `${year}-${year + 1}`;
+}
+
 const FALLBACK_TRANSCRIPT_SUBJECTS = [
   { code: "GCS111", name: "វប្បធម៌ទូទៅ" },
   { code: "MAT113", name: "គណិតវិទ្យា" },
@@ -133,8 +151,21 @@ const FALLBACK_TRANSCRIPT_SUBJECTS = [
   { code: "CPP121", name: "កម្មវិធីភាសា C/C++" },
 ];
 
+const TRANSCRIPT_SUBJECT_LIMIT = 12;
+
 function formatScore(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(2) : "";
+}
+
+function shortSubjectCode(code: string) {
+  const normalized = code.trim();
+  const curriculumMatch = normalized.match(/^CURR_SUBJECT_(\d+)$/i);
+  if (curriculumMatch) return `S${curriculumMatch[1]}`;
+  if (normalized.length <= 8) return normalized;
+  return normalized
+    .replace(/[^A-Za-z0-9]/g, "")
+    .slice(0, 8)
+    .toUpperCase();
 }
 
 function semesterKhLabel(value: string, fallbackIndex: number) {
@@ -165,12 +196,50 @@ function fallbackTranscriptRows(): TranscriptScoreRow[] {
   }));
 }
 
+function curriculumTranscriptRows(certificate: CertificateRow): TranscriptScoreRow[] {
+  const subjects = filterSubjectOptionsByScope(DEFAULT_SUBJECT_OPTIONS, {
+    major: certificate.students?.major,
+    studyYear: certificate.students?.study_year,
+  }).slice(0, TRANSCRIPT_SUBJECT_LIMIT);
+
+  if (subjects.length < 4) return fallbackTranscriptRows();
+
+  return subjects.map((subject, index) => {
+    const semester = subjectDescriptionSemesterNumber(subject.description);
+    return {
+      subject_code: subject.code,
+      subject_name: subject.label,
+      score: null,
+      max_score: 100,
+      semester: semester ? `Semester ${semester}` : index < 6 ? "Semester 1" : "Semester 2",
+    };
+  });
+}
+
+function mergeTranscriptRowsWithScores(
+  baseRows: TranscriptScoreRow[],
+  scoreRows: TranscriptScoreRow[],
+) {
+  const scoresByCode = new Map(scoreRows.map((row) => [row.subject_code, row]));
+  return baseRows.map((row) => {
+    const scoreRow = scoresByCode.get(row.subject_code);
+    if (!scoreRow) return row;
+    return {
+      ...row,
+      score: scoreRow.score,
+      max_score: scoreRow.max_score,
+      semester: scoreRow.semester || row.semester,
+    };
+  });
+}
+
 async function loadTranscriptRows(
   certificate: CertificateRow,
   isDemo: boolean,
 ): Promise<TranscriptScoreRow[]> {
   const studentId = certificate.student_id || certificate.students?.id;
-  if (!studentId) return fallbackTranscriptRows();
+  const curriculumRows = curriculumTranscriptRows(certificate);
+  if (!studentId) return curriculumRows;
 
   if (isDemo) {
     const subjectNames = new Map(
@@ -191,7 +260,7 @@ async function loadTranscriptRows(
         max_score: row.max_score ?? 100,
         semester: row.semester || "Semester 1",
       }));
-    return rows.length > 0 ? rows : fallbackTranscriptRows();
+    return mergeTranscriptRowsWithScores(curriculumRows, rows);
   }
 
   const { data, error } = await supabase
@@ -208,7 +277,6 @@ async function loadTranscriptRows(
     max_score: number | null;
     semester: string | null;
   }>;
-  if (scoreRows.length === 0) return fallbackTranscriptRows();
 
   const subjectCodes = Array.from(
     new Set(scoreRows.map((row) => row.subject_code).filter(Boolean)),
@@ -226,13 +294,15 @@ async function loadTranscriptRows(
     });
   }
 
-  return scoreRows.map((row) => ({
+  const rows = scoreRows.map((row) => ({
     subject_code: row.subject_code,
     subject_name: subjectNames.get(row.subject_code) || row.subject_code,
     score: row.score,
     max_score: row.max_score ?? 100,
     semester: row.semester || "Semester 1",
   }));
+
+  return mergeTranscriptRowsWithScores(curriculumRows, rows);
 }
 
 async function printCertificate(certificate: CertificateRow, isDemo: boolean) {
@@ -259,19 +329,22 @@ async function printCertificate(certificate: CertificateRow, isDemo: boolean) {
     : `<span>${escapeHtml(translate("photo"))}</span>`;
   const certificateTitle = escapeHtml(certificate.title || certificateKindLabel(certificate.kind));
   const issueDate = escapeHtml(formatCertificateDate(certificate.issue_date));
-  const issueDateKh = escapeHtml(formatKhmerCertificateDate(certificate.issue_date));
+  const issueDateKh = escapeHtml(formatDateDisplay(certificate.issue_date));
   const dateOfBirthKh = certificate.students?.date_of_birth
-    ? escapeHtml(formatKhmerCertificateDate(certificate.students.date_of_birth))
+    ? escapeHtml(formatDateDisplay(certificate.students.date_of_birth))
     : "—";
   const programKh = escapeHtml(
-    certificate.students?.major || certificate.title || "កម្មវិធីសិក្សា",
+    normalizeMajorLabel(certificate.students?.major) || certificate.title || "កម្មវិធីសិក្សា",
   );
   const verificationCode = escapeHtml(certificate.verification_code);
   const serial = escapeHtml(certificate.verification_code.slice(0, 18).toUpperCase());
   const className = escapeHtml(
-    certificate.students?.class_name || certificate.students?.major || "—",
+    certificate.students?.class_name || normalizeMajorLabel(certificate.students?.major) || "—",
   );
-  const gender = escapeHtml(certificate.students?.gender || "—");
+  const gender = escapeHtml(khmerGenderLabel(certificate.students?.gender));
+  const academicYear = escapeHtml(
+    academicYearLabel(certificate.students?.enrollment_year, certificate.issue_date),
+  );
   const studentCode = escapeHtml(certificate.students?.student_code || serial);
   const displayRows = rows.slice(0, 12);
   const scoredRows = displayRows
@@ -305,7 +378,7 @@ async function printCertificate(certificate: CertificateRow, isDemo: boolean) {
         }
         <tr>
           <td class="center">${index + 1}</td>
-          <td class="code">${escapeHtml(row.subject_code)}</td>
+          <td class="code">${escapeHtml(shortSubjectCode(row.subject_code))}</td>
           <td>${escapeHtml(row.subject_name)}</td>
           <td class="center">3.00</td>
           <td class="center">${formatScore(percent)}</td>
@@ -328,43 +401,38 @@ async function printCertificate(certificate: CertificateRow, isDemo: boolean) {
             width: 210mm;
             min-height: 297mm;
             margin: 0;
-            background: #f0f0f0;
-            color: #1b1b1b;
+            background: #e9e9e9;
+            color: #111111;
             font-family: "Battambang", "Khmer OS Battambang", Arial, sans-serif;
           }
-          .sheet { width: 210mm; min-height: 297mm; padding: 2mm; }
+          .sheet { width: 210mm; min-height: 297mm; padding: 1.5mm; }
           .transcript {
             position: relative;
-            width: 206mm;
-            min-height: 293mm;
+            width: 207mm;
+            min-height: 294mm;
             overflow: hidden;
-            background:
-              radial-gradient(circle at 50% 42%, rgba(202,158,54,0.12), transparent 40%),
-              linear-gradient(180deg, #fbfaf3, #f6f2e7);
-            border: 0.8mm solid #151f55;
-            box-shadow: inset 0 0 0 1.2mm rgba(255,255,255,0.75), inset 0 0 0 1.55mm rgba(202,158,54,0.85);
-            padding: 8mm 9mm 7mm;
+            background: #ffffff;
+            border: 0.7mm solid #121b55;
+            box-shadow:
+              inset 0 0 0 1.1mm #ffffff,
+              inset 0 0 0 1.45mm rgba(18, 27, 85, 0.72),
+              inset 0 0 0 2.15mm #ffffff,
+              inset 0 0 0 2.35mm rgba(182, 182, 182, 0.95);
+            padding: 8mm 9mm 6mm;
           }
           .transcript::before {
             content: "";
             position: absolute;
-            inset: 0;
-            background-image:
-              repeating-linear-gradient(0deg, rgba(28,40,96,0.045) 0 2px, transparent 2px 15px),
-              repeating-linear-gradient(90deg, rgba(202,158,54,0.035) 0 1px, transparent 1px 19px),
-              url("${escapeHtml(UNIVERSITY_LOGO_URL)}");
-            background-repeat: repeat, no-repeat;
-            background-position: center, center 52%;
-            background-size: auto, auto, 110mm;
-            opacity: 0.62;
+            inset: 5mm;
+            border: 0.28mm solid rgba(178, 178, 178, 0.95);
+            background: none;
+            background-image: none;
             pointer-events: none;
           }
           .transcript::after {
-            content: "";
-            position: absolute;
-            inset: 5mm;
-            border: 0.28mm solid rgba(28,40,96,0.55);
-            pointer-events: none;
+            content: none;
+            background: none;
+            background-image: none;
           }
           .content { position: relative; z-index: 1; }
           .no-print { margin-bottom: 12px; display: flex; justify-content: flex-end; }
@@ -379,186 +447,186 @@ async function printCertificate(certificate: CertificateRow, isDemo: boolean) {
           }
           .top {
             text-align: center;
-            color: #151f55;
-            line-height: 1.45;
+            color: #121b55;
+            line-height: 1.35;
+            min-height: 18mm;
           }
-          .top::after {
-            content: "";
-            display: block;
-            width: 28mm;
-            height: 0.5mm;
-            margin: 2mm auto 0;
-            background: linear-gradient(90deg, transparent, #b68a2f, transparent);
-          }
+          .top::after { content: none; }
           .kingdom {
             font-family: "Moul", "Battambang", serif;
-            font-size: 13px;
+            font-size: 12.5px;
           }
           .motto {
             font-family: "Moul", "Battambang", serif;
-            font-size: 11px;
+            font-size: 10.5px;
           }
           .profile-grid {
             display: grid;
-            grid-template-columns: 62mm 1fr 38mm;
-            gap: 8mm;
+            grid-template-columns: 60mm 1fr 39mm;
+            gap: 7mm;
             align-items: start;
-            margin-top: 6mm;
+            margin-top: 2mm;
           }
           .left-brand {
             text-align: center;
-            color: #151f55;
+            color: #121b55;
           }
-          .logo { width: 27mm; height: 27mm; object-fit: contain; }
+          .logo { width: 24mm; height: 24mm; object-fit: contain; }
           .university-kh {
-            margin-top: 3mm;
+            margin-top: 2.5mm;
             font-family: "Moul", "Battambang", serif;
-            font-size: 10.5px;
-            line-height: 1.65;
+            font-size: 9.5px;
+            line-height: 1.7;
           }
           .serial {
-            margin-top: 4mm;
-            font-size: 12px;
+            margin-top: 7mm;
+            font-size: 10.5px;
             text-align: left;
+            color: #121b55;
           }
           .doc-title {
             text-align: center;
-            margin-top: 26mm;
-            color: #1b1b1b;
+            margin-top: 25mm;
+            color: #111111;
           }
           .doc-title h1 {
             margin: 0;
             font-family: "Moul", "Battambang", serif;
-            font-size: 26px;
+            font-size: 25px;
             font-weight: 400;
           }
           .doc-title::after {
             content: "";
             display: block;
-            width: 34mm;
-            height: 0.25mm;
-            margin: 2mm auto 0;
-            background: #1b1b1b;
-            box-shadow: 0 1.2mm 0 -0.95mm #b68a2f;
+            width: 31mm;
+            height: 0.2mm;
+            margin: 1.5mm auto 0;
+            background: #111111;
           }
           .photo {
             width: 36mm;
             height: 45mm;
-            border: 0.5mm solid #ffffff;
-            outline: 0.25mm solid #b5b5b5;
-            background: #0e75bc;
+            justify-self: end;
+            border: 0.45mm solid #d8d8d8;
+            background: #f5f5f5;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: #777777;
             font-weight: 700;
             font-size: 10px;
           }
           .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
           .student-block {
             display: grid;
-            grid-template-columns: 1fr 72mm;
-            gap: 10mm;
-            margin-top: 6mm;
-            font-size: 13px;
-            line-height: 1.75;
+            grid-template-columns: 1fr 78mm;
+            gap: 9mm;
+            margin-top: 5mm;
+            font-size: 11.5px;
+            line-height: 1.72;
           }
           .info-row {
             display: grid;
-            grid-template-columns: 34mm 1fr;
-            gap: 3mm;
+            grid-template-columns: 36mm 1fr;
+            gap: 2mm;
           }
           .label { font-weight: 700; }
           .value { font-weight: 900; }
           .right-note {
-            padding-top: 13mm;
-            font-size: 12.5px;
-            line-height: 1.8;
+            padding-top: 12mm;
+            font-size: 11.5px;
+            line-height: 1.85;
           }
           table { width: 100%; border-collapse: collapse; table-layout: fixed; }
           .scores {
-            margin-top: 4mm;
-            font-size: 11px;
-            background: rgba(255,255,255,0.5);
+            margin-top: 5mm;
+            font-size: 10.4px;
+            background: #ffffff;
           }
           th, td {
-            border: 0.3mm solid #252525;
-            padding: 1.2mm 1.5mm;
+            border: 0.28mm solid #282828;
+            padding: 1.15mm 1.45mm;
             vertical-align: middle;
           }
-          th { font-size: 11px; font-weight: 900; text-align: center; }
-          thead th { background: rgba(255,255,255,0.7); }
+          th { font-size: 10.6px; font-weight: 900; text-align: center; }
+          thead th { background: #ffffff; }
           .center { text-align: center; }
           .code {
             text-align: center;
             font-family: "Times New Roman", serif;
-            font-size: 13px;
+            font-size: 11.5px;
+            font-weight: 700;
           }
           .semester td, tr.semester td {
-            background: rgba(28,40,96,0.08);
+            background: #ffffff;
             font-weight: 900;
             text-align: left;
+            padding: 0.9mm 1.45mm;
           }
           .bottom {
             display: grid;
-            grid-template-columns: 1fr 78mm;
-            gap: 8mm;
-            margin-top: 4mm;
+            grid-template-columns: 104mm 1fr;
+            gap: 10mm;
+            margin-top: 4.5mm;
             align-items: start;
           }
           .grading {
             font-family: "Times New Roman", "Battambang", serif;
-            font-size: 10.5px;
-            background: rgba(255,255,255,0.35);
+            font-size: 9.2px;
+            background: #ffffff;
           }
           .grading caption {
             caption-side: top;
-            border: 0.3mm solid #252525;
+            border: 0.28mm solid #282828;
             border-bottom: 0;
-            font-size: 14px;
+            font-size: 12.5px;
             font-weight: 900;
-            padding: 1mm;
+            padding: 0.85mm;
           }
           .sign-area {
-            min-height: 58mm;
+            min-height: 54mm;
             text-align: center;
-            font-size: 13px;
+            font-size: 11.5px;
             font-weight: 900;
-            padding-top: 7mm;
+            padding-top: 8mm;
           }
           .stamp {
-            width: 38mm;
-            height: 38mm;
-            margin: 8mm auto 0;
-            border: 1mm solid rgba(190, 0, 0, 0.65);
+            width: 36mm;
+            height: 36mm;
+            margin: 8.5mm auto 0;
+            border: 0.9mm solid rgba(204, 20, 30, 0.55);
             border-radius: 50%;
             display: grid;
             place-items: center;
-            color: rgba(190, 0, 0, 0.72);
+            color: rgba(204, 20, 30, 0.68);
             font-family: "Moul", "Battambang", serif;
-            font-size: 8px;
+            font-size: 7px;
             transform: rotate(-8deg);
-            box-shadow: inset 0 0 0 1mm rgba(190,0,0,0.18);
+            box-shadow: inset 0 0 0 0.9mm rgba(204, 20, 30, 0.12);
           }
           .footer-note {
-            margin-top: 4mm;
-            border-top: 0.25mm solid rgba(28,40,96,0.55);
-            padding-top: 2mm;
+            margin-top: 3mm;
+            border-top: 0.22mm solid rgba(18, 27, 85, 0.48);
+            padding-top: 1.8mm;
             text-align: center;
-            color: #1c2860;
-            font-size: 10.5px;
+            color: #121b55;
+            font-size: 9px;
           }
           .verify {
             margin-top: 1mm;
             font-family: "Sora", Arial, sans-serif;
-            font-size: 7.5px;
+            font-size: 7px;
             color: #394150;
           }
           @media print {
             body { background: white; }
             .sheet { padding: 0; }
-            .transcript { width: 210mm; min-height: 297mm; border-width: 0.6mm; box-shadow: inset 0 0 0 1.1mm rgba(255,255,255,0.75), inset 0 0 0 1.45mm rgba(202,158,54,0.85); }
+            .transcript {
+              width: 210mm;
+              min-height: 297mm;
+              border-width: 0.7mm;
+            }
             .no-print { display: none; }
           }
         </style>
@@ -577,8 +645,7 @@ async function printCertificate(certificate: CertificateRow, isDemo: boolean) {
                 <div class="left-brand">
                   <img class="logo" src="${escapeHtml(UNIVERSITY_LOGO_URL)}" alt="University logo" />
                   <div class="university-kh">
-                    ${escapeHtml(UNIVERSITY_NAME_KM)}<br />
-                    និងវិទ្យាសាស្ត្រសេដ្ឋកិច្ច
+                    ${escapeHtml(UNIVERSITY_NAME_KM)}
                   </div>
                   <div class="serial">លេខៈ ${serial}</div>
                 </div>
@@ -601,7 +668,7 @@ async function printCertificate(certificate: CertificateRow, isDemo: boolean) {
                   <div>ដែលកំពុងបន្តការសិក្សាលើមុខជំនាញ</div>
                   <div>ជំនាញ៖ <strong>${programKh}</strong></div>
                   <div>ថ្នាក់៖ <strong>${className}</strong></div>
-                  <div>ឆ្នាំសិក្សា៖ <strong>${certificateTitle}</strong></div>
+                  <div>ឆ្នាំសិក្សា៖ <strong>${academicYear}</strong></div>
                 </div>
               </section>
 
@@ -671,7 +738,7 @@ function CertificatesPage() {
       const { data } = await supabase
         .from("certificates")
         .select(
-          "id,student_id,kind,title,issue_date,verification_code,status,students(id,student_code,full_name,full_name_km,avatar_url,date_of_birth,gender,major,class_name)",
+          "id,student_id,kind,title,issue_date,verification_code,status,students(id,student_code,full_name,full_name_km,avatar_url,date_of_birth,gender,enrollment_year,study_year,major,class_name)",
         )
         .order("created_at", { ascending: false });
       return (data ?? []) as unknown as CertificateRow[];
@@ -724,7 +791,7 @@ function CertificatesPage() {
                 <span className="truncate font-mono">{c.verification_code.slice(0, 16)}…</span>
               </div>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                {t("issued")} {c.issue_date}
+                {t("issued")} {formatDateDisplay(c.issue_date)}
               </p>
               <button
                 type="button"
@@ -772,6 +839,8 @@ function IssueCert({ isDemo, onClose }: { isDemo: boolean; onClose: () => void }
           avatar_url?: string | null;
           date_of_birth?: string | null;
           gender?: string | null;
+          enrollment_year?: number | null;
+          study_year?: number | null;
           major?: string | null;
           class_name?: string | null;
         }>("studentsphere.demo.students").map((s) => ({
@@ -782,6 +851,8 @@ function IssueCert({ isDemo, onClose }: { isDemo: boolean; onClose: () => void }
           avatar_url: s.avatar_url ?? null,
           date_of_birth: s.date_of_birth ?? null,
           gender: s.gender ?? null,
+          enrollment_year: s.enrollment_year ?? null,
+          study_year: s.study_year ?? null,
           major: s.major ?? null,
           class_name: s.class_name ?? null,
         }));
@@ -790,7 +861,7 @@ function IssueCert({ isDemo, onClose }: { isDemo: boolean; onClose: () => void }
       const { data } = await supabase
         .from("students")
         .select(
-          "id,student_code,full_name,full_name_km,avatar_url,date_of_birth,gender,major,class_name",
+          "id,student_code,full_name,full_name_km,avatar_url,date_of_birth,gender,enrollment_year,study_year,major,class_name",
         )
         .order("full_name");
       return data ?? [];
@@ -818,6 +889,8 @@ function IssueCert({ isDemo, onClose }: { isDemo: boolean; onClose: () => void }
                   avatar_url: student.avatar_url ?? null,
                   date_of_birth: student.date_of_birth ?? null,
                   gender: student.gender ?? null,
+                  enrollment_year: student.enrollment_year ?? null,
+                  study_year: student.study_year ?? null,
                   major: student.major ?? null,
                   class_name: student.class_name ?? null,
                 }

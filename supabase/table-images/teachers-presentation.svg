@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="986" viewBox="0 0 1024 986" role="img" aria-labelledby="title desc">
+  <title id="title">Table: teachers</title>
+  <desc id="desc">Presentation-style database table image for the teachers table.</desc>
+  <defs>
+    <filter id="cardShadow" x="-8%" y="-6%" width="116%" height="120%">
+      <feDropShadow dx="0" dy="18" stdDeviation="14" flood-color="#0f172a" flood-opacity="0.18" />
+    </filter>
+    <clipPath id="cardClip">
+      <rect x="64" y="140" width="896" height="754" rx="18" />
+    </clipPath>
+    <linearGradient id="headerGradient" x1="64" y1="140" x2="960" y2="216" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f4a8a" />
+      <stop offset="1" stop-color="#153f78" />
+    </linearGradient>
+    <style>
+      .page { fill: #f8fafc; }
+      .title { fill: #050505; font: 700 52px Arial, sans-serif; text-anchor: middle; }
+      .card { fill: #ffffff; stroke: #d1d5db; stroke-width: 2; filter: url(#cardShadow); }
+      .header { fill: url(#headerGradient); }
+      .header-text { fill: #ffffff; font: 700 36px Arial, sans-serif; }
+      .row-even { fill: #ffffff; }
+      .row-odd { fill: #eeeeee; }
+      .grid { stroke: #b7b7b7; stroke-width: 1.4; }
+      .cell { fill: #0b0b0b; font: 400 26px Arial, sans-serif; }
+      .cell-center { text-anchor: middle; }
+      .badge-text { fill: #ffffff; font: 700 15px Arial, sans-serif; text-anchor: middle; dominant-baseline: middle; }
+      .yes-no { fill: #0b0b0b; font: 400 26px Arial, sans-serif; dominant-baseline: middle; }
+      .pk-badge { fill: #a66b3d; }
+      .fk-badge { fill: #4d9461; }
+    </style>
+  </defs>
+
+  <rect width="1024" height="986" class="page" />
+  <text x="512" y="90" class="title">Table: teachers</text>
+
+  <rect x="64" y="140" width="896" height="754" rx="18" class="card" />
+  <g clip-path="url(#cardClip)">
+    <rect x="64" y="140" width="896" height="76" class="header" />
+    <rect x="64" y="216" width="896" height="44" class="row-even" />
+    <rect x="64" y="260" width="896" height="44" class="row-odd" />
+    <rect x="64" y="304" width="896" height="44" class="row-even" />
+    <rect x="64" y="348" width="896" height="44" class="row-odd" />
+    <rect x="64" y="392" width="896" height="44" class="row-even" />
+    <rect x="64" y="436" width="896" height="44" class="row-odd" />
+    <rect x="64" y="480" width="896" height="44" class="row-even" />
+    <rect x="64" y="524" width="896" height="44" class="row-odd" />
+    <rect x="64" y="568" width="896" height="44" class="row-even" />
+    <rect x="64" y="612" width="896" height="44" class="row-odd" />
+    <rect x="64" y="656" width="896" height="44" class="row-even" />
+    <rect x="64" y="700" width="896" height="44" class="row-odd" />
+    <rect x="64" y="744" width="896" height="44" class="row-even" />
+    <rect x="64" y="788" width="896" height="44" class="row-odd" />
+    <rect x="64" y="832" width="896" height="44" class="row-even" />
+
+    <line x1="396" y1="140" x2="396" y2="894" class="grid" />
+    <line x1="710" y1="140" x2="710" y2="894" class="grid" />
+    <line x1="64" y1="216" x2="960" y2="216" class="grid" />
+    <line x1="64" y1="260" x2="960" y2="260" class="grid" />
+    <line x1="64" y1="304" x2="960" y2="304" class="grid" />
+    <line x1="64" y1="348" x2="960" y2="348" class="grid" />
+    <line x1="64" y1="392" x2="960" y2="392" class="grid" />
+    <line x1="64" y1="436" x2="960" y2="436" class="grid" />
+    <line x1="64" y1="480" x2="960" y2="480" class="grid" />
+    <line x1="64" y1="524" x2="960" y2="524" class="grid" />
+    <line x1="64" y1="568" x2="960" y2="568" class="grid" />
+    <line x1="64" y1="612" x2="960" y2="612" class="grid" />
+    <line x1="64" y1="656" x2="960" y2="656" class="grid" />
+    <line x1="64" y1="700" x2="960" y2="700" class="grid" />
+    <line x1="64" y1="744" x2="960" y2="744" class="grid" />
+    <line x1="64" y1="788" x2="960" y2="788" class="grid" />
+    <line x1="64" y1="832" x2="960" y2="832" class="grid" />
+    <line x1="64" y1="876" x2="960" y2="876" class="grid" />
+
+    <text x="90" y="188" class="header-text">Field Name</text>
+    <text x="422" y="188" class="header-text">Data Type</text>
+    <text x="810" y="188" class="header-text">Key</text>
+    
+      <text x="230" y="246" class="cell cell-center">id</text>
+      <text x="422" y="246" class="cell">string</text>
+      
+      <rect x="794" y="230" width="38" height="30" rx="7" class="pk-badge" />
+      <text x="813" y="245" class="badge-text">PK</text>
+      <text x="846" y="245" class="yes-no">Yes</text>
+
+      <text x="230" y="290" class="cell cell-center">updated_at</text>
+      <text x="422" y="290" class="cell">string</text>
+      <text x="835" y="293" class="cell cell-center">No</text>
+
+      <text x="230" y="334" class="cell cell-center">avatar_url</text>
+      <text x="422" y="334" class="cell">string?</text>
+      <text x="835" y="337" class="cell cell-center">No</text>
+
+      <text x="230" y="378" class="cell cell-center">created_at</text>
+      <text x="422" y="378" class="cell">string</text>
+      <text x="835" y="381" class="cell cell-center">No</text>
+
+      <text x="230" y="422" class="cell cell-center">department</text>
+      <text x="422" y="422" class="cell">string?</text>
+      <text x="835" y="425" class="cell cell-center">No</text>
+
+      <text x="230" y="466" class="cell cell-center">email</text>
+      <text x="422" y="466" class="cell">string?</text>
+      <text x="835" y="469" class="cell cell-center">No</text>
+
+      <text x="230" y="510" class="cell cell-center">faculty</text>
+      <text x="422" y="510" class="cell">string?</text>
+      <text x="835" y="513" class="cell cell-center">No</text>
+
+      <text x="230" y="554" class="cell cell-center">full_name</text>
+      <text x="422" y="554" class="cell">string</text>
+      <text x="835" y="557" class="cell cell-center">No</text>
+
+      <text x="230" y="598" class="cell cell-center">full_name_en</text>
+      <text x="422" y="598" class="cell">string?</text>
+      <text x="835" y="601" class="cell cell-center">No</text>
+
+      <text x="230" y="642" class="cell cell-center">full_name_km</text>
+      <text x="422" y="642" class="cell">string?</text>
+      <text x="835" y="645" class="cell cell-center">No</text>
+
+      <text x="230" y="686" class="cell cell-center">hire_date</text>
+      <text x="422" y="686" class="cell">string?</text>
+      <text x="835" y="689" class="cell cell-center">No</text>
+
+      <text x="230" y="730" class="cell cell-center">phone</text>
+      <text x="422" y="730" class="cell">string?</text>
+      <text x="835" y="733" class="cell cell-center">No</text>
+
+      <text x="230" y="774" class="cell cell-center">specialization</text>
+      <text x="422" y="774" class="cell">string?</text>
+      <text x="835" y="777" class="cell cell-center">No</text>
+
+      <text x="230" y="818" class="cell cell-center">staff_code</text>
+      <text x="422" y="818" class="cell">string</text>
+      <text x="835" y="821" class="cell cell-center">No</text>
+
+      <text x="230" y="862" class="cell cell-center">user_id</text>
+      <text x="422" y="862" class="cell">string?</text>
+      <text x="835" y="865" class="cell cell-center">No</text>
+  </g>
+</svg>

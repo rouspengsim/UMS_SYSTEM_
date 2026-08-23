@@ -3,14 +3,20 @@ import { PageHeader, SectionCard } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { Plus, Loader2, X, Trash2, School, User, Printer } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FLAT_MAJOR_OPTIONS, MAJOR_OPTIONS, generateClassName } from "@/lib/academic-options";
+import {
+  FLAT_MAJOR_OPTIONS,
+  MAJOR_OPTIONS,
+  generateClassName,
+  normalizeMajorLabel,
+} from "@/lib/academic-options";
+import { formatDateDisplay } from "@/lib/utils";
 import {
   DEFAULT_SUBJECT_OPTIONS,
-  filterSubjectOptionsByMajor,
+  filterSubjectOptionsByScope,
   groupSubjectOptionsByMajor,
   mergeSubjectOptions,
   readDemoSubjects,
@@ -63,6 +69,7 @@ const CLASS_SHIFT_OPTIONS = [
   { value: "afternoon", labelKey: "afternoon" },
   { value: "evening", labelKey: "evening" },
 ];
+const CLASS_SEMESTER_OPTIONS = ["Semester 1", "Semester 2"];
 
 function shiftLabel(value: string | null | undefined, t: (key: string) => string) {
   const shift = CLASS_SHIFT_OPTIONS.find((option) => option.value === value);
@@ -169,7 +176,7 @@ function printDocument(title: string, html: string) {
 }
 
 function classStudentListReportHtml(classRow: ClassRow, students: ClassStudent[]) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatDateDisplay(new Date());
   const sortedStudents = [...students].sort((a, b) => a.student_code.localeCompare(b.student_code));
   const rows = sortedStudents
     .map(
@@ -180,7 +187,7 @@ function classStudentListReportHtml(classRow: ClassRow, students: ClassStudent[]
           <td class="name">${escapeHtml(student.full_name_km)}</td>
           <td class="name">${escapeHtml(student.full_name_en || student.full_name)}</td>
           <td style="width: 38px">${escapeHtml(khmerGenderLabel(student.gender))}</td>
-          <td style="width: 74px">${escapeHtml(student.date_of_birth)}</td>
+          <td style="width: 74px">${escapeHtml(formatDateDisplay(student.date_of_birth))}</td>
           <td style="width: 54px">${escapeHtml(student.study_year)}</td>
           <td style="width: 82px">${escapeHtml(student.phone)}</td>
           <td>${escapeHtml(student.address)}</td>
@@ -206,7 +213,7 @@ function classStudentListReportHtml(classRow: ClassRow, students: ClassStudent[]
       </section>
       <div class="meta">
         ថ្នាក់ ${escapeHtml(classRow.name)}
-        ${classRow.major ? ` · ជំនាញ ${escapeHtml(classRow.major)}` : ""}
+        ${classRow.major ? ` · ជំនាញ ${escapeHtml(normalizeMajorLabel(classRow.major))}` : ""}
         ${classRow.shift ? ` · វេន ${escapeHtml(classRow.shift)}` : ""}<br />
         ឆ្នាំសិក្សា ${new Date().getFullYear()} · កាលបរិច្ឆេទ ${escapeHtml(today)} · ចំនួននិស្សិតសរុប ${students.length} នាក់
       </div>
@@ -370,7 +377,23 @@ function ClassesPage() {
     },
   });
 
-  const majorOptions = FLAT_MAJOR_OPTIONS;
+  const majorOptions = useMemo(() => {
+    const visibleMajors = new Set(
+      [
+        ...classStudents.map((student) => student.major?.trim()),
+        ...classes.map((classRow) => classRow.major?.trim()),
+      ].filter((major): major is string => !!major),
+    );
+    const options = FLAT_MAJOR_OPTIONS.filter((major) => visibleMajors.has(major.value));
+    if (options.length > 0) return options;
+    return isAdmin ? FLAT_MAJOR_OPTIONS : [];
+  }, [classStudents, classes, isAdmin]);
+
+  useEffect(() => {
+    if (majorFilter !== "all" && !majorOptions.some((major) => major.value === majorFilter)) {
+      setMajorFilter("all");
+    }
+  }, [majorFilter, majorOptions]);
 
   const displayClasses = useMemo(() => {
     const studentClassNames = new Set(
@@ -484,7 +507,7 @@ function ClassesPage() {
                 <option value="all">{t("all_majors")}</option>
                 {majorOptions.map((major) => (
                   <option key={major.value} value={major.value}>
-                    {major.label}
+                    {normalizeMajorLabel(major.label)}
                   </option>
                 ))}
               </select>
@@ -576,7 +599,7 @@ function ClassesPage() {
                       )}
                       {c.major && (
                         <p className="mt-1 line-clamp-1 max-w-48 text-[10px] text-muted-foreground">
-                          {c.major}
+                          {normalizeMajorLabel(c.major)}
                         </p>
                       )}
                     </div>
@@ -699,7 +722,9 @@ function ClassDetailsModal({
               </div>
             </div>
             {classRow.major && (
-              <p className="mt-3 max-w-3xl text-xs text-muted-foreground">{classRow.major}</p>
+              <p className="mt-3 max-w-3xl text-xs text-muted-foreground">
+                {normalizeMajorLabel(classRow.major)}
+              </p>
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -775,7 +800,7 @@ function ClassDetailsModal({
                       {!isStudent && (
                         <>
                           <td className="py-3 pr-4 whitespace-nowrap">
-                            {student.date_of_birth || "-"}
+                            {formatDateDisplay(student.date_of_birth)}
                           </td>
                           <td className="max-w-56 py-3 pr-4 text-xs">
                             <span className="line-clamp-2">{student.address || "-"}</span>
@@ -812,7 +837,7 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
     shift: "morning",
     room: "",
     capacity: 40,
-    semester: "",
+    semester: CLASS_SEMESTER_OPTIONS[0],
     teacher_id: "",
   });
   const { data: teachers = [] } = useQuery({
@@ -843,13 +868,31 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
     },
   });
   const filteredSubjectOptions = useMemo(
-    () => filterSubjectOptionsByMajor(subjectOptions, f.major),
-    [subjectOptions, f.major],
+    () =>
+      filterSubjectOptionsByScope(subjectOptions, {
+        major: f.major,
+        studyYear: f.study_year,
+        semester: f.semester,
+      }),
+    [subjectOptions, f.major, f.study_year, f.semester],
   );
   const filteredSubjectGroups = useMemo(
     () => groupSubjectOptionsByMajor(filteredSubjectOptions),
     [filteredSubjectOptions],
   );
+
+  useEffect(() => {
+    if (
+      !addNewSubject &&
+      filteredSubjectOptions.length > 0 &&
+      !filteredSubjectOptions.some((subject) => subject.code === f.subject_code)
+    ) {
+      setF((current) => ({
+        ...current,
+        subject_code: filteredSubjectOptions[0]?.code ?? current.subject_code,
+      }));
+    }
+  }, [addNewSubject, f.subject_code, filteredSubjectOptions]);
 
   function normalizedNewSubjectId() {
     const source = f.new_subject_id || f.new_subject_name;
@@ -1038,7 +1081,11 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
             <GroupedSelect
               value={f.major}
               onChange={(major) => {
-                const nextSubjectOptions = filterSubjectOptionsByMajor(subjectOptions, major);
+                const nextSubjectOptions = filterSubjectOptionsByScope(subjectOptions, {
+                  major,
+                  studyYear: f.study_year,
+                  semester: f.semester,
+                });
                 setF({
                   ...f,
                   major,
@@ -1056,9 +1103,15 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
               value={f.study_year}
               onChange={(e) => {
                 const studyYear = Number(e.target.value) || 1;
+                const nextSubjectOptions = filterSubjectOptionsByScope(subjectOptions, {
+                  major: f.major,
+                  studyYear,
+                  semester: f.semester,
+                });
                 setF({
                   ...f,
                   study_year: studyYear,
+                  subject_code: nextSubjectOptions[0]?.code ?? f.subject_code,
                   name: generateClassName(f.major, studyYear, f.shift, f.class_number),
                 });
               }}
@@ -1117,12 +1170,29 @@ function AddClass({ isDemo, onClose }: { isDemo: boolean; onClose: () => void })
             />
           </Field>
           <Field label={t("semester")}>
-            <input
+            <select
               value={f.semester}
-              onChange={(e) => setF({ ...f, semester: e.target.value })}
-              placeholder="e.g. Spring 2026"
+              onChange={(e) => {
+                const semester = e.target.value;
+                const nextSubjectOptions = filterSubjectOptionsByScope(subjectOptions, {
+                  major: f.major,
+                  studyYear: f.study_year,
+                  semester,
+                });
+                setF({
+                  ...f,
+                  semester,
+                  subject_code: nextSubjectOptions[0]?.code ?? f.subject_code,
+                });
+              }}
               className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:border-primary"
-            />
+            >
+              {CLASS_SEMESTER_OPTIONS.map((semester) => (
+                <option key={semester} value={semester}>
+                  {semester}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label={`${t("teacher")} *`}>
             <select

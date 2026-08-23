@@ -7,7 +7,10 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { decodeNotificationContent } from "@/lib/notification-content";
+import {
+  decodeNotificationContent,
+  isNotificationVisibleForRole,
+} from "@/lib/notification-content";
 
 type TopbarNotification = {
   id: string;
@@ -16,6 +19,8 @@ type TopbarNotification = {
   kind: string;
   is_read: boolean;
   created_at: string;
+  target_role?: "admin" | "teacher" | "student" | null;
+  target_user_id?: string | null;
 };
 
 const DEMO_NOTIFICATIONS_KEY = "studentsphere.demo.notifications";
@@ -48,17 +53,25 @@ export function Topbar() {
     .toUpperCase();
 
   const { data: notifs = [] } = useQuery({
-    queryKey: ["topbar-notifications", user?.id, isDemo ? "demo" : "remote"],
+    queryKey: ["topbar-notifications", primaryRole, user?.id, isDemo ? "demo" : "remote"],
     enabled: !!user,
     queryFn: async () => {
-      if (isDemo) return readDemoNotifications().slice(0, 5);
+      if (isDemo) {
+        return readDemoNotifications()
+          .filter((notification) =>
+            isNotificationVisibleForRole(notification, primaryRole, user?.id),
+          )
+          .slice(0, 5);
+      }
 
       const { data } = await supabase
         .from("notifications")
-        .select("id,title,body,kind,is_read,created_at")
+        .select("id,title,body,kind,is_read,created_at,target_role,target_user_id")
         .order("created_at", { ascending: false })
-        .limit(5);
-      return data ?? [];
+        .limit(20);
+      return (data ?? [])
+        .filter((notification) => isNotificationVisibleForRole(notification, primaryRole, user?.id))
+        .slice(0, 5);
     },
   });
 

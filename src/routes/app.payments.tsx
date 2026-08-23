@@ -28,7 +28,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { tuitionRateForMajor } from "@/lib/tuition";
+import { isScholarshipStudent, tuitionRateForMajor } from "@/lib/tuition";
+import { createPaymentInvoice, markPaymentPaid } from "@/lib/payment-invoices";
+import { formatDateDisplay } from "@/lib/utils";
+import { normalizeMajorLabel } from "@/lib/academic-options";
 
 export const Route = createFileRoute("/app/payments")({
   head: () => ({ meta: [{ title: pageTitle("Payments") }] }),
@@ -51,6 +54,7 @@ type PaymentRow = {
     student_code?: string | null;
     class_name?: string | null;
     major?: string | null;
+    student_type?: string | null;
     phone?: string | null;
     date_of_birth?: string | null;
     gender?: string | null;
@@ -72,6 +76,7 @@ type PaymentStudent = {
   gender?: string | null;
   address?: string | null;
   major?: string | null;
+  student_type?: string | null;
   class_name?: string | null;
   shift?: string | null;
   enrollment_year?: number | null;
@@ -85,7 +90,7 @@ type PaymentStudent = {
 
 const DEMO_PAYMENTS_KEY = "studentsphere.demo.payments";
 const PAYMENT_ROW_SELECT =
-  "id,invoice_number,amount,due_date,paid_date,status,method,description,students(full_name,full_name_en,full_name_km,student_code,class_name,major,phone,date_of_birth,gender,address,enrollment_year,study_year)";
+  "id,invoice_number,amount,due_date,paid_date,status,method,description,students(full_name,full_name_en,full_name_km,student_code,class_name,major,student_type,phone,date_of_birth,gender,address,enrollment_year,study_year)";
 
 function readDemoPayments(): PaymentRow[] {
   if (typeof window === "undefined") return [];
@@ -119,6 +124,7 @@ function readDemoStudentsMin(): PaymentStudent[] {
       gender: student.gender,
       address: student.address,
       major: student.major,
+      student_type: student.student_type,
       class_name: student.class_name,
       shift: student.shift,
       enrollment_year: student.enrollment_year,
@@ -136,7 +142,7 @@ function readDemoStudentsMin(): PaymentStudent[] {
 
 function PaymentsPage() {
   const { t } = useI18n();
-  const { user, primaryRole, roles, isDemo } = useAuth();
+  const { user, session, primaryRole, roles, isDemo } = useAuth();
   const qc = useQueryClient();
   const [qrPayment, setQrPayment] = useState<PaymentRow | null>(null);
   const isAdmin = roles.includes("admin");
@@ -200,17 +206,15 @@ function PaymentsPage() {
         return updatedPayments.find((payment) => payment.id === id) ?? null;
       }
 
-      const { data, error } = await supabase
-        .from("payments")
-        .update({
-          status: "paid",
+      const accessToken = await requirePaymentAccessToken(session?.access_token);
+
+      const data = await markPaymentPaid({
+        data: {
+          accessToken,
+          paymentId: id,
           method: method ?? "cash",
-          paid_date: paidDate,
-        })
-        .eq("id", id)
-        .select(PAYMENT_ROW_SELECT)
-        .single();
-      if (error) throw error;
+        },
+      });
       return data as unknown as PaymentRow;
     },
     onSuccess: (paidPayment, variables) => {
@@ -284,6 +288,7 @@ function PaymentsPage() {
           isDemo={isDemo}
           isStudent={false}
           userId={user?.id}
+          sessionAccessToken={session?.access_token}
           payments={payments}
           onCreated={(payment) => {
             qc.invalidateQueries({ queryKey: ["payments"] });
@@ -297,6 +302,7 @@ function PaymentsPage() {
           isDemo={isDemo}
           isStudent
           userId={user?.id}
+          sessionAccessToken={session?.access_token}
           payments={payments}
           onCreated={(payment) => {
             qc.invalidateQueries({ queryKey: ["payments"] });
@@ -333,7 +339,9 @@ function PaymentsPage() {
                     <td className="py-3 pr-4 font-mono text-xs">{p.invoice_number}</td>
                     <td className="py-3 pr-4 font-medium">{p.students?.full_name ?? "—"}</td>
                     <td className="py-3 pr-4 font-semibold">${Number(p.amount).toFixed(2)}</td>
-                    <td className="py-3 pr-4 text-xs text-muted-foreground">{p.due_date ?? "—"}</td>
+                    <td className="py-3 pr-4 text-xs text-muted-foreground">
+                      {formatDateDisplay(p.due_date)}
+                    </td>
                     <td className="py-3 pr-4">
                       <StatusPill status={p.status} />
                     </td>
@@ -381,7 +389,7 @@ function PaymentsPage() {
       {qrPayment && (
         <KhQrPaymentModal
           payment={qrPayment}
-          canConfirm={isAdmin}
+          canConfirm={isAdmin || isStudent}
           isConfirming={markPaid.isPending}
           onClose={() => setQrPayment(null)}
           onConfirm={() =>
@@ -399,6 +407,16 @@ function PaymentsPage() {
 
 function formatUsd(amount: number) {
   return `$${Number(amount).toFixed(2)}`;
+}
+
+async function requirePaymentAccessToken(fallbackToken?: string) {
+  if (fallbackToken) return fallbackToken;
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Your session expired. Please log in again.");
+  return token;
 }
 
 const KHMER_NUMBER_WORDS = [
@@ -478,13 +496,7 @@ function khmerMoneyWords(amount: number) {
 }
 
 function formatReceiptDate(value: string | null | undefined) {
-  const date = value ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) return value ?? "-";
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return value ? formatDateDisplay(value) : formatDateDisplay(new Date());
 }
 
 function receiptNumber(invoiceNumber: string) {
@@ -515,6 +527,44 @@ function khmerGender(value: string | null | undefined) {
   if (["male", "m", "ប្រុស"].includes(normalized)) return "ប្រុស";
   if (["female", "f", "ស្រី"].includes(normalized)) return "ស្រី";
   return value ?? "-";
+}
+
+function receiptStudentType(value: string | null | undefined) {
+  const normalized = value?.trim();
+  const lowerValue = normalized?.toLowerCase() ?? "";
+  if (isScholarshipStudent(value)) return "អាហារូបកណ៍";
+  if (
+    lowerValue === "general student" ||
+    lowerValue === "general" ||
+    lowerValue === "paid" ||
+    lowerValue === "tuition" ||
+    normalized === "បង់ថ្លៃ"
+  ) {
+    return "បង់ថ្លៃ";
+  }
+  return normalized || "-";
+}
+
+function receiptPaymentDuration(value: string | null | undefined) {
+  const normalized = value?.trim();
+  const lowerValue = normalized?.toLowerCase() ?? "";
+  if (!normalized) return "-";
+  if (
+    normalized.includes("១ឆ្នាំ") ||
+    lowerValue.includes("1 year") ||
+    lowerValue.includes("full year") ||
+    lowerValue.includes("annual")
+  ) {
+    return "១ឆ្នាំ";
+  }
+  if (
+    normalized.includes("ឆមាស") ||
+    lowerValue.includes("semester") ||
+    lowerValue.includes("term")
+  ) {
+    return "១ឆមាស";
+  }
+  return normalized;
 }
 
 function escapeHtml(value: string | null | undefined) {
@@ -606,14 +656,13 @@ function printReceipt(payment: PaymentRow, existingWindow?: Window | null) {
   const studentNameKm = escapeHtml(student?.full_name_km || student?.full_name || "Student");
   const studentCode = escapeHtml(student?.student_code ?? "-");
   const className = escapeHtml(student?.class_name ?? "-");
-  const major = escapeHtml(student?.major ?? "-");
   const phone = escapeHtml(student?.phone ?? "-");
-  const dateOfBirth = escapeHtml(student?.date_of_birth ?? "-");
+  const dateOfBirth = escapeHtml(formatDateDisplay(student?.date_of_birth));
   const gender = escapeHtml(khmerGender(student?.gender));
-  const address = escapeHtml(student?.address ?? "-");
+  const studentType = escapeHtml(receiptStudentType(student?.student_type));
   const year = escapeHtml(academicYear(student?.enrollment_year));
   const paidForYear = escapeHtml(khmerStudyYear(student?.study_year));
-  const description = escapeHtml(payment.description ?? "Tuition payment");
+  const description = escapeHtml(receiptPaymentDuration(payment.description));
   const amountWords = escapeHtml(khmerMoneyWords(payment.amount));
   const method = payment.method === "mobile" ? "KH QR" : (payment.method ?? "Cash");
   const paidDate = payment.paid_date ?? new Date().toISOString().slice(0, 10);
@@ -665,22 +714,29 @@ function printReceipt(payment: PaymentRow, existingWindow?: Window | null) {
           .content { position: relative; z-index: 1; }
           .header {
             display: grid;
-            grid-template-columns: 30mm 1fr 30mm;
+            grid-template-columns: 24mm 1fr 8mm;
             align-items: center;
-            gap: 8px;
+            gap: 4px;
             border-bottom: 2px solid #111827;
             padding-bottom: 6px;
           }
-          .logo { width: 26mm; height: 26mm; object-fit: contain; }
+          .logo { width: 24mm; height: 24mm; object-fit: contain; }
           .school { text-align: center; color: #102f73; font-weight: 900; line-height: 1.18; }
           .school-km {
             font-family: "Moul", "Khmer OS Muol Light", "Khmer OS Muol", serif;
-            font-size: 18px;
+            font-size: 15.5px;
             font-weight: 400;
             letter-spacing: 0;
+            white-space: nowrap;
           }
           .school-en { margin-top: 4px; font-size: 17px; letter-spacing: 0.5px; text-transform: uppercase; }
-          .school-meta { margin-top: 6px; font-size: 12px; color: #102f73; font-weight: 900; }
+          .school-meta {
+            margin-top: 6px;
+            font-size: 10.5px;
+            color: #102f73;
+            font-weight: 900;
+            white-space: nowrap;
+          }
           .copy { text-align: right; font-size: 10px; color: transparent; }
           .title { margin: 4px 0 5px; text-align: center; }
           .title h1 {
@@ -798,7 +854,7 @@ function printReceipt(payment: PaymentRow, existingWindow?: Window | null) {
                   <div class="row"><span class="label">ភេទ :</span><span class="value">${gender}</span><span class="label">ក្រុម :</span><span class="value">${className}</span></div>
                   <div class="row"><span class="label">ប្រភេទនិស្សិតបង់ :</span><span class="value">${description}</span></div>
                   <div class="row"><span class="label">ជាអក្សរ :</span><span class="value words">${amountWords}</span></div>
-                  <div class="row"><span class="label">បរិយាយ :</span><span class="value">${address}</span></div>
+                  <div class="row"><span class="label">ប្រភេទនិស្សិត :</span><span class="value">${studentType}</span></div>
                 </div>
                 <div>
                   <div class="row"><span class="label">បង្កាន់ដៃលេខ :</span><span class="value">${receiptId}</span></div>
@@ -919,7 +975,7 @@ function KhQrPaymentModal({
               ) : (
                 <CheckCircle2 className="h-4 w-4" />
               )}
-              {t("paid_create_receipt")}
+              Mark paid
             </button>
           )}
         </div>
@@ -1146,6 +1202,30 @@ function paymentTermStatus(
   return matching?.status ?? "unpaid";
 }
 
+function paymentYearButtonStatus(
+  student: PaymentStudent | null,
+  payments: PaymentRow[],
+  year: number,
+) {
+  const yearStatus = paymentYearStatus(student, year);
+  if (
+    yearStatus === "paid" ||
+    yearStatus === "full_year_580" ||
+    yearStatus === "semester1_2_600" ||
+    yearStatus === "semester_300" ||
+    yearStatus === "semester1_300" ||
+    yearStatus === "semester2_300"
+  ) {
+    return "paid";
+  }
+
+  const matching = payments.find((payment) => {
+    return activePayment(payment) && paymentMatchesYear(payment, year);
+  });
+
+  return matching?.status ?? "unpaid";
+}
+
 function paymentBalanceForYear(
   student: PaymentStudent | null,
   payments: PaymentRow[],
@@ -1211,12 +1291,14 @@ function StudentPaymentPanel({
   isDemo,
   isStudent,
   userId,
+  sessionAccessToken,
   payments,
   onCreated,
 }: {
   isDemo: boolean;
   isStudent: boolean;
   userId?: string;
+  sessionAccessToken?: string;
   payments: PaymentRow[];
   onCreated: (payment: PaymentRow) => void;
 }) {
@@ -1246,7 +1328,7 @@ function StudentPaymentPanel({
       const query = supabase
         .from("students")
         .select(
-          "id,student_code,full_name,full_name_en,full_name_km,email,phone,date_of_birth,gender,address,major,class_name,shift,enrollment_year,study_year,pay_year1,pay_year2,pay_year3,pay_year4,status,user_id",
+          "id,student_code,full_name,full_name_en,full_name_km,email,phone,date_of_birth,gender,address,major,student_type,class_name,shift,enrollment_year,study_year,pay_year1,pay_year2,pay_year3,pay_year4,status,user_id",
         );
 
       const { data, error } = isStudent
@@ -1286,14 +1368,21 @@ function StudentPaymentPanel({
   );
   const amountValue = Number(form.amount);
   const canCreatePayment = Boolean(selectedStudent && amountValue > 0);
-  const selectedTuitionRate = tuitionRateForMajor(selectedStudent?.major);
+  const selectedTuitionRate = tuitionRateForMajor(
+    selectedStudent?.major,
+    selectedStudent?.student_type,
+  );
+  const selectedStudentIsScholarship = isScholarshipStudent(selectedStudent?.student_type);
+  const effectivePaymentPlan: PaymentPlan = selectedStudentIsScholarship
+    ? "year"
+    : form.paymentPlan;
   const selectedTerm = paymentDescriptionLabel(
     form.targetYear,
     form.targetSemester,
-    form.paymentPlan,
+    effectivePaymentPlan,
   );
   const autoAmount =
-    form.paymentPlan === "year" ? selectedTuitionRate.year : selectedTuitionRate.semester;
+    effectivePaymentPlan === "year" ? selectedTuitionRate.year : selectedTuitionRate.semester;
   const selectedYearBalance = paymentBalanceForYear(
     selectedStudent,
     selectedStudentPayments,
@@ -1306,7 +1395,7 @@ function StudentPaymentPanel({
     selectedStudentPayments,
     form.targetYear,
     form.targetSemester,
-    form.paymentPlan,
+    effectivePaymentPlan,
   );
   const duplicatePaymentMessage =
     duplicatePayment && typeof duplicatePayment === "object"
@@ -1325,6 +1414,32 @@ function StudentPaymentPanel({
     }));
   }, [autoAmount, selectedStudent, selectedTerm]);
 
+  useEffect(() => {
+    if (!selectedStudent || !selectedStudentIsScholarship) return;
+    setForm((current) => {
+      const description = paymentDescriptionLabel(
+        current.targetYear,
+        current.targetSemester,
+        "year",
+      );
+      const amount = selectedTuitionRate.year.toString();
+      if (
+        current.paymentPlan === "year" &&
+        current.amount === amount &&
+        current.description === description
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        paymentPlan: "year",
+        amount,
+        description,
+      };
+    });
+  }, [selectedStudent, selectedStudentIsScholarship, selectedTuitionRate.year]);
+
   const createPayment = useMutation({
     mutationFn: async () => {
       if (!selectedStudent) throw new Error(t("valid_student_id_required"));
@@ -1334,7 +1449,7 @@ function StudentPaymentPanel({
         selectedStudentPayments,
         form.targetYear,
         form.targetSemester,
-        form.paymentPlan,
+        effectivePaymentPlan,
       );
       if (duplicate) {
         throw new Error(
@@ -1361,6 +1476,7 @@ function StudentPaymentPanel({
           student_code: selectedStudent.student_code,
           class_name: selectedStudent.class_name,
           major: selectedStudent.major,
+          student_type: selectedStudent.student_type,
           phone: selectedStudent.phone,
           date_of_birth: selectedStudent.date_of_birth,
           gender: selectedStudent.gender,
@@ -1375,19 +1491,18 @@ function StudentPaymentPanel({
         return payment;
       }
 
-      const { data, error } = await supabase
-        .from("payments")
-        .insert({
-          student_id: selectedStudent.id,
-          invoice_number: invoiceNumber,
+      const accessToken = await requirePaymentAccessToken(sessionAccessToken);
+
+      const data = await createPaymentInvoice({
+        data: {
+          accessToken,
+          studentId: selectedStudent.id,
+          invoiceNumber,
           amount: amountValue,
-          due_date: form.due_date || null,
+          dueDate: form.due_date || null,
           description: form.description || selectedTerm,
-          status: "pending",
-        })
-        .select(PAYMENT_ROW_SELECT)
-        .single();
-      if (error) throw error;
+        },
+      });
       return data as unknown as PaymentRow;
     },
     onSuccess: (payment) => {
@@ -1452,7 +1567,10 @@ function StudentPaymentPanel({
                 </div>
                 <div className="mt-3 grid gap-x-4 gap-y-1.5 text-xs text-muted-foreground sm:grid-cols-2">
                   <StudentInfoLine label={t("class")} value={selectedStudent.class_name} />
-                  <StudentInfoLine label={t("major")} value={selectedStudent.major} />
+                  <StudentInfoLine
+                    label={t("major")}
+                    value={normalizeMajorLabel(selectedStudent.major)}
+                  />
                   <StudentInfoLine label={t("shift")} value={selectedStudent.shift} />
                   <StudentInfoLine label={t("phone")} value={selectedStudent.phone} />
                 </div>
@@ -1461,44 +1579,82 @@ function StudentPaymentPanel({
                     {t("payment_status")}
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {PAYMENT_YEARS.flatMap((year) =>
-                      PAYMENT_SEMESTERS.map((semester) => {
-                        const status = paymentTermStatus(
-                          selectedStudent,
-                          selectedStudentPayments,
-                          year,
-                          semester,
-                        );
-                        const isSelected =
-                          form.targetYear === year && form.targetSemester === semester;
-                        return (
-                          <button
-                            key={`${year}-${semester}`}
-                            type="button"
-                            onClick={() =>
-                              setForm({
-                                ...form,
-                                targetYear: year,
-                                targetSemester: semester,
-                                paymentPlan: "semester",
-                                description: paymentDescriptionLabel(year, semester, "semester"),
-                                amount: selectedTuitionRate.semester.toString(),
-                              })
-                            }
-                            className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition ${
-                              isSelected
-                                ? "border-info bg-info/10 text-foreground"
-                                : "border-border bg-surface hover:bg-muted"
-                            }`}
-                          >
-                            <span className="font-semibold">
-                              {paymentTermLabel(year, semester)}
-                            </span>
-                            <PaymentTermBadge status={status} />
-                          </button>
-                        );
-                      }),
-                    )}
+                    {selectedStudentIsScholarship
+                      ? PAYMENT_YEARS.map((year) => {
+                          const status = paymentYearButtonStatus(
+                            selectedStudent,
+                            selectedStudentPayments,
+                            year,
+                          );
+                          const isSelected =
+                            form.targetYear === year && effectivePaymentPlan === "year";
+                          return (
+                            <button
+                              key={year}
+                              type="button"
+                              onClick={() =>
+                                setForm({
+                                  ...form,
+                                  targetYear: year,
+                                  targetSemester: 1,
+                                  paymentPlan: "year",
+                                  description: paymentDescriptionLabel(year, 1, "year"),
+                                  amount: selectedTuitionRate.year.toString(),
+                                })
+                              }
+                              className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition ${
+                                isSelected
+                                  ? "border-info bg-info/10 text-foreground"
+                                  : "border-border bg-surface hover:bg-muted"
+                              }`}
+                            >
+                              <span className="font-semibold">ឆ្នាំទី{year} ១ឆ្នាំ</span>
+                              <PaymentTermBadge status={status} />
+                            </button>
+                          );
+                        })
+                      : PAYMENT_YEARS.flatMap((year) =>
+                          PAYMENT_SEMESTERS.map((semester) => {
+                            const status = paymentTermStatus(
+                              selectedStudent,
+                              selectedStudentPayments,
+                              year,
+                              semester,
+                            );
+                            const isSelected =
+                              form.targetYear === year && form.targetSemester === semester;
+                            return (
+                              <button
+                                key={`${year}-${semester}`}
+                                type="button"
+                                onClick={() =>
+                                  setForm({
+                                    ...form,
+                                    targetYear: year,
+                                    targetSemester: semester,
+                                    paymentPlan: "semester",
+                                    description: paymentDescriptionLabel(
+                                      year,
+                                      semester,
+                                      "semester",
+                                    ),
+                                    amount: selectedTuitionRate.semester.toString(),
+                                  })
+                                }
+                                className={`flex items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-left text-xs transition ${
+                                  isSelected
+                                    ? "border-info bg-info/10 text-foreground"
+                                    : "border-border bg-surface hover:bg-muted"
+                                }`}
+                              >
+                                <span className="font-semibold">
+                                  {paymentTermLabel(year, semester)}
+                                </span>
+                                <PaymentTermBadge status={status} />
+                              </button>
+                            );
+                          }),
+                        )}
                   </div>
                 </div>
               </div>
@@ -1537,30 +1693,36 @@ function StudentPaymentPanel({
                 {t("pay_for")}
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={form.paymentPlan}
-                  onChange={(e) => {
-                    const paymentPlan = e.target.value as PaymentPlan;
-                    const amount =
-                      paymentPlan === "year"
-                        ? selectedTuitionRate.year
-                        : selectedTuitionRate.semester;
-                    setForm({
-                      ...form,
-                      paymentPlan,
-                      amount: amount.toString(),
-                      description: paymentDescriptionLabel(
-                        form.targetYear,
-                        form.targetSemester,
+                {selectedStudentIsScholarship ? (
+                  <div className="flex h-10 items-center rounded-xl border border-border bg-card px-3 text-sm font-semibold">
+                    {t("pay_one_year")}
+                  </div>
+                ) : (
+                  <select
+                    value={form.paymentPlan}
+                    onChange={(e) => {
+                      const paymentPlan = e.target.value as PaymentPlan;
+                      const amount =
+                        paymentPlan === "year"
+                          ? selectedTuitionRate.year
+                          : selectedTuitionRate.semester;
+                      setForm({
+                        ...form,
                         paymentPlan,
-                      ),
-                    });
-                  }}
-                  className="h-10 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-primary"
-                >
-                  <option value="semester">{t("pay_one_semester")}</option>
-                  <option value="year">{t("pay_one_year")}</option>
-                </select>
+                        amount: amount.toString(),
+                        description: paymentDescriptionLabel(
+                          form.targetYear,
+                          form.targetSemester,
+                          paymentPlan,
+                        ),
+                      });
+                    }}
+                    className="h-10 rounded-xl border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                  >
+                    <option value="semester">{t("pay_one_semester")}</option>
+                    <option value="year">{t("pay_one_year")}</option>
+                  </select>
+                )}
                 <select
                   value={form.targetYear}
                   onChange={(e) =>
@@ -1570,7 +1732,7 @@ function StudentPaymentPanel({
                       description: paymentDescriptionLabel(
                         Number(e.target.value),
                         form.targetSemester,
-                        form.paymentPlan,
+                        effectivePaymentPlan,
                       ),
                       amount: autoAmount.toString(),
                     })
@@ -1583,7 +1745,7 @@ function StudentPaymentPanel({
                     </option>
                   ))}
                 </select>
-                {form.paymentPlan === "semester" && (
+                {!selectedStudentIsScholarship && form.paymentPlan === "semester" && (
                   <select
                     value={form.targetSemester}
                     onChange={(e) =>
@@ -1626,7 +1788,7 @@ function StudentPaymentPanel({
                 />
               </div>
               <div className="mt-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-                {paymentPlanLabel(form.paymentPlan)}:{" "}
+                {paymentPlanLabel(effectivePaymentPlan)}:{" "}
                 <span className="font-semibold text-foreground">{formatUsd(autoAmount)}</span>
               </div>
               {duplicatePaymentMessage && (
@@ -1727,6 +1889,7 @@ function StudentPaymentPanel({
 
 function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void }) {
   const { t } = useI18n();
+  const { session } = useAuth();
   const qc = useQueryClient();
   const [f, setF] = useState({ student_code: "", amount: "", due_date: "", description: "" });
   const { data: students = [] } = useQuery({
@@ -1737,7 +1900,7 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
       const { data } = await supabase
         .from("students")
         .select(
-          "id,student_code,full_name,full_name_en,full_name_km,email,phone,major,class_name,shift,enrollment_year,study_year,status",
+          "id,student_code,full_name,full_name_en,full_name_km,email,phone,major,student_type,class_name,shift,enrollment_year,study_year,status",
         )
         .order("student_code");
       return (data ?? []) as PaymentStudent[];
@@ -1775,6 +1938,7 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
                 student_code: selectedStudent.student_code,
                 class_name: selectedStudent.class_name,
                 major: selectedStudent.major,
+                student_type: selectedStudent.student_type,
                 phone: selectedStudent.phone,
                 date_of_birth: selectedStudent.date_of_birth,
                 gender: selectedStudent.gender,
@@ -1788,15 +1952,18 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
         return;
       }
 
-      const { error } = await supabase.from("payments").insert({
-        student_id: selectedStudent!.id,
-        invoice_number: `INV-${Date.now().toString().slice(-7)}`,
-        amount: amountValue,
-        due_date: f.due_date || null,
-        description: f.description || null,
-        status: "pending",
+      const accessToken = await requirePaymentAccessToken(session?.access_token);
+
+      await createPaymentInvoice({
+        data: {
+          accessToken,
+          studentId: selectedStudent!.id,
+          invoiceNumber: `INV-${Date.now().toString().slice(-7)}`,
+          amount: amountValue,
+          dueDate: f.due_date || null,
+          description: f.description || null,
+        },
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["payments"] });
@@ -1880,7 +2047,10 @@ function AddPayment({ isDemo, onClose }: { isDemo: boolean; onClose: () => void 
                   </div>
                   <div className="mt-2 grid gap-x-3 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
                     <StudentInfoLine label={t("class")} value={selectedStudent.class_name} />
-                    <StudentInfoLine label={t("major")} value={selectedStudent.major} />
+                    <StudentInfoLine
+                      label={t("major")}
+                      value={normalizeMajorLabel(selectedStudent.major)}
+                    />
                     <StudentInfoLine label={t("shift")} value={selectedStudent.shift} />
                     <StudentInfoLine label={t("phone")} value={selectedStudent.phone} />
                   </div>

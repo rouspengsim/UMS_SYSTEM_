@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { pageTitle } from "@/lib/brand";
+import { normalizeMajorLabel } from "@/lib/academic-options";
+import { formatDateDisplay } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/reports")({
   head: () => ({ meta: [{ title: pageTitle("Reports") }] }),
@@ -126,8 +128,8 @@ function studentRegisterReportHtml(students: StudentRegisterRow[]) {
           <td>${escapeHtml(student.full_name_km)}</td>
           <td>${escapeHtml(student.full_name_en || student.full_name)}</td>
           <td>${escapeHtml(genderShort(student.gender))}</td>
-          <td>${escapeHtml(student.date_of_birth)}</td>
-          <td>${escapeHtml(student.major)}</td>
+          <td>${escapeHtml(formatDateDisplay(student.date_of_birth))}</td>
+          <td>${escapeHtml(normalizeMajorLabel(student.major))}</td>
           <td>${escapeHtml(student.class_name)}</td>
           <td>${escapeHtml(payLabel(student))}</td>
           <td>${escapeHtml(student.status)}</td>
@@ -350,10 +352,12 @@ function ReportsPage() {
                           </td>
                           <td className="px-3 py-2">{genderShort(student.gender)}</td>
                           <td className="px-3 py-2 whitespace-nowrap">
-                            {student.date_of_birth ?? "—"}
+                            {formatDateDisplay(student.date_of_birth)}
                           </td>
                           <td className="max-w-72 px-3 py-2">
-                            <span className="line-clamp-2">{student.major ?? "—"}</span>
+                            <span className="line-clamp-2">
+                              {normalizeMajorLabel(student.major) ?? "—"}
+                            </span>
                           </td>
                           <td className="px-3 py-2 font-semibold">{student.class_name ?? "—"}</td>
                           <td className="px-3 py-2">{payLabel(student)}</td>

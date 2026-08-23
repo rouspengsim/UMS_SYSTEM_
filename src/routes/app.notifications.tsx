@@ -3,12 +3,17 @@ import { PageHeader, SectionCard } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { Bell, Plus, Loader2, X, ImageIcon, Video, Upload } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { pageTitle } from "@/lib/brand";
-import { decodeNotificationContent, encodeNotificationContent } from "@/lib/notification-content";
+import {
+  decodeNotificationContent,
+  encodeNotificationContent,
+  isNotificationVisibleForRole,
+} from "@/lib/notification-content";
+import { formatDateDisplay } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/notifications")({
   head: () => ({ meta: [{ title: pageTitle("Notifications") }] }),
@@ -54,13 +59,13 @@ function fileToDataUrl(file: File): Promise<string> {
 
 function NotificationsPage() {
   const { t } = useI18n();
-  const { primaryRole, isDemo } = useAuth();
+  const { user, primaryRole, isDemo } = useAuth();
   const qc = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const isAdmin = primaryRole === "admin";
 
   const { data: items = [], isLoading } = useQuery({
-    queryKey: ["notifications-list", isDemo ? "demo" : "remote"],
+    queryKey: ["notifications-list", primaryRole, user?.id, isDemo ? "demo" : "remote"],
     queryFn: async () => {
       if (isDemo) return readDemoNotifications();
 
@@ -71,6 +76,10 @@ function NotificationsPage() {
       return data ?? [];
     },
   });
+  const visibleItems = useMemo(
+    () => items.filter((item) => isNotificationVisibleForRole(item, primaryRole, user?.id)),
+    [items, primaryRole, user?.id],
+  );
 
   return (
     <div>
@@ -93,14 +102,14 @@ function NotificationsPage() {
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="py-10 text-center">
             <Bell className="mx-auto h-8 w-8 text-muted-foreground/40" />
             <p className="mt-2 text-sm text-muted-foreground">{t("no_notifications_yet")}</p>
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {items.map((n) => (
+            {visibleItems.map((n) => (
               <li key={n.id} className="py-4">
                 {(() => {
                   const content = decodeNotificationContent(n.body);
@@ -152,7 +161,7 @@ function NotificationsPage() {
                         )}
                       </div>
                       <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {new Date(n.created_at).toLocaleDateString()}
+                        {formatDateDisplay(n.created_at)}
                       </span>
                     </div>
                   );
@@ -168,7 +177,7 @@ function NotificationsPage() {
           isDemo={isDemo}
           onClose={() => {
             setShowAdd(false);
-            qc.invalidateQueries({ queryKey: ["notifications-list", isDemo ? "demo" : "remote"] });
+            qc.invalidateQueries({ queryKey: ["notifications-list"] });
             qc.invalidateQueries({ queryKey: ["topbar-notifications"] });
           }}
         />

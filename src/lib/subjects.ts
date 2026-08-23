@@ -88,6 +88,40 @@ export function subjectDescriptionMajorName(description: string | null | undefin
   return program || "";
 }
 
+function subjectDescriptionParts(description: string | null | undefined) {
+  return (
+    description
+      ?.split(" / ")
+      .map((part) => part.trim())
+      .filter(Boolean) ?? []
+  );
+}
+
+export function semesterNumber(value: string | null | undefined) {
+  if (!value) return null;
+  if (value.includes("2") || value.includes("២")) return 2;
+  if (value.includes("1") || value.includes("១")) return 1;
+  return null;
+}
+
+export function studyYearNumber(value: number | string | null | undefined) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (!value) return null;
+  if (value.includes("4") || value.includes("៤")) return 4;
+  if (value.includes("3") || value.includes("៣")) return 3;
+  if (value.includes("2") || value.includes("២")) return 2;
+  if (value.includes("1") || value.includes("១")) return 1;
+  return null;
+}
+
+export function subjectDescriptionSemesterNumber(description: string | null | undefined) {
+  return semesterNumber(subjectDescriptionParts(description)[3]);
+}
+
+export function subjectDescriptionStudyYearNumber(description: string | null | undefined) {
+  return studyYearNumber(subjectDescriptionParts(description)[2]);
+}
+
 function subjectMajorGroupLabel(subject: SubjectOption) {
   return subjectDescriptionMajorName(subject.description) || OTHER_SUBJECT_GROUP;
 }
@@ -164,6 +198,61 @@ export function filterSubjectOptionsByMajor(
   });
 
   return matchingCurriculumCount > 0 ? filtered : options;
+}
+
+export function filterSubjectOptionsBySemester(
+  options: SubjectOption[],
+  semester: string | null | undefined,
+) {
+  const selectedSemester = semesterNumber(semester);
+  if (!selectedSemester) return options;
+
+  let matchingCurriculumCount = 0;
+  const filtered = options.filter((subject) => {
+    const subjectSemester = subjectDescriptionSemesterNumber(subject.description);
+    if (!subjectSemester) return false;
+    const matches = subjectSemester === selectedSemester;
+    if (matches) matchingCurriculumCount += 1;
+    return matches;
+  });
+
+  return matchingCurriculumCount > 0 ? filtered : options;
+}
+
+export function filterSubjectOptionsByStudyYear(
+  options: SubjectOption[],
+  studyYear: number | string | null | undefined,
+) {
+  const selectedStudyYear = studyYearNumber(studyYear);
+  if (!selectedStudyYear) return options;
+
+  let matchingCurriculumCount = 0;
+  const filtered = options.filter((subject) => {
+    const subjectStudyYear = subjectDescriptionStudyYearNumber(subject.description);
+    if (!subjectStudyYear) return false;
+    const matches = subjectStudyYear === selectedStudyYear;
+    if (matches) matchingCurriculumCount += 1;
+    return matches;
+  });
+
+  return matchingCurriculumCount > 0 ? filtered : options;
+}
+
+export function filterSubjectOptionsByScope(
+  options: SubjectOption[],
+  scope: {
+    major?: string | null;
+    studyYear?: number | string | null;
+    semester?: string | null;
+  },
+) {
+  return filterSubjectOptionsByStudyYear(
+    filterSubjectOptionsBySemester(
+      filterSubjectOptionsByMajor(options, scope.major),
+      scope.semester,
+    ),
+    scope.studyYear,
+  );
 }
 
 export function readDemoSubjects(): SubjectRecord[] {

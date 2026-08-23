@@ -21,7 +21,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { pageTitle } from "@/lib/brand";
-import { createTeacherAccount } from "@/lib/teacher-accounts";
+import { createTeacherAccount, updateTeacherAccount } from "@/lib/teacher-accounts";
 import { ResetPasswordModal } from "@/components/app/reset-password-modal";
 import {
   DEFAULT_SUBJECT_OPTIONS,
@@ -538,9 +538,23 @@ function TeacherFormModal({
         department: f.faculty || null,
         specialization: f.specialization || null,
       };
-      const { error } = isEdit
-        ? await supabase.from("teachers").update(payload).eq("id", teacher.id)
-        : await supabase.from("teachers").insert(payload);
+      if (isEdit) {
+        if (!session?.access_token) {
+          throw new Error(t("admin_session_expired_login"));
+        }
+
+        await updateTeacherAccount({
+          data: {
+            accessToken: session.access_token,
+            teacherId: teacher.id,
+            userId,
+            teacher: payload,
+          },
+        });
+        return;
+      }
+
+      const { error } = await supabase.from("teachers").insert(payload);
       if (error) throw error;
     },
     onSuccess: () => {

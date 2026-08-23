@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">User Permission - University Management System</title>
+  <desc id="desc">Modern user permission matrix for Admin, Teacher, and Student roles in a University Management System.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f7faf6"/>
+      <stop offset="0.52" stop-color="#eef7f5"/>
+      <stop offset="1" stop-color="#fff6ed"/>
+    </linearGradient>
+    <linearGradient id="admin" x1="0" x2="1">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="teacher" x1="0" x2="1">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="student" x1="0" x2="1">
+      <stop offset="0" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#dc2626"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#16352d" flood-opacity="0.13"/>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#16352d" flood-opacity="0.1"/>
+    </filter>
+    <style>
+      .title { font: 800 56px Arial, sans-serif; fill: #12211c; letter-spacing: 0; }
+      .subtitle { font: 500 23px Arial, sans-serif; fill: #64746d; }
+      .role { font: 800 30px Arial, sans-serif; fill: #fff; text-anchor: middle; }
+      .role-sub { font: 500 16px Arial, sans-serif; fill: #eef8f7; text-anchor: middle; }
+      .feature { font: 700 21px Arial, sans-serif; fill: #17251f; }
+      .check { font: 900 31px Arial, sans-serif; fill: #16a34a; text-anchor: middle; }
+      .limited { font: 900 30px Arial, sans-serif; fill: #f97316; text-anchor: middle; }
+      .no { font: 900 28px Arial, sans-serif; fill: #dc2626; text-anchor: middle; }
+      .legend { font: 700 17px Arial, sans-serif; fill: #54645d; }
+      .card { fill: #ffffff; stroke: #d8e4dc; stroke-width: 2; filter: url(#shadow); }
+      .row { fill: #ffffff; stroke: #e3ece6; stroke-width: 2; }
+      .rowAlt { fill: #f8fbf8; stroke: #e3ece6; stroke-width: 2; }
+      .muted { font: 500 17px Arial, sans-serif; fill: #6a7a73; }
+      .badgeText { font: 800 19px Arial, sans-serif; fill: #173b2f; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1390" cy="86" r="170" fill="#dff0e5" opacity="0.55"/>
+  <circle cx="92" cy="792" r="220" fill="#ffe4cf" opacity="0.45"/>
+  <path d="M1260 820 C1400 680 1475 530 1540 330" fill="none" stroke="#cddfd5" stroke-width="5" opacity="0.55"/>
+  <path d="M48 165 C185 98 295 110 420 176" fill="none" stroke="#d8e8dd" stroke-width="5" opacity="0.65"/>
+
+  <text class="title" x="95" y="94">User Permission</text>
+  <text class="subtitle" x="99" y="130">University Management System</text>
+  <rect x="100" y="155" width="290" height="8" rx="4" fill="url(#student)"/>
+
+  <rect x="1095" y="74" width="395" height="72" rx="36" fill="#ffffff" stroke="#d8e4dc" stroke-width="2" filter="url(#softShadow)"/>
+  <text class="badgeText" x="1292" y="116">Role-Based Access Control</text>
+
+  <rect class="card" x="110" y="210" width="1380" height="590" rx="30"/>
+
+  <rect x="110" y="210" width="390" height="105" rx="30" fill="#173b2f"/>
+  <text class="role" x="305" y="270">System Features</text>
+  <text class="role-sub" x="305" y="297">Permission list</text>
+
+  <rect x="500" y="210" width="330" height="105" fill="url(#admin)"/>
+  <text class="role" x="665" y="263">Admin</text>
+  <text class="role-sub" x="665" y="292">Full control</text>
+
+  <rect x="830" y="210" width="330" height="105" fill="url(#teacher)"/>
+  <text class="role" x="995" y="263">Teacher</text>
+  <text class="role-sub" x="995" y="292">Academic tasks</text>
+
+  <rect x="1160" y="210" width="330" height="105" rx="30" fill="url(#student)"/>
+  <text class="role" x="1325" y="263">Student</text>
+  <text class="role-sub" x="1325" y="292">View own information</text>
+
+  <g>
+    <rect class="row" x="110" y="315" width="1380" height="58"/>
+    <text class="feature" x="148" y="352">Manage Users</text>
+    <text class="check" x="665" y="354">✓</text>
+    <text class="no" x="995" y="354">×</text>
+    <text class="no" x="1325" y="354">×</text>
+
+    <rect class="rowAlt" x="110" y="373" width="1380" height="58"/>
+    <text class="feature" x="148" y="410">Manage Students &amp; Teachers</text>
+    <text class="check" x="665" y="412">✓</text>
+    <text class="limited" x="995" y="412">◐</text>
+    <text class="no" x="1325" y="412">×</text>
+
+    <rect class="row" x="110" y="431" width="1380" height="58"/>
+    <text class="feature" x="148" y="468">Manage Classes &amp; Subjects</text>
+    <text class="check" x="665" y="470">✓</text>
+    <text class="limited" x="995" y="470">◐</text>
+    <text class="no" x="1325" y="470">×</text>
+
+    <rect class="rowAlt" x="110" y="489" width="1380" height="58"/>
+    <text class="feature" x="148" y="526">Attendance Management</text>
+    <text class="check" x="665" y="528">✓</text>
+    <text class="check" x="995" y="528">✓</text>
+    <text class="limited" x="1325" y="528">◐</text>
+
+    <rect class="row" x="110" y="547" width="1380" height="58"/>
+    <text class="feature" x="148" y="584">Score / Exam Management</text>
+    <text class="check" x="665" y="586">✓</text>
+    <text class="check" x="995" y="586">✓</text>
+    <text class="limited" x="1325" y="586">◐</text>
+
+    <rect class="rowAlt" x="110" y="605" width="1380" height="58"/>
+    <text class="feature" x="148" y="642">Payment Management</text>
+    <text class="check" x="665" y="644">✓</text>
+    <text class="no" x="995" y="644">×</text>
+    <text class="limited" x="1325" y="644">◐</text>
+
+    <rect class="row" x="110" y="663" width="1380" height="58"/>
+    <text class="feature" x="148" y="700">Reports &amp; Notifications</text>
+    <text class="check" x="665" y="702">✓</text>
+    <text class="limited" x="995" y="702">◐</text>
+    <text class="limited" x="1325" y="702">◐</text>
+
+    <rect class="rowAlt" x="110" y="721" width="1380" height="79" rx="0"/>
+    <text class="feature" x="148" y="768">View Personal Profile</text>
+    <text class="check" x="665" y="770">✓</text>
+    <text class="check" x="995" y="770">✓</text>
+    <text class="check" x="1325" y="770">✓</text>
+  </g>
+
+  <rect x="328" y="824" width="945" height="48" rx="24" fill="#ffffff" stroke="#d8e4dc" stroke-width="2" filter="url(#softShadow)"/>
+  <text class="legend" x="390" y="855">✓ Allowed</text>
+  <text class="legend" x="718" y="855">◐ Limited / View Only</text>
+  <text class="legend" x="1110" y="855">× Not Allowed</text>
+</svg>

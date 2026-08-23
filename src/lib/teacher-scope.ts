@@ -161,6 +161,7 @@ export async function findTeacherClassScope(user: SupabaseUser | null | undefine
   if (!teacher) return null;
 
   const fallbackClasses: CurrentTeacherClassRow[] = [];
+  const timetableSubjectCodes = new Set<string>();
 
   const { data: directClasses, error: directClassesError } = await supabase
     .from("classes")
@@ -179,6 +180,11 @@ export async function findTeacherClassScope(user: SupabaseUser | null | undefine
     const matchedSlots = ((timetableSlots ?? []) as unknown as TimetableScopeSlot[]).filter(
       (slot) => slotMatchesTeacher(slot, teacher),
     );
+    matchedSlots.forEach((slot) => {
+      const payload = decodeTimetableCell(slot.room);
+      const code = slot.subject_code?.trim() || payload.subjectCode?.trim();
+      if (code) timetableSubjectCodes.add(code);
+    });
     fallbackClasses.push(
       ...matchedSlots
         .map((slot) => slot.classes ?? null)
@@ -193,6 +199,7 @@ export async function findTeacherClassScope(user: SupabaseUser | null | undefine
     const code = classRow.subject_code?.trim();
     if (code) subjectCodes.add(code);
   });
+  timetableSubjectCodes.forEach((code) => subjectCodes.add(code));
 
   return {
     teacher,

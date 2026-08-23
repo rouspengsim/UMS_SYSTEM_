@@ -26,21 +26,29 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FLAT_MAJOR_OPTIONS } from "@/lib/academic-options";
+import { cn, formatDateDisplay } from "@/lib/utils";
+import { FLAT_MAJOR_OPTIONS, normalizeMajorLabel } from "@/lib/academic-options";
 import {
   DEFAULT_SUBJECT_OPTIONS,
-  filterSubjectOptionsByMajor,
+  filterSubjectOptionsByScope,
   groupSubjectOptionsByMajor,
   mergeSubjectOptions,
   readDemoSubjects,
+  subjectDescriptionMajorName,
   subjectRowsToOptions,
+  type SubjectOption,
 } from "@/lib/subjects";
 import { pageTitle } from "@/lib/brand";
-import { cn } from "@/lib/utils";
 import { findTeacherClassScope } from "@/lib/teacher-scope";
 
 type Status = "present" | "absent" | "late" | "excused";
-type AttendanceClass = { id: string; name: string; majors: string[]; isSynthetic?: boolean };
+type AttendanceClass = {
+  id: string;
+  name: string;
+  majors: string[];
+  isSynthetic?: boolean;
+  subjectCode?: string | null;
+};
 
 export const Route = createFileRoute("/app/attendance")({
   head: () => ({ meta: [{ title: pageTitle("Attendance") }] }),
@@ -94,8 +102,6 @@ const STATUS_OPTIONS: Array<{ value: Status; label: string; short: string; class
     className: "bg-info/15 text-info",
   },
 ];
-const ALL_MAJORS = "all";
-
 function readDemoList<T>(key: string): T[] {
   if (typeof window === "undefined") return [];
   try {
@@ -134,7 +140,137 @@ function uniqueAttendanceClasses(classes: AttendanceClass[]) {
 }
 
 function classMatchesMajor(classRow: AttendanceClass, major: string) {
-  return major === ALL_MAJORS || classRow.majors.includes(major);
+  if (!major || classRow.majors.length === 0) return true;
+  return classRow.majors.includes(major);
+}
+
+function majorLabelRoot(major: string | null | undefined) {
+  return (major ?? "").split(" - ")[0]?.trim() ?? "";
+}
+
+function filterAttendanceSubjectOptionsByMajor(
+  options: SubjectOption[],
+  major: string | null | undefined,
+) {
+  const majorName = majorLabelRoot(major);
+  if (!majorName) return [];
+
+  return options.filter(
+    (subject) => subjectDescriptionMajorName(subject.description) === majorName,
+  );
+}
+
+function majorOptionMatchesName(majorValue: string, majorName: string) {
+  return majorLabelRoot(majorValue) === majorName;
+}
+
+function majorValuesFromSubjects(subjects: SubjectOption[]) {
+  const values = new Set<string>();
+  subjects.forEach((subject) => {
+    const majorName = subjectDescriptionMajorName(subject.description);
+    if (!majorName) return;
+
+    const matchingMajor = FLAT_MAJOR_OPTIONS.find((major) =>
+      majorOptionMatchesName(major.value, majorName),
+    );
+    if (matchingMajor) values.add(matchingMajor.value);
+  });
+  return values;
+}
+
+async function attachStudentMajorsToClasses(classes: AttendanceClass[]) {
+  if (classes.length === 0) return classes;
+
+  const classIds = classes
+    .filter((classRow) => !classRow.isSynthetic)
+    .map((classRow) => classRow.id);
+  const classNames = classes.map((classRow) => classRow.name).filter(Boolean);
+  const subjectCodes = Array.from(
+    new Set(
+      classes
+        .map((classRow) => classRow.subjectCode?.trim())
+        .filter((code): code is string => !!code),
+    ),
+  );
+  const majorsByClassId = new Map<string, Set<string>>();
+  const majorsByClassName = new Map<string, Set<string>>();
+  const majorsBySubjectCode = new Map<string, string>();
+
+  if (subjectCodes.length > 0) {
+    const { data } = await supabase
+      .from("subjects")
+      .select("subject_id,description")
+      .in("subject_id", subjectCodes);
+
+    (
+      (data ?? []) as Array<{
+        subject_id: string;
+        description: string | null;
+      }>
+    ).forEach((subject) => {
+      const majorName = subjectDescriptionMajorName(subject.description);
+      const matchingMajor = FLAT_MAJOR_OPTIONS.find((major) =>
+        majorOptionMatchesName(major.value, majorName),
+      );
+      if (matchingMajor) majorsBySubjectCode.set(subject.subject_id, matchingMajor.value);
+    });
+  }
+
+  if (classIds.length > 0) {
+    const { data } = await supabase
+      .from("enrollments")
+      .select("class_id,students(major)")
+      .in("class_id", classIds);
+
+    (
+      (data ?? []) as unknown as Array<{
+        class_id: string | null;
+        students: { major: string | null } | null;
+      }>
+    ).forEach((row) => {
+      const major = row.students?.major?.trim();
+      if (!row.class_id || !major) return;
+      const majors = majorsByClassId.get(row.class_id) ?? new Set<string>();
+      majors.add(major);
+      majorsByClassId.set(row.class_id, majors);
+    });
+  }
+
+  if (classNames.length > 0) {
+    const { data } = await supabase
+      .from("students")
+      .select("class_name,major")
+      .in("class_name", classNames)
+      .eq("status", "active");
+
+    (
+      (data ?? []) as Array<{
+        class_name: string | null;
+        major: string | null;
+      }>
+    ).forEach((student) => {
+      const className = student.class_name?.trim();
+      const major = student.major?.trim();
+      if (!className || !major) return;
+      const majors = majorsByClassName.get(className) ?? new Set<string>();
+      majors.add(major);
+      majorsByClassName.set(className, majors);
+    });
+  }
+
+  return classes.map((classRow) => ({
+    ...classRow,
+    majors: Array.from(
+      new Set([
+        ...classRow.majors,
+        ...(majorsByClassId.get(classRow.id) ?? []),
+        ...(majorsByClassName.get(classRow.name) ?? []),
+        ...(classRow.subjectCode && majorsBySubjectCode.has(classRow.subjectCode)
+          ? [majorsBySubjectCode.get(classRow.subjectCode)!]
+          : []),
+      ]),
+    ),
+  }));
 }
 
 function cellTone(status?: Status) {
@@ -238,27 +374,26 @@ function AttendancePage() {
   const [semester, setSemester] = useState(SEMESTER_OPTIONS[0]);
   const [subjectCode, setSubjectCode] = useState(DEFAULT_SUBJECT_OPTIONS[0]?.code ?? "Subject 1");
   const [subjectSearchOpen, setSubjectSearchOpen] = useState(false);
-  const [selectedMajor, setSelectedMajor] = useState(ALL_MAJORS);
+  const [selectedMajor, setSelectedMajor] = useState(FLAT_MAJOR_OPTIONS[0]?.value ?? "");
   const [classId, setClassId] = useState("");
   const [slotDates, setSlotDates] = useState<Record<number, string>>({});
   const weekNumber = 1;
   const visibleWeeks = WEEK_OPTIONS.slice(weekNumber - 1, Math.min(48, weekNumber + 3));
-  const attendanceSlots = visibleWeeks
-    .flatMap((week) =>
-      DAY_OPTIONS.map((dayLabel, index) => ({
-        slot: (week - weekNumber) * DAY_OPTIONS.length + index + 1,
-        week,
-        day: index + 1,
-        dayLabel,
-      })),
-    )
-    .slice(0, 18);
+  const attendanceSlots = visibleWeeks.flatMap((week) =>
+    DAY_OPTIONS.map((dayLabel, index) => ({
+      slot: (week - weekNumber) * DAY_OPTIONS.length + index + 1,
+      week,
+      day: index + 1,
+      dayLabel,
+    })),
+  );
   const defaultSlotDate = (slotIndex: number) => addDaysToIsoDate(date, slotIndex * 7);
   const slotDateFor = (slotNumber: number, slotIndex: number) =>
     slotDates[slotNumber] ?? defaultSlotDate(slotIndex);
   const isStudent = primaryRole === "student";
   const isTeacher = primaryRole === "teacher";
   const canManageAttendance = primaryRole === "admin" || primaryRole === "teacher";
+  const attendanceMajorFilter = selectedMajor;
 
   const { data: subjectOptions = DEFAULT_SUBJECT_OPTIONS } = useQuery({
     queryKey: ["subject-options", primaryRole, user?.id, isDemo ? "demo" : "remote"],
@@ -282,7 +417,7 @@ function AttendancePage() {
       if (isTeacher) {
         const scope = await findTeacherClassScope(user);
         const subjectCodes = scope?.subjectCodes ?? [];
-        if (subjectCodes.length === 0) return DEFAULT_SUBJECT_OPTIONS;
+        if (subjectCodes.length === 0) return [];
 
         const { data, error } = await supabase
           .from("subjects")
@@ -319,14 +454,47 @@ function AttendancePage() {
       return mergeSubjectOptions(options);
     },
   });
-  const filteredSubjectOptions = useMemo(
-    () =>
-      filterSubjectOptionsByMajor(
-        subjectOptions,
-        selectedMajor === ALL_MAJORS ? null : selectedMajor,
-      ),
-    [subjectOptions, selectedMajor],
-  );
+  const { data: ownAttendanceStudent = null } = useQuery({
+    queryKey: ["attendance-own-student", user?.id, isDemo ? "demo" : "remote"],
+    enabled: isStudent,
+    queryFn: async () => {
+      if (isDemo) {
+        const student = readDemoList<{
+          id: string;
+          major?: string | null;
+          class_name?: string | null;
+          study_year?: number | null;
+        }>("studentsphere.demo.students")[0];
+        return student ?? null;
+      }
+
+      const { data, error } = await supabase
+        .from("students")
+        .select("id,major,class_name,study_year")
+        .eq("user_id", user?.id ?? "")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const filteredSubjectOptions = useMemo(() => {
+    const majorFiltered = filterAttendanceSubjectOptionsByMajor(subjectOptions, selectedMajor);
+    const scopedOptions = isTeacher && majorFiltered.length === 0 ? subjectOptions : majorFiltered;
+    return isStudent
+      ? filterSubjectOptionsByScope(scopedOptions, {
+          major: null,
+          semester,
+          studyYear: ownAttendanceStudent?.study_year,
+        })
+      : filterSubjectOptionsByScope(scopedOptions, { major: null, semester });
+  }, [
+    isStudent,
+    isTeacher,
+    ownAttendanceStudent?.study_year,
+    semester,
+    subjectOptions,
+    selectedMajor,
+  ]);
   const filteredSubjectGroups = useMemo(
     () => groupSubjectOptionsByMajor(filteredSubjectOptions),
     [filteredSubjectOptions],
@@ -337,9 +505,7 @@ function AttendancePage() {
 
   useEffect(() => {
     if (!filteredSubjectOptions.some((subject) => subject.code === subjectCode)) {
-      setSubjectCode(
-        filteredSubjectOptions[0]?.code ?? DEFAULT_SUBJECT_OPTIONS[0]?.code ?? "Subject 1",
-      );
+      setSubjectCode(filteredSubjectOptions[0]?.code ?? "");
     }
   }, [subjectCode, filteredSubjectOptions]);
 
@@ -404,9 +570,12 @@ function AttendancePage() {
           id: classRow.id,
           name: classRow.name,
           majors: [],
+          subjectCode: classRow.subject_code,
         })),
       );
-      if (isTeacher && scopedClasses.length > 0) return scopedClasses;
+      if (isTeacher && scopedClasses.length > 0) {
+        return attachStudentMajorsToClasses(scopedClasses);
+      }
 
       const studentClassesQuery = isStudent
         ? supabase.rpc("list_student_classmates")
@@ -463,7 +632,33 @@ function AttendancePage() {
       return uniqueAttendanceClasses([...storedClasses, ...scopedClasses, ...syntheticClasses]);
     },
   });
-  const filteredClasses = classes.filter((classRow) => classMatchesMajor(classRow, selectedMajor));
+  const availableMajorOptions = useMemo(() => {
+    const majorsInClasses = new Set([
+      ...classes.flatMap((classRow) => classRow.majors),
+      ...(isTeacher ? majorValuesFromSubjects(subjectOptions) : []),
+    ]);
+    const matchingOptions = FLAT_MAJOR_OPTIONS.filter((major) => majorsInClasses.has(major.value));
+    if (matchingOptions.length > 0) return matchingOptions;
+    return isTeacher ? [] : FLAT_MAJOR_OPTIONS;
+  }, [classes, isTeacher, subjectOptions]);
+  const filteredClasses = classes.filter((classRow) =>
+    classMatchesMajor(classRow, attendanceMajorFilter),
+  );
+
+  useEffect(() => {
+    if (availableMajorOptions.length === 0) {
+      if (selectedMajor) {
+        setSelectedMajor("");
+        setClassId("");
+      }
+      return;
+    }
+
+    if (!availableMajorOptions.some((major) => major.value === selectedMajor)) {
+      setSelectedMajor(availableMajorOptions[0].value);
+      setClassId("");
+    }
+  }, [availableMajorOptions, selectedMajor]);
 
   useEffect(() => {
     if (
@@ -476,7 +671,7 @@ function AttendancePage() {
   }, [classId, filteredClasses, isStudent, isTeacher]);
 
   const { data: enrolled = [], isLoading: studentsLoading } = useQuery({
-    queryKey: ["enrolled-students", classId, selectedMajor, isDemo ? "demo" : "remote"],
+    queryKey: ["enrolled-students", classId, attendanceMajorFilter, isDemo ? "demo" : "remote"],
     enabled: !!classId,
     queryFn: async () => {
       if (isDemo) {
@@ -501,7 +696,7 @@ function AttendancePage() {
           .filter(
             (s) =>
               s.class_name === selectedClassName &&
-              (selectedMajor === ALL_MAJORS || s.major === selectedMajor),
+              (!attendanceMajorFilter || s.major === attendanceMajorFilter),
           )
           .map((s) => ({
             student_id: s.id,
@@ -542,7 +737,7 @@ function AttendancePage() {
             (student) =>
               student.class_name === selectedClassName &&
               student.status === "active" &&
-              (selectedMajor === ALL_MAJORS || student.major === selectedMajor),
+              (!attendanceMajorFilter || student.major === attendanceMajorFilter),
           )
           .map((student) => ({
             student_id: student.id,
@@ -581,8 +776,10 @@ function AttendancePage() {
             class_name: string | null;
           };
         }>;
-        if (selectedMajor !== ALL_MAJORS) {
-          enrolledRows = enrolledRows.filter((row) => row.students?.major === selectedMajor);
+        if (attendanceMajorFilter) {
+          enrolledRows = enrolledRows.filter(
+            (row) => row.students?.major === attendanceMajorFilter,
+          );
         }
         if (enrolledRows.length > 0) return enrolledRows;
       }
@@ -595,8 +792,8 @@ function AttendancePage() {
         .eq("class_name", selectedClassName)
         .eq("status", "active")
         .order("full_name");
-      if (selectedMajor !== ALL_MAJORS) {
-        query = query.eq("major", selectedMajor);
+      if (attendanceMajorFilter) {
+        query = query.eq("major", attendanceMajorFilter);
       }
 
       const { data: classNameStudents, error } = await query;
@@ -629,7 +826,7 @@ function AttendancePage() {
       date,
       isDemo ? "demo" : "remote",
     ],
-    enabled: !!classId,
+    enabled: !!classId && !!subjectCode,
     queryFn: async () => {
       if (isDemo) {
         return readDemoList<DemoAttendanceRow>(DEMO_ATTENDANCE_KEY)
@@ -681,6 +878,7 @@ function AttendancePage() {
       recordDate: string;
       status: Status;
     }) => {
+      if (!subjectCode) throw new Error("Select a subject before recording attendance.");
       if (isDemo) {
         const rows = readDemoList<DemoAttendanceRow>(DEMO_ATTENDANCE_KEY);
         const next = rows.filter(
@@ -818,7 +1016,7 @@ function AttendancePage() {
         )}`
       : "-";
   const attendanceReportHtml = () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = formatDateDisplay(new Date());
     const slotHeaders = attendanceSlots
       .map((slot) => `<th style="width: 24px">${slot.slot}</th>`)
       .join("");
@@ -841,7 +1039,7 @@ function AttendancePage() {
             <td style="width: 30px">${escapeHtml(
               student.students.gender?.toLowerCase().startsWith("f") ? "F" : "M",
             )}</td>
-            <td style="width: 72px">${escapeHtml(student.students.date_of_birth)}</td>
+            <td style="width: 72px">${escapeHtml(formatDateDisplay(student.students.date_of_birth))}</td>
             ${cells}
             <td style="width: 58px"></td>
           </tr>
@@ -909,13 +1107,12 @@ function AttendancePage() {
             setSelectedMajor(e.target.value);
             setClassId("");
           }}
-          disabled={isStudent}
+          disabled={isStudent || availableMajorOptions.length <= 1}
           className="h-10 max-w-80 rounded-xl border border-border bg-surface px-3 text-sm"
         >
-          <option value={ALL_MAJORS}>{t("all_majors")}</option>
-          {FLAT_MAJOR_OPTIONS.map((major) => (
+          {availableMajorOptions.map((major) => (
             <option key={major.value} value={major.value}>
-              {major.label}
+              {normalizeMajorLabel(major.label)}
             </option>
           ))}
         </select>
@@ -995,7 +1192,13 @@ function AttendancePage() {
         </Popover>
       </div>
 
-      {!classId ? (
+      {!selectedSubject ? (
+        <SectionCard>
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No assigned subjects available for attendance.
+          </p>
+        </SectionCard>
+      ) : !classId ? (
         <SectionCard>
           <p className="py-8 text-center text-sm text-muted-foreground">{t("select_class")}</p>
         </SectionCard>
@@ -1034,7 +1237,9 @@ function AttendancePage() {
               </div>
             ) : enrolled.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No students enrolled in this class.
+                {isTeacher
+                  ? "No students found for this assigned class. Check that students are enrolled or have this class name."
+                  : "No students enrolled in this class."}
               </p>
             ) : (
               <div className="rounded-xl border border-border bg-white p-4 text-slate-950 shadow-sm">
@@ -1174,7 +1379,7 @@ function AttendancePage() {
                               >
                                 <select
                                   value={status ?? ""}
-                                  disabled={!canManageAttendance}
+                                  disabled={!canManageAttendance || !subjectCode}
                                   onChange={(event) =>
                                     setStudentCellStatus(
                                       student.student_id,

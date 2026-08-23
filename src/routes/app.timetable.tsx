@@ -19,6 +19,7 @@ import {
 import { deleteClassSchedule, saveClassSchedule } from "@/lib/timetable-admin";
 import { decodeTimetableCell, encodeTimetableCell } from "@/lib/timetable-cell";
 import { findTeacherClassScope, type CurrentTeacher } from "@/lib/teacher-scope";
+import { formatDateDisplay } from "@/lib/utils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/app/timetable")({
@@ -341,21 +342,6 @@ function scheduleForTeacher(
   return rows.length > 0 ? { ...schedule, rows } : null;
 }
 
-function normalizeScheduleClass(value: string | null | undefined) {
-  return value?.trim().toUpperCase() ?? "";
-}
-
-function scheduleMatchesClassScope(
-  schedule: ScheduleBuilderData,
-  classIds: Set<string>,
-  classNames: Set<string>,
-) {
-  return (
-    (!!schedule.classId && classIds.has(schedule.classId)) ||
-    classNames.has(normalizeScheduleClass(schedule.className))
-  );
-}
-
 function teacherScheduleTitle(teacher: CurrentTeacher | null | undefined) {
   return teacher?.full_name || teacher?.full_name_en || teacher?.full_name_km || "Teacher";
 }
@@ -363,16 +349,9 @@ function teacherScheduleTitle(teacher: CurrentTeacher | null | undefined) {
 function combineTeacherSchedules(
   schedules: ScheduleBuilderData[],
   teacher: CurrentTeacher | null | undefined,
-  scopeClassIds: string[] = [],
-  scopeClassNames: string[] = [],
 ) {
-  const classIds = new Set(scopeClassIds);
-  const classNames = new Set(scopeClassNames.map(normalizeScheduleClass).filter(Boolean));
   const teacherSchedules = schedules
-    .map((schedule) => {
-      if (scheduleMatchesClassScope(schedule, classIds, classNames)) return schedule;
-      return scheduleForTeacher(schedule, teacher);
-    })
+    .map((schedule) => scheduleForTeacher(schedule, teacher))
     .filter((schedule): schedule is ScheduleBuilderData => !!schedule);
   if (teacherSchedules.length === 0) return [];
 
@@ -576,7 +555,7 @@ function scheduleReportHtml(className: string, slots: TimetableSlot[]) {
   const timeRanges = Array.from(
     new Set(slots.map((slot) => `${formatTime(slot.start_time)}-${formatTime(slot.end_time)}`)),
   ).sort((a, b) => a.localeCompare(b));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = formatDateDisplay(new Date());
 
   const rows = timeRanges
     .map((range) => {
@@ -708,7 +687,7 @@ function manualScheduleReportHtml(data: ScheduleBuilderData, showClassInCells = 
           <h3>${escapeHtml(data.title)}</h3>
           <h2>${escapeHtml(data.className)}</h2>
           <p>ឆ្នាំសិក្សា ${escapeHtml(data.academicYear)}</p>
-          <p>កាលបរិច្ឆេទចេញផ្សាយ ${escapeHtml(data.issueDate)}</p>
+          <p>កាលបរិច្ឆេទចេញផ្សាយ ${escapeHtml(formatDateDisplay(data.issueDate))}</p>
         </div>
         <div></div>
       </section>
@@ -725,7 +704,7 @@ function manualScheduleReportHtml(data: ScheduleBuilderData, showClassInCells = 
           <div class="signature-title">${escapeHtml(data.centerSignature)}</div>
         </div>
         <div class="footer-right">
-          រាជធានីភ្នំពេញ ថ្ងៃទី ${escapeHtml(data.issueDate)}<br />
+          រាជធានីភ្នំពេញ ថ្ងៃទី ${escapeHtml(formatDateDisplay(data.issueDate))}<br />
           ការិយាល័យសិក្សា
           <div class="signature-title">${escapeHtml(data.rightSignature)}</div>
         </div>
@@ -1195,6 +1174,7 @@ function TimetablePage() {
   const isAdmin = primaryRole === "admin";
   const isStudent = primaryRole === "student";
   const isTeacher = primaryRole === "teacher";
+  const effectiveScheduleAudience = isTeacher ? "teacher" : scheduleAudience;
 
   useEffect(() => {
     if (isAdmin && timetableSearch.teacherId) {
@@ -1202,6 +1182,12 @@ function TimetablePage() {
       setAdminTeacherScheduleId(timetableSearch.teacherId);
     }
   }, [isAdmin, timetableSearch.teacherId]);
+
+  useEffect(() => {
+    if (!isTeacher) return;
+    setScheduleAudience("teacher");
+    setAdminTeacherScheduleId("");
+  }, [isTeacher]);
 
   const { data: teacherOptions = EMPTY_TEACHER_OPTIONS } = useQuery({
     queryKey: ["teachers-min-timetable-builder", isDemo ? "demo" : "remote"],
@@ -1292,20 +1278,11 @@ function TimetablePage() {
       if (!isStudent && !isTeacher) return slotsToSchedules(allSlots);
 
       if (isTeacher) {
-        const classIds = new Set(teacherScope?.classIds ?? []);
-        const classNames = new Set(
-          (teacherScope?.classNames ?? []).map(normalizeScheduleClass).filter(Boolean),
-        );
         const scopedClassesById = new Map(
           (teacherScope?.classes ?? []).map((classRow) => [classRow.id, classRow]),
         );
         const teacherSlots = allSlots
-          .filter(
-            (slot) =>
-              classIds.has(slot.class_id) ||
-              classNames.has(normalizeScheduleClass(slot.classes?.name)) ||
-              slotMatchesTeacher(slot, teacherScope?.teacher),
-          )
+          .filter((slot) => slotMatchesTeacher(slot, teacherScope?.teacher))
           .map((slot) => {
             if (slot.classes?.name) return slot;
             const scopedClass = scopedClassesById.get(slot.class_id);
@@ -1343,16 +1320,11 @@ function TimetablePage() {
   }, [isDemo, remoteSchedules, schedulesLoading, schedulesError]);
 
   const isTeacherScheduleView =
-    scheduleAudience === "teacher" && (isTeacher || (isAdmin && !!selectedAdminTeacher));
+    effectiveScheduleAudience === "teacher" && (isTeacher || (isAdmin && !!selectedAdminTeacher));
   const visibleSchedules = useMemo(() => {
-    if (scheduleAudience !== "teacher") return manualSchedules;
+    if (effectiveScheduleAudience !== "teacher") return manualSchedules;
     if (isTeacher) {
-      return combineTeacherSchedules(
-        manualSchedules,
-        teacherScope?.teacher,
-        teacherScope?.classIds,
-        teacherScope?.classNames,
-      );
+      return combineTeacherSchedules(manualSchedules, teacherScope?.teacher);
     }
     if (isAdmin && selectedAdminTeacher) {
       return combineTeacherSchedules(manualSchedules, selectedAdminTeacher);
@@ -1364,9 +1336,7 @@ function TimetablePage() {
     manualSchedules,
     selectedAdminTeacher,
     teacherScope?.teacher,
-    teacherScope?.classIds,
-    teacherScope?.classNames,
-    scheduleAudience,
+    effectiveScheduleAudience,
   ]);
   const selectedManualSchedule =
     visibleSchedules.find((schedule) => schedule.id === selectedManualScheduleId) ??
@@ -1646,11 +1616,6 @@ function TimetablePage() {
               </button>
               <button
                 onClick={() => {
-                  const conflict = findScheduleConflict(scheduleBuilder, manualSchedules);
-                  if (conflict) {
-                    toast.error(conflict);
-                    return;
-                  }
                   printDocument(
                     `Schedule - ${scheduleBuilder.className}`,
                     manualScheduleReportHtml(scheduleBuilder),
@@ -1904,11 +1869,6 @@ function TimetablePage() {
           <button
             onClick={() => {
               if (!selectedManualSchedule) return;
-              const conflict = findScheduleConflict(selectedManualSchedule, manualSchedules);
-              if (conflict) {
-                toast.error(conflict);
-                return;
-              }
               printDocument(
                 `Schedule - ${selectedManualSchedule.className}`,
                 manualScheduleReportHtml(selectedManualSchedule, isTeacherScheduleView),
@@ -1922,7 +1882,7 @@ function TimetablePage() {
         }
         className="mb-5"
       >
-        {(isAdmin || isTeacher) && (
+        {isAdmin && (
           <div className="mb-5 grid gap-3 md:max-w-3xl md:grid-cols-2">
             <Field label={t("schedule_type")}>
               <div className="grid grid-cols-2 rounded-xl border border-border bg-surface p-1">
@@ -1934,7 +1894,7 @@ function TimetablePage() {
                   }}
                   className={
                     "h-9 rounded-lg px-3 text-sm font-semibold transition " +
-                    (scheduleAudience === "student"
+                    (effectiveScheduleAudience === "student"
                       ? "bg-primary text-primary-foreground shadow-soft"
                       : "text-muted-foreground hover:bg-muted")
                   }
@@ -1946,7 +1906,7 @@ function TimetablePage() {
                   onClick={() => setScheduleAudience("teacher")}
                   className={
                     "h-9 rounded-lg px-3 text-sm font-semibold transition " +
-                    (scheduleAudience === "teacher"
+                    (effectiveScheduleAudience === "teacher"
                       ? "bg-primary text-primary-foreground shadow-soft"
                       : "text-muted-foreground hover:bg-muted")
                   }
@@ -1956,7 +1916,7 @@ function TimetablePage() {
               </div>
             </Field>
 
-            {isAdmin && scheduleAudience === "teacher" && (
+            {effectiveScheduleAudience === "teacher" && (
               <Field label={t("select_teacher")}>
                 <select
                   value={adminTeacherScheduleId}
@@ -2334,7 +2294,7 @@ function ManualSchedulePaper({
             <h3 className="mt-1 text-sm font-bold">{schedule.title}</h3>
             <h2 className="text-sm font-bold">{schedule.className}</h2>
             <p>ឆ្នាំសិក្សា {schedule.academicYear}</p>
-            <p>កាលបរិច្ឆេទចេញផ្សាយ {schedule.issueDate}</p>
+            <p>កាលបរិច្ឆេទចេញផ្សាយ {formatDateDisplay(schedule.issueDate)}</p>
           </div>
           <div />
         </div>
@@ -2401,7 +2361,7 @@ function ManualSchedulePaper({
             <div className="font-bold text-slate-900">{schedule.centerSignature}</div>
           </div>
           <div className="text-center">
-            រាជធានីភ្នំពេញ ថ្ងៃទី {schedule.issueDate}
+            រាជធានីភ្នំពេញ ថ្ងៃទី {formatDateDisplay(schedule.issueDate)}
             <div>ការិយាល័យសិក្សា</div>
             <div className="font-bold text-slate-900">{schedule.rightSignature}</div>
           </div>
