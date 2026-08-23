@@ -27,7 +27,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn, formatDateDisplay } from "@/lib/utils";
-import { FLAT_MAJOR_OPTIONS, normalizeMajorLabel } from "@/lib/academic-options";
+import { FLAT_MAJOR_OPTIONS, majorCode, normalizeMajorLabel } from "@/lib/academic-options";
 import {
   DEFAULT_SUBJECT_OPTIONS,
   filterSubjectOptionsByScope,
@@ -142,9 +142,43 @@ function uniqueAttendanceClasses(classes: AttendanceClass[]) {
   return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function cleanMajorValue(major: string | null | undefined) {
+  const normalized = normalizeMajorLabel(major) ?? "";
+  return normalized.replace(/^[០-៩0-9]+(?:[.។][០-៩0-9]+)?\s*/, "").trim();
+}
+
+function majorMatchKey(major: string | null | undefined) {
+  return cleanMajorValue(major).normalize("NFKC").replace(/\s+/g, " ").toLowerCase();
+}
+
+function majorsMatch(selectedMajor: string, storedMajor: string | null | undefined) {
+  const selectedKey = majorMatchKey(selectedMajor);
+  const storedKey = majorMatchKey(storedMajor);
+  if (!selectedKey || !storedKey) return false;
+  if (selectedKey === storedKey) return true;
+
+  const selectedCode = majorCode(selectedMajor);
+  const storedCode = majorCode(storedMajor);
+  return selectedCode !== "GEN" && selectedCode === storedCode;
+}
+
+function classNameMatchesMajor(className: string | null | undefined, major: string) {
+  const code = majorCode(major);
+  if (code === "GEN") return false;
+  return (className ?? "").trim().toUpperCase().startsWith(code);
+}
+
 function classMatchesMajor(classRow: AttendanceClass, major: string) {
   if (!major || classRow.majors.length === 0) return true;
-  return classRow.majors.includes(major);
+  return (
+    classRow.majors.some((classMajor) => majorsMatch(major, classMajor)) ||
+    classNameMatchesMajor(classRow.name, major) ||
+    classNameMatchesMajor(classRow.subjectCode, major)
+  );
+}
+
+function studentMatchesMajor(studentMajor: string | null | undefined, selectedMajor: string) {
+  return !selectedMajor || majorsMatch(selectedMajor, studentMajor);
 }
 
 function majorLabelRoot(major: string | null | undefined) {
@@ -231,7 +265,7 @@ async function attachStudentMajorsToClasses(classes: AttendanceClass[]) {
         students: { major: string | null } | null;
       }>
     ).forEach((row) => {
-      const major = row.students?.major?.trim();
+      const major = cleanMajorValue(row.students?.major);
       if (!row.class_id || !major) return;
       const majors = majorsByClassId.get(row.class_id) ?? new Set<string>();
       majors.add(major);
@@ -253,7 +287,7 @@ async function attachStudentMajorsToClasses(classes: AttendanceClass[]) {
       }>
     ).forEach((student) => {
       const className = student.class_name?.trim();
-      const major = student.major?.trim();
+      const major = cleanMajorValue(student.major);
       if (!className || !major) return;
       const majors = majorsByClassName.get(className) ?? new Set<string>();
       majors.add(major);
@@ -526,9 +560,10 @@ function AttendancePage() {
         const majorsByClass = new Map<string, Set<string>>();
         visibleDemoStudents.forEach((student) => {
           const className = student.class_name?.trim();
-          if (!className || !student.major) return;
+          const major = cleanMajorValue(student.major);
+          if (!className || !major) return;
           const majors = majorsByClass.get(className) ?? new Set<string>();
-          majors.add(student.major);
+          majors.add(major);
           majorsByClass.set(className, majors);
         });
 
@@ -602,9 +637,10 @@ function AttendancePage() {
       const majorsByClass = new Map<string, Set<string>>();
       (studentsResult.data ?? []).forEach((student) => {
         const className = student.class_name?.trim();
-        if (!className || !student.major) return;
+        const major = cleanMajorValue(student.major);
+        if (!className || !major) return;
         const majors = majorsByClass.get(className) ?? new Set<string>();
-        majors.add(student.major);
+        majors.add(major);
         majorsByClass.set(className, majors);
       });
 
@@ -665,12 +701,13 @@ function AttendancePage() {
   }, [availableMajorOptions, selectedMajor]);
 
   useEffect(() => {
-    if (
-      (isStudent || isTeacher) &&
-      filteredClasses.length > 0 &&
-      !filteredClasses.some((item) => item.id === classId)
-    ) {
-      setClassId(filteredClasses[0].id);
+    if (filteredClasses.length === 0) {
+      if (classId) setClassId("");
+      return;
+    }
+
+    if (!filteredClasses.some((item) => item.id === classId)) {
+      setClassId(isStudent || isTeacher ? filteredClasses[0].id : "");
     }
   }, [classId, filteredClasses, isStudent, isTeacher]);
 
@@ -700,7 +737,7 @@ function AttendancePage() {
           .filter(
             (s) =>
               s.class_name === selectedClassName &&
-              (!attendanceMajorFilter || s.major === attendanceMajorFilter),
+              studentMatchesMajor(s.major, attendanceMajorFilter),
           )
           .map((s) => ({
             student_id: s.id,
@@ -741,7 +778,7 @@ function AttendancePage() {
             (student) =>
               student.class_name === selectedClassName &&
               student.status === "active" &&
-              (!attendanceMajorFilter || student.major === attendanceMajorFilter),
+              studentMatchesMajor(student.major, attendanceMajorFilter),
           )
           .map((student) => ({
             student_id: student.id,
@@ -781,8 +818,8 @@ function AttendancePage() {
           };
         }>;
         if (attendanceMajorFilter) {
-          enrolledRows = enrolledRows.filter(
-            (row) => row.students?.major === attendanceMajorFilter,
+          enrolledRows = enrolledRows.filter((row) =>
+            studentMatchesMajor(row.students?.major, attendanceMajorFilter),
           );
         }
         if (enrolledRows.length > 0) return enrolledRows;
@@ -796,27 +833,25 @@ function AttendancePage() {
         .eq("class_name", selectedClassName)
         .eq("status", "active")
         .order("full_name");
-      if (attendanceMajorFilter) {
-        query = query.eq("major", attendanceMajorFilter);
-      }
-
       const { data: classNameStudents, error } = await query;
       if (error) throw error;
 
-      return (classNameStudents ?? []).map((student) => ({
-        student_id: student.id,
-        students: {
-          id: student.id,
-          full_name: student.full_name,
-          full_name_km: student.full_name_km,
-          student_code: student.student_code,
-          gender: student.gender,
-          date_of_birth: student.date_of_birth,
-          address: student.address,
-          major: student.major,
-          class_name: student.class_name,
-        },
-      }));
+      return (classNameStudents ?? [])
+        .filter((student) => studentMatchesMajor(student.major, attendanceMajorFilter))
+        .map((student) => ({
+          student_id: student.id,
+          students: {
+            id: student.id,
+            full_name: student.full_name,
+            full_name_km: student.full_name_km,
+            student_code: student.student_code,
+            gender: student.gender,
+            date_of_birth: student.date_of_birth,
+            address: student.address,
+            major: student.major,
+            class_name: student.class_name,
+          },
+        }));
     },
   });
 
