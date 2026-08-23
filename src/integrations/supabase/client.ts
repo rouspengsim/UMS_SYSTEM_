@@ -15,12 +15,17 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-function readEnv(name: string, fallbackName = name) {
-  const viteValue = import.meta.env[name];
-  if (viteValue) return viteValue;
+function readEnv(...names: string[]) {
+  for (const name of names) {
+    const viteValue = import.meta.env[name];
+    if (viteValue) return viteValue;
+  }
 
   if (typeof process !== "undefined") {
-    return process.env[fallbackName];
+    for (const name of names) {
+      const value = process.env[name];
+      if (value) return value;
+    }
   }
 
   return undefined;
@@ -72,18 +77,21 @@ function createSupabaseClient() {
   const SUPABASE_PUBLISHABLE_KEY = readEnv(
     "VITE_SUPABASE_PUBLISHABLE_KEY",
     "SUPABASE_PUBLISHABLE_KEY",
+    "VITE_SUPABASE_ANON_KEY",
+    "SUPABASE_ANON_KEY",
   );
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     throw new Error(
-      "Missing Supabase environment variables. Ensure SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or VITE_ prefixed versions) are set in your .env file.",
+      "Missing Supabase environment variables. Ensure SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (or VITE_ prefixed versions) are set.",
     );
   }
 
-  const projectRef = new URL(SUPABASE_URL).hostname.split(".")[0];
+  const supabaseUrl = new URL(SUPABASE_URL).toString().replace(/\/$/, "");
+  const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
   validateSupabaseKey(SUPABASE_PUBLISHABLE_KEY, projectRef);
 
-  return createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  return createClient<Database>(supabaseUrl, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
       storage: typeof window !== "undefined" ? localStorage : undefined,
       persistSession: true,

@@ -4,17 +4,48 @@ import { getRequest } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
+function readServerEnv(...names: string[]) {
+  const env = typeof process !== "undefined" ? process.env : undefined;
+  if (!env) return undefined;
+
+  for (const name of names) {
+    const value = env[name];
+    if (value) return value;
+  }
+
+  return undefined;
+}
+
 export const requireSupabaseAuth = createMiddleware({ type: "function" }).server(
   async ({ next }) => {
-    const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const SUPABASE_PUBLISHABLE_KEY =
-      process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const SUPABASE_URL = readServerEnv("SUPABASE_URL", "VITE_SUPABASE_URL");
+    const SUPABASE_PUBLISHABLE_KEY = readServerEnv(
+      "SUPABASE_PUBLISHABLE_KEY",
+      "VITE_SUPABASE_PUBLISHABLE_KEY",
+      "SUPABASE_ANON_KEY",
+      "VITE_SUPABASE_ANON_KEY",
+    );
 
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+      const missing = [];
+      if (!SUPABASE_URL) missing.push("SUPABASE_URL or VITE_SUPABASE_URL");
+      if (!SUPABASE_PUBLISHABLE_KEY) {
+        missing.push("SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_PUBLISHABLE_KEY");
+      }
+
       throw new Response(
-        "Missing Supabase environment variables. Ensure SUPABASE_URL or VITE_SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_PUBLISHABLE_KEY are set.",
+        `Missing Supabase environment variables: ${missing.join(", ")}.`,
         { status: 500 },
       );
+    }
+
+    let supabaseUrl: string;
+    try {
+      supabaseUrl = new URL(SUPABASE_URL).toString().replace(/\/$/, "");
+    } catch {
+      throw new Response("Invalid SUPABASE_URL. Use your full Supabase project URL.", {
+        status: 500,
+      });
     }
 
     const request = getRequest();
@@ -38,7 +69,7 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
       throw new Response("Unauthorized: No token provided", { status: 401 });
     }
 
-    const supabase = createClient<Database>(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!, {
+    const supabase = createClient<Database>(supabaseUrl, SUPABASE_PUBLISHABLE_KEY, {
       global: {
         headers: {
           Authorization: `Bearer ${token}`,

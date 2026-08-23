@@ -5,18 +5,45 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
-function createSupabaseAdminClient() {
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+function readServerEnv(...names: string[]) {
+  const env = typeof process !== "undefined" ? process.env : undefined;
+  if (!env) return undefined;
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error(
-      "Missing Supabase server environment variables. Ensure SUPABASE_URL or VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set.",
-    );
+  for (const name of names) {
+    const value = env[name];
+    if (value) return value;
   }
 
-  return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  return undefined;
+}
+
+function requiredEnvMessage(missing: string[]) {
+  return `Missing Supabase server environment variables: ${missing.join(", ")}. Add them to the Vercel project environment variables, then redeploy.`;
+}
+
+function createSupabaseAdminClient() {
+  const SUPABASE_URL = readServerEnv("SUPABASE_URL", "VITE_SUPABASE_URL");
+  const SUPABASE_SERVICE_ROLE_KEY = readServerEnv(
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_KEY",
+    "SUPABASE_SECRET_KEY",
+  );
+
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    const missing = [];
+    if (!SUPABASE_URL) missing.push("SUPABASE_URL or VITE_SUPABASE_URL");
+    if (!SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+    throw new Error(requiredEnvMessage(missing));
+  }
+
+  let supabaseUrl: string;
+  try {
+    supabaseUrl = new URL(SUPABASE_URL).toString().replace(/\/$/, "");
+  } catch {
+    throw new Error("Invalid SUPABASE_URL. Use your full Supabase project URL.");
+  }
+
+  return createClient<Database>(supabaseUrl, SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
       storage: undefined,
       persistSession: false,
