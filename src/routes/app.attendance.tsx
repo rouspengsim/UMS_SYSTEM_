@@ -102,6 +102,9 @@ const STATUS_OPTIONS: Array<{ value: Status; label: string; short: string; class
     className: "bg-info/15 text-info",
   },
 ];
+const STATUS_LEGEND_OPTIONS = STATUS_OPTIONS.filter((status) =>
+  ["absent", "present", "excused"].includes(status.value),
+);
 function readDemoList<T>(key: string): T[] {
   if (typeof window === "undefined") return [];
   try {
@@ -633,13 +636,14 @@ function AttendancePage() {
     },
   });
   const availableMajorOptions = useMemo(() => {
+    if (!isTeacher) return FLAT_MAJOR_OPTIONS;
+
     const majorsInClasses = new Set([
       ...classes.flatMap((classRow) => classRow.majors),
-      ...(isTeacher ? majorValuesFromSubjects(subjectOptions) : []),
+      ...majorValuesFromSubjects(subjectOptions),
     ]);
     const matchingOptions = FLAT_MAJOR_OPTIONS.filter((major) => majorsInClasses.has(major.value));
-    if (matchingOptions.length > 0) return matchingOptions;
-    return isTeacher ? [] : FLAT_MAJOR_OPTIONS;
+    return matchingOptions;
   }, [classes, isTeacher, subjectOptions]);
   const filteredClasses = classes.filter((classRow) =>
     classMatchesMajor(classRow, attendanceMajorFilter),
@@ -1266,7 +1270,7 @@ function AttendancePage() {
                     >
                       <Printer className="h-3.5 w-3.5" /> Print Attendance List
                     </button>
-                    {STATUS_OPTIONS.map((status) => (
+                    {STATUS_LEGEND_OPTIONS.map((status) => (
                       <span
                         key={status.value}
                         className={`inline-flex items-center rounded-full px-2.5 py-1 ${status.className}`}

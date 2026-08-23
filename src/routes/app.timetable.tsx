@@ -1737,7 +1737,7 @@ function TimetablePage() {
             <table className="w-full min-w-[1180px] text-xs">
               <thead>
                 <tr className="border-b border-border bg-muted/35 text-left font-semibold uppercase tracking-wider text-muted-foreground">
-                  <th className="w-36 px-3 py-3">{t("time")}</th>
+                  <th className="w-40 px-3 py-3">{t("time")}</th>
                   {days.map((day) => (
                     <th key={day} className="px-3 py-3 text-center">
                       {dayLabels[day]}
@@ -1749,7 +1749,7 @@ function TimetablePage() {
               <tbody>
                 {scheduleBuilder.rows.map((row) => (
                   <tr key={row.id} className="border-b border-border/60 last:border-0 align-top">
-                    <td className="px-3 py-3">
+                    <td className="w-40 px-3 py-3">
                       <div className="grid gap-2">
                         <input
                           type="time"
@@ -1757,13 +1757,13 @@ function TimetablePage() {
                           onChange={(event) =>
                             updateBuilderRow(row.id, "start", event.target.value)
                           }
-                          className="h-9 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
+                          className="h-9 w-full min-w-28 rounded-lg border border-border bg-background px-2 text-center font-mono text-sm tabular-nums outline-none focus:border-primary"
                         />
                         <input
                           type="time"
                           value={row.end}
                           onChange={(event) => updateBuilderRow(row.id, "end", event.target.value)}
-                          className="h-9 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
+                          className="h-9 w-full min-w-28 rounded-lg border border-border bg-background px-2 text-center font-mono text-sm tabular-nums outline-none focus:border-primary"
                         />
                       </div>
                     </td>

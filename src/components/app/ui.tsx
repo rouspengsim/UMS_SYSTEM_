@@ -2,6 +2,21 @@ import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import type { ReactNode } from "react";
 
+const KHMER_DIGITS = ["០", "១", "២", "៣", "៤", "៥", "៦", "៧", "៨", "៩"];
+
+export function toEnglishDigits(value: string | number) {
+  return String(value).replace(/[០-៩]/g, (digit) => {
+    const index = KHMER_DIGITS.indexOf(digit);
+    return index >= 0 ? String(index) : digit;
+  });
+}
+
+function statValueContent(value: ReactNode) {
+  if (typeof value === "number") return value.toLocaleString("en-US");
+  if (typeof value === "string") return toEnglishDigits(value);
+  return value;
+}
+
 export function PageHeader({
   title,
   subtitle,
@@ -53,7 +68,9 @@ export function StatCard({
             {label}
           </p>
           <p className="mt-2 font-display text-2xl font-bold tracking-tight text-foreground">
-            {value}
+            <span lang="en" className="font-sans tabular-nums">
+              {statValueContent(value)}
+            </span>
           </p>
           {delta && <p className="mt-1 text-xs font-medium text-success">{delta}</p>}
         </div>

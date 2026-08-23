@@ -1,6 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import { PageHeader, StatCard, SectionCard, StatusPill, Avatar } from "@/components/app/ui";
+import {
+  PageHeader,
+  StatCard,
+  SectionCard,
+  StatusPill,
+  Avatar,
+  toEnglishDigits,
+} from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import {
@@ -1359,7 +1366,11 @@ function StudentMetric({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-xs font-semibold text-muted-foreground">{label}</p>
-          <p className="mt-1 font-display text-xl font-bold text-foreground sm:text-2xl">{value}</p>
+          <p className="mt-1 font-display text-xl font-bold text-foreground sm:text-2xl">
+            <span lang="en" className="font-sans tabular-nums">
+              {toEnglishDigits(value)}
+            </span>
+          </p>
           <p className="mt-1 hidden text-[11px] text-muted-foreground sm:block">{note}</p>
         </div>
         <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${tones[tone]}`}>
