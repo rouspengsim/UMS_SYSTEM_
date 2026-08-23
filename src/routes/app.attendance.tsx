@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader, SectionCard, StatCard } from "@/components/app/ui";
+import { PageHeader, SectionCard, StatCard, toEnglishDigits } from "@/components/app/ui";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -1045,6 +1045,7 @@ function AttendancePage() {
     const status = row.status as Status;
     counts[status] += 1;
   });
+  const countLabel = (status: Status) => toEnglishDigits(counts[status].toLocaleString("en-US"));
 
   const isLoading = studentsLoading;
   const selectedClassLabel = classId ? classNameFromId(classId, classes) : "-";
@@ -1246,25 +1247,25 @@ function AttendancePage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label={t("present")}
-              value={counts.present}
+              value={countLabel("present")}
               icon={<CheckCircle2 className="h-5 w-5" />}
               tone="success"
             />
             <StatCard
               label={t("absent")}
-              value={counts.absent}
+              value={countLabel("absent")}
               icon={<XCircle className="h-5 w-5" />}
               tone="warning"
             />
             <StatCard
               label={t("late")}
-              value={counts.late}
+              value={countLabel("late")}
               icon={<Clock className="h-5 w-5" />}
               tone="info"
             />
             <StatCard
               label={t("excused")}
-              value={counts.excused}
+              value={countLabel("excused")}
               icon={<ShieldCheck className="h-5 w-5" />}
               tone="primary"
             />
