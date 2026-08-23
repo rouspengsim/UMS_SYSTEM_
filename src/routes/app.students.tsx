@@ -89,7 +89,7 @@ const SHIFT_OPTIONS = [
   { value: "evening", labelKey: "evening" },
 ];
 const ACADEMIC_OPTIONS = MAJOR_OPTIONS.map((group) => group.group);
-const NATIONALITY_OPTIONS = ["Khmer", "Foreign"];
+const NATIONALITY_OPTIONS = ["ខ្មែរ", "បរទេស"];
 const STUDENT_TYPE_OPTIONS = ["បង់ថ្លៃ", "អាហារូបកណ៍"];
 const BLANK_ADDRESS_OPTION = { value: "", label: "" };
 
@@ -1705,7 +1705,7 @@ function EditStudentModal({
     full_name_en: student.full_name_en ?? student.full_name,
     gender: student.gender ?? "male",
     date_of_birth: student.date_of_birth ?? "",
-    nationality: student.nationality ?? "Khmer",
+    nationality: student.nationality ?? "",
     place_of_birth: student.place_of_birth ?? "",
     father_name: student.father_name ?? "",
     father_job: student.father_job ?? "",
