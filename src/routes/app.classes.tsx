@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader, SectionCard } from "@/components/app/ui";
+import { PageHeader, SectionCard, toEnglishDigits } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { Plus, Loader2, X, Trash2, School, User, Printer } from "lucide-react";
@@ -177,18 +177,19 @@ function printDocument(title: string, html: string) {
 
 function classStudentListReportHtml(classRow: ClassRow, students: ClassStudent[]) {
   const today = formatDateDisplay(new Date());
+  const year = toEnglishDigits(new Date().getFullYear());
   const sortedStudents = [...students].sort((a, b) => a.student_code.localeCompare(b.student_code));
   const rows = sortedStudents
     .map(
       (student, index) => `
         <tr>
-          <td style="width: 32px">${index + 1}</td>
+          <td style="width: 32px">${toEnglishDigits(index + 1)}</td>
           <td style="width: 78px">${escapeHtml(student.student_code)}</td>
           <td class="name">${escapeHtml(student.full_name_km)}</td>
           <td class="name">${escapeHtml(student.full_name_en || student.full_name)}</td>
           <td style="width: 38px">${escapeHtml(khmerGenderLabel(student.gender))}</td>
           <td style="width: 74px">${escapeHtml(formatDateDisplay(student.date_of_birth))}</td>
-          <td style="width: 54px">${escapeHtml(student.study_year)}</td>
+          <td style="width: 54px">${escapeHtml(toEnglishDigits(student.study_year ?? "—"))}</td>
           <td style="width: 82px">${escapeHtml(student.phone)}</td>
           <td>${escapeHtml(student.address)}</td>
         </tr>
@@ -215,7 +216,7 @@ function classStudentListReportHtml(classRow: ClassRow, students: ClassStudent[]
         ថ្នាក់ ${escapeHtml(classRow.name)}
         ${classRow.major ? ` · ជំនាញ ${escapeHtml(normalizeMajorLabel(classRow.major))}` : ""}
         ${classRow.shift ? ` · វេន ${escapeHtml(classRow.shift)}` : ""}<br />
-        ឆ្នាំសិក្សា ${new Date().getFullYear()} · កាលបរិច្ឆេទ ${escapeHtml(today)} · ចំនួននិស្សិតសរុប ${students.length} នាក់
+        ឆ្នាំសិក្សា ${year} · កាលបរិច្ឆេទ ${escapeHtml(toEnglishDigits(today))} · ចំនួននិស្សិតសរុប ${toEnglishDigits(students.length)} នាក់
       </div>
       <table>
         <thead>
@@ -240,7 +241,7 @@ function classStudentListReportHtml(classRow: ClassRow, students: ClassStudent[]
           <div class="signature">ហត្ថលេខា</div>
         </div>
         <div>
-          រាជធានីភ្នំពេញ ថ្ងៃទី ${escapeHtml(today)}<br />
+          រាជធានីភ្នំពេញ ថ្ងៃទី ${escapeHtml(toEnglishDigits(today))}<br />
           អ្នករៀបចំបញ្ជី
           <div class="signature">ហត្ថលេខា</div>
         </div>
@@ -629,8 +630,8 @@ function ClassesPage() {
                 <div className="mt-4">
                   <div className="mb-1 flex justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     <span>{t("enrolled")}</span>
-                    <span>
-                      {count} / {c.capacity}
+                    <span lang="en" className="font-sans tabular-nums">
+                      {toEnglishDigits(count)} / {toEnglishDigits(c.capacity)}
                     </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -658,8 +659,11 @@ function ClassesPage() {
                       ))}
                     </ul>
                     {allStudentsInClass.length > 5 && (
-                      <p className="mt-2 text-[10px] text-muted-foreground">
-                        +{allStudentsInClass.length - 5} more
+                      <p
+                        lang="en"
+                        className="mt-2 font-sans text-[10px] text-muted-foreground tabular-nums"
+                      >
+                        +{toEnglishDigits(allStudentsInClass.length - 5)} more
                       </p>
                     )}
                   </div>
@@ -715,7 +719,10 @@ function ClassDetailsModal({
               <div>
                 <h3 className="font-display text-xl font-bold">{classRow.name}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {students.length} total student{students.length === 1 ? "" : "s"}
+                  <span lang="en" className="font-sans tabular-nums">
+                    {toEnglishDigits(students.length)}
+                  </span>{" "}
+                  total student{students.length === 1 ? "" : "s"}
                   {classRow.room ? ` · ${t("room")} ${classRow.room}` : ""}
                   {classRow.shift ? ` · ${shiftLabel(classRow.shift, t)} ${t("shift")}` : ""}
                 </p>
@@ -779,7 +786,7 @@ function ClassDetailsModal({
                   {students.map((student, index) => (
                     <tr key={student.id} className="border-b border-border/60 hover:bg-muted/40">
                       <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">
-                        {index + 1}
+                        {toEnglishDigits(index + 1)}
                       </td>
                       <td className="py-3 pr-4 font-mono text-xs">{student.student_code}</td>
                       <td className="py-3 pr-4 font-semibold">
@@ -787,7 +794,9 @@ function ClassDetailsModal({
                       </td>
                       <td className="py-3 pr-4">{student.full_name_km || "-"}</td>
                       <td className="py-3 pr-4">{khmerGenderLabel(student.gender)}</td>
-                      <td className="py-3 pr-4">{student.study_year || "-"}</td>
+                      <td lang="en" className="py-3 pr-4 font-sans tabular-nums">
+                        {student.study_year ? toEnglishDigits(student.study_year) : "-"}
+                      </td>
                       <td className="py-3 pr-4">
                         {student.shift ? (
                           <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary">
