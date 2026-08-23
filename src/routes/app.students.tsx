@@ -154,6 +154,41 @@ function nextClassNameForForm({
   return nextAvailableClassName({ major, studyYear, shift, students, classes });
 }
 
+function normalizeDateOfBirthInput(value: string) {
+  const input = value.trim();
+  if (!input) return null;
+
+  const isoMatch = input.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const localMatch = input.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  const [, yearValue, monthValue, dayValue] = isoMatch
+    ? isoMatch
+    : localMatch
+      ? [localMatch[0], localMatch[3], localMatch[2], localMatch[1]]
+      : [];
+
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    !yearValue ||
+    !monthValue ||
+    !dayValue ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    throw new Error("Date of birth must be DD/MM/YYYY or YYYY-MM-DD.");
+  }
+
+  return [
+    String(year).padStart(4, "0"),
+    String(month).padStart(2, "0"),
+    String(day).padStart(2, "0"),
+  ].join("-");
+}
+
 function shiftLabel(value: string | null | undefined, t: (key: string) => string) {
   const shift = SHIFT_OPTIONS.find((option) => option.value === value);
   return shift ? t(shift.labelKey) : "—";
@@ -1271,6 +1306,7 @@ function AddStudentModal({
         const blob = await compressAvatar(avatarFile);
         avatarUrl = await blobToDataUrl(blob);
       }
+      const dateOfBirth = normalizeDateOfBirthInput(form.date_of_birth);
       const enrollmentYear = Math.max(
         Number(form.enrollment_year) || currentEnrollmentYear,
         currentEnrollmentYear,
@@ -1296,7 +1332,7 @@ function AddStudentModal({
           email: form.email || null,
           phone: form.phone || null,
           gender: form.gender || null,
-          date_of_birth: form.date_of_birth || null,
+          date_of_birth: dateOfBirth,
           avatar_url: avatarUrl || null,
           nationality: form.nationality || null,
           place_of_birth: form.place_of_birth || null,
@@ -1341,7 +1377,7 @@ function AddStudentModal({
             email: form.email || null,
             phone: form.phone || null,
             gender: form.gender || null,
-            date_of_birth: form.date_of_birth || null,
+            date_of_birth: dateOfBirth,
             avatar_url: avatarUrl || null,
             nationality: form.nationality || null,
             place_of_birth: form.place_of_birth || null,
@@ -1461,9 +1497,11 @@ function AddStudentModal({
             />
             <Input
               label={t("dob")}
-              type="date"
+              placeholder="DD/MM/YYYY"
               value={form.date_of_birth}
               onChange={(v) => setForm({ ...form, date_of_birth: v })}
+              inputMode="numeric"
+              pattern="[0-9/-]*"
             />
             <Select
               label={t("place_of_birth")}
@@ -1736,6 +1774,7 @@ function EditStudentModal({
         const blob = await compressAvatar(avatarFile);
         avatarUrl = await blobToDataUrl(blob);
       }
+      const dateOfBirth = normalizeDateOfBirthInput(form.date_of_birth);
       const payload = {
         student_code: form.student_code.trim().toUpperCase().replaceAll(".", "-"),
         full_name: form.full_name_en || form.full_name_km,
@@ -1744,7 +1783,7 @@ function EditStudentModal({
         email: form.email || null,
         phone: form.phone || null,
         gender: form.gender || null,
-        date_of_birth: form.date_of_birth || null,
+        date_of_birth: dateOfBirth,
         avatar_url: avatarUrl || null,
         nationality: form.nationality || null,
         place_of_birth: form.place_of_birth || null,
@@ -1864,9 +1903,11 @@ function EditStudentModal({
             />
             <Input
               label={t("dob")}
-              type="date"
+              placeholder="DD/MM/YYYY"
               value={form.date_of_birth}
               onChange={(v) => setForm({ ...form, date_of_birth: v })}
+              inputMode="numeric"
+              pattern="[0-9/-]*"
             />
             <Select
               label={t("place_of_birth")}
