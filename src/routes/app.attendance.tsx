@@ -67,6 +67,7 @@ type DemoAttendanceRow = {
 };
 const DEMO_ATTENDANCE_KEY = "studentsphere.demo.attendance";
 const SYNTHETIC_CLASS_PREFIX = "student-class:";
+const ALL_MAJORS_VALUE = "all";
 const SEMESTER_OPTIONS = ["Semester 1", "Semester 2"];
 const WEEK_OPTIONS = Array.from({ length: 48 }, (_, index) => index + 1);
 const DAY_OPTIONS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -169,7 +170,7 @@ function classNameMatchesMajor(className: string | null | undefined, major: stri
 }
 
 function classMatchesMajor(classRow: AttendanceClass, major: string) {
-  if (!major || classRow.majors.length === 0) return true;
+  if (!major || major === ALL_MAJORS_VALUE || classRow.majors.length === 0) return true;
   return (
     classRow.majors.some((classMajor) => majorsMatch(major, classMajor)) ||
     classNameMatchesMajor(classRow.name, major) ||
@@ -178,7 +179,11 @@ function classMatchesMajor(classRow: AttendanceClass, major: string) {
 }
 
 function studentMatchesMajor(studentMajor: string | null | undefined, selectedMajor: string) {
-  return !selectedMajor || majorsMatch(selectedMajor, studentMajor);
+  return (
+    !selectedMajor ||
+    selectedMajor === ALL_MAJORS_VALUE ||
+    majorsMatch(selectedMajor, studentMajor)
+  );
 }
 
 function majorLabelRoot(major: string | null | undefined) {
@@ -411,7 +416,7 @@ function AttendancePage() {
   const [semester, setSemester] = useState(SEMESTER_OPTIONS[0]);
   const [subjectCode, setSubjectCode] = useState(DEFAULT_SUBJECT_OPTIONS[0]?.code ?? "Subject 1");
   const [subjectSearchOpen, setSubjectSearchOpen] = useState(false);
-  const [selectedMajor, setSelectedMajor] = useState(FLAT_MAJOR_OPTIONS[0]?.value ?? "");
+  const [selectedMajor, setSelectedMajor] = useState(ALL_MAJORS_VALUE);
   const [classId, setClassId] = useState("");
   const [slotDates, setSlotDates] = useState<Record<number, string>>({});
   const weekNumber = 1;
@@ -431,6 +436,7 @@ function AttendancePage() {
   const isTeacher = primaryRole === "teacher";
   const canManageAttendance = primaryRole === "admin" || primaryRole === "teacher";
   const attendanceMajorFilter = selectedMajor;
+  const selectedMajorFilter = selectedMajor === ALL_MAJORS_VALUE ? "" : selectedMajor;
 
   const { data: subjectOptions = DEFAULT_SUBJECT_OPTIONS } = useQuery({
     queryKey: ["subject-options", primaryRole, user?.id, isDemo ? "demo" : "remote"],
@@ -515,7 +521,9 @@ function AttendancePage() {
     },
   });
   const filteredSubjectOptions = useMemo(() => {
-    const majorFiltered = filterAttendanceSubjectOptionsByMajor(subjectOptions, selectedMajor);
+    const majorFiltered = selectedMajorFilter
+      ? filterAttendanceSubjectOptionsByMajor(subjectOptions, selectedMajorFilter)
+      : subjectOptions;
     const scopedOptions = isTeacher && majorFiltered.length === 0 ? subjectOptions : majorFiltered;
     return isStudent
       ? filterSubjectOptionsByScope(scopedOptions, {
@@ -530,7 +538,7 @@ function AttendancePage() {
     ownAttendanceStudent?.study_year,
     semester,
     subjectOptions,
-    selectedMajor,
+    selectedMajorFilter,
   ]);
   const filteredSubjectGroups = useMemo(
     () => groupSubjectOptionsByMajor(filteredSubjectOptions),
@@ -687,15 +695,18 @@ function AttendancePage() {
 
   useEffect(() => {
     if (availableMajorOptions.length === 0) {
-      if (selectedMajor) {
-        setSelectedMajor("");
+      if (selectedMajor !== ALL_MAJORS_VALUE) {
+        setSelectedMajor(ALL_MAJORS_VALUE);
         setClassId("");
       }
       return;
     }
 
-    if (!availableMajorOptions.some((major) => major.value === selectedMajor)) {
-      setSelectedMajor(availableMajorOptions[0].value);
+    if (
+      selectedMajor !== ALL_MAJORS_VALUE &&
+      !availableMajorOptions.some((major) => major.value === selectedMajor)
+    ) {
+      setSelectedMajor(ALL_MAJORS_VALUE);
       setClassId("");
     }
   }, [availableMajorOptions, selectedMajor]);
@@ -1147,9 +1158,10 @@ function AttendancePage() {
             setSelectedMajor(e.target.value);
             setClassId("");
           }}
-          disabled={isStudent || availableMajorOptions.length <= 1}
+          disabled={isStudent}
           className="h-10 max-w-80 rounded-xl border border-border bg-surface px-3 text-sm"
         >
+          <option value={ALL_MAJORS_VALUE}>{t("all_majors")}</option>
           {availableMajorOptions.map((major) => (
             <option key={major.value} value={major.value}>
               {normalizeMajorLabel(major.label)}

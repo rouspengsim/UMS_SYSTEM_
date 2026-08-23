@@ -82,7 +82,7 @@ const dict: Dict = {
   filter: { en: "Filter", km: "តម្រង" },
   all: { en: "All", km: "ទាំងអស់" },
   everyone: { en: "Everyone", km: "ទាំងអស់គ្នា" },
-  all_majors: { en: "All majors", km: "ជំនាញទាំងអស់" },
+  all_majors: { en: "All majors", km: "គ្រប់ជំនាញទាំងអស់" },
   all_classes: { en: "All classes", km: "ថ្នាក់ទាំងអស់" },
   all_shifts: { en: "All shifts", km: "វេនទាំងអស់" },
   total: { en: "Total", km: "សរុប" },
