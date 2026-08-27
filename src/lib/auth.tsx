@@ -34,6 +34,10 @@ function metadataRole(user: SupaUser | null): Role | null {
   return role === "admin" || role === "teacher" || role === "student" ? role : null;
 }
 
+function uniqueRoles(values: Array<Role | null | undefined>) {
+  return ROLE_PRIORITY.filter((role) => values.includes(role));
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<SupaUser | null>(null);
@@ -43,18 +47,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isDemo, setIsDemo] = useState(false);
 
   const loadAuxData = async (uid: string, fallbackRole: Role | null = null) => {
-    const [profileResult, rolesResult] = await Promise.all([
+    const [profileResult, rolesResult, studentResult, teacherResult] = await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", uid).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", uid),
+      supabase.from("students").select("id").eq("user_id", uid).maybeSingle(),
+      supabase.from("teachers").select("id").eq("user_id", uid).maybeSingle(),
     ]);
 
     const loadedRoles =
       rolesResult.error || !rolesResult.data
         ? []
         : ((rolesResult.data ?? []) as { role: Role }[]).map((r) => r.role);
+    const derivedRoles = uniqueRoles([
+      ...loadedRoles,
+      fallbackRole,
+      studentResult.error || !studentResult.data ? null : "student",
+      teacherResult.error || !teacherResult.data ? null : "teacher",
+    ]);
 
     setProfile(profileResult.error ? null : ((profileResult.data as Profile | null) ?? null));
-    setRoles(loadedRoles.length > 0 ? loadedRoles : fallbackRole ? [fallbackRole] : []);
+    setRoles(derivedRoles);
   };
 
   const refresh = async () => {

@@ -51,11 +51,7 @@ export default defineConfig({
               return "vendor-supabase";
             }
 
-            if (
-              id.includes("recharts") ||
-              id.includes("victory-vendor") ||
-              id.includes("d3-")
-            ) {
+            if (id.includes("recharts") || id.includes("victory-vendor") || id.includes("d3-")) {
               return "vendor-charts";
             }
 

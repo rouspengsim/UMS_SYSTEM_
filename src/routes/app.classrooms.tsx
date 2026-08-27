@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader, SectionCard } from "@/components/app/ui";
+import { PageHeader, SectionCard, toEnglishDigits } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
 import { pageTitle } from "@/lib/brand";
 import { useAuth } from "@/lib/auth";
@@ -162,11 +162,6 @@ const DAY_LABELS: Record<Weekday, string> = {
 const DEMO_MANUAL_SCHEDULES_KEY = "studentsphere.manual.schedules";
 
 type AvailabilityFilter = "all" | "free" | "busy";
-
-function toKhmerDigits(value: number | string) {
-  const digits = ["០", "១", "២", "៣", "៤", "៥", "៦", "៧", "៨", "៩"];
-  return String(value).replace(/\d/g, (digit) => digits[Number(digit)]);
-}
 
 function readDemoList<T>(key: string): T[] {
   if (typeof window === "undefined") return [];
@@ -444,8 +439,8 @@ function ClassroomsPage() {
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-display text-base font-bold">{t("classroom_list")}</h3>
           <p className="text-xs text-muted-foreground">
-            {t("showing")} {toKhmerDigits(filteredRooms.length)} {t("of")}{" "}
-            {toKhmerDigits(CLASSROOMS.length)}
+            {t("showing")} {toEnglishDigits(filteredRooms.length)} {t("of")}{" "}
+            {toEnglishDigits(CLASSROOMS.length)}
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -473,7 +468,7 @@ function ClassroomsPage() {
                     className="border-b border-border/60 hover:bg-muted/40"
                   >
                     <td className="py-3 pr-4 font-mono text-xs text-muted-foreground">
-                      {toKhmerDigits(room.no)}
+                      {toEnglishDigits(room.no)}
                     </td>
                     <td className="py-3 pr-4 font-semibold">{room.building}</td>
                     <td className="py-3 pr-4 font-mono text-xs font-semibold">{room.room}</td>
@@ -527,7 +522,9 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 text-2xl font-bold">{toKhmerDigits(value)}</p>
+      <p lang="en" className="mt-1 font-sans text-2xl font-bold tabular-nums">
+        {toEnglishDigits(value)}
+      </p>
     </div>
   );
 }

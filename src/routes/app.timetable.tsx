@@ -11,10 +11,10 @@ import { toast } from "sonner";
 import { pageTitle } from "@/lib/brand";
 import {
   DEFAULT_SUBJECT_OPTIONS,
-  groupSubjectOptionsByMajor,
   mergeSubjectOptions,
   readDemoSubjects,
   subjectRowsToOptions,
+  type SubjectOption,
 } from "@/lib/subjects";
 import { deleteClassSchedule, saveClassSchedule } from "@/lib/timetable-admin";
 import { decodeTimetableCell, encodeTimetableCell } from "@/lib/timetable-cell";
@@ -1375,10 +1375,6 @@ function TimetablePage() {
       return mergeSubjectOptions(options);
     },
   });
-  const subjectOptionGroups = useMemo(
-    () => groupSubjectOptionsByMajor(subjectOptions),
-    [subjectOptions],
-  );
 
   const updateBuilderCell = (
     rowId: string,
@@ -1442,6 +1438,32 @@ function TimetablePage() {
                   ...row.cells[day],
                   subjectCode,
                   subject: subject?.label ?? "",
+                },
+              },
+            }
+          : row,
+      ),
+    }));
+  };
+
+  const setBuilderSubjectText = (
+    rowId: string,
+    day: (typeof days)[number],
+    subjectText: string,
+  ) => {
+    const subject = findSubjectOption(subjectOptions, subjectText);
+    setScheduleBuilder((current) => ({
+      ...current,
+      rows: current.rows.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              cells: {
+                ...row.cells,
+                [day]: {
+                  ...row.cells[day],
+                  subjectCode: subject?.code ?? "",
+                  subject: subject?.label ?? subjectText,
                 },
               },
             }
@@ -1791,22 +1813,13 @@ function TimetablePage() {
                             placeholder={t("teacher_phone")}
                             className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
                           />
-                          <select
-                            value={row.cells[day].subjectCode || ""}
-                            onChange={(event) => setBuilderSubject(row.id, day, event.target.value)}
-                            className="h-8 rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
-                          >
-                            <option value="">{t("select_created_subject")}</option>
-                            {subjectOptionGroups.map((group) => (
-                              <optgroup key={group.label} label={group.label}>
-                                {group.options.map((subject) => (
-                                  <option key={subject.code} value={subject.code}>
-                                    {subject.label}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            ))}
-                          </select>
+                          <SubjectAutocomplete
+                            value={row.cells[day].subject || row.cells[day].subjectCode || ""}
+                            options={subjectOptions}
+                            placeholder={t("select_created_subject")}
+                            onInputChange={(value) => setBuilderSubjectText(row.id, day, value)}
+                            onSelect={(subject) => setBuilderSubject(row.id, day, subject.code)}
+                          />
                           <input
                             value={row.cells[day].room}
                             onChange={(event) =>
@@ -2367,6 +2380,118 @@ function ManualSchedulePaper({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function normalizeSubjectSearch(value: string) {
+  return value.normalize("NFKC").trim().toLowerCase();
+}
+
+function findSubjectOption(options: SubjectOption[], value: string) {
+  const normalized = normalizeSubjectSearch(value);
+  if (!normalized) return undefined;
+
+  return options.find(
+    (subject) =>
+      normalizeSubjectSearch(subject.code) === normalized ||
+      normalizeSubjectSearch(subject.label) === normalized,
+  );
+}
+
+function subjectSearchText(subject: SubjectOption) {
+  return normalizeSubjectSearch(
+    [subject.code, subject.label, subject.description].filter(Boolean).join(" "),
+  );
+}
+
+function SubjectAutocomplete({
+  value,
+  options,
+  placeholder,
+  onInputChange,
+  onSelect,
+}: {
+  value: string;
+  options: SubjectOption[];
+  placeholder: string;
+  onInputChange: (value: string) => void;
+  onSelect: (subject: SubjectOption) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const query = normalizeSubjectSearch(value);
+  const suggestions = useMemo(() => {
+    const matchingOptions = query
+      ? options.filter((subject) => subjectSearchText(subject).includes(query))
+      : options;
+    return matchingOptions.slice(0, 8);
+  }, [options, query]);
+
+  useEffect(() => {
+    if (activeIndex >= suggestions.length) setActiveIndex(0);
+  }, [activeIndex, suggestions.length]);
+
+  const selectSubject = (subject: SubjectOption) => {
+    onSelect(subject);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        onChange={(event) => {
+          onInputChange(event.target.value);
+          setActiveIndex(0);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setIsOpen(false)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setIsOpen(true);
+            setActiveIndex((current) =>
+              suggestions.length === 0 ? 0 : Math.min(current + 1, suggestions.length - 1),
+            );
+          }
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActiveIndex((current) => Math.max(current - 1, 0));
+          }
+          if (event.key === "Enter" && isOpen && suggestions[activeIndex]) {
+            event.preventDefault();
+            selectSubject(suggestions[activeIndex]);
+          }
+          if (event.key === "Escape") setIsOpen(false);
+        }}
+        placeholder={placeholder}
+        className="h-8 w-full rounded-lg border border-border bg-background px-2 outline-none focus:border-primary"
+      />
+      {isOpen && suggestions.length > 0 && (
+        <div className="mt-1 max-h-44 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-xs shadow-card">
+          {suggestions.map((subject, index) => (
+            <button
+              key={subject.code}
+              type="button"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                selectSubject(subject);
+              }}
+              className={
+                "block w-full rounded-md px-2 py-1.5 text-left transition-colors " +
+                (index === activeIndex ? "bg-primary/10 text-primary" : "hover:bg-muted")
+              }
+            >
+              <span className="block truncate font-medium">{subject.label}</span>
+              <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                {subject.code}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

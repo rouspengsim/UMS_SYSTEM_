@@ -33,10 +33,9 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
         missing.push("SUPABASE_PUBLISHABLE_KEY or VITE_SUPABASE_PUBLISHABLE_KEY");
       }
 
-      throw new Response(
-        `Missing Supabase environment variables: ${missing.join(", ")}.`,
-        { status: 500 },
-      );
+      throw new Response(`Missing Supabase environment variables: ${missing.join(", ")}.`, {
+        status: 500,
+      });
     }
 
     let supabaseUrl: string;

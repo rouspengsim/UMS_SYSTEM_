@@ -520,9 +520,9 @@ function StudentsPage() {
         return true;
       })
       .sort((a, b) => {
-        const majorCompare = (a.major ?? "").localeCompare(b.major ?? "");
-        if (majorCompare !== 0) return majorCompare;
-        return a.student_code.localeCompare(b.student_code);
+        const createdCompare = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        if (createdCompare !== 0) return createdCompare;
+        return b.student_code.localeCompare(a.student_code);
       });
   }, [students, q, filter, majorFilter, classFilter]);
 

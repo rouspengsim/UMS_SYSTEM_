@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader, SectionCard } from "@/components/app/ui";
 import { useI18n } from "@/lib/i18n";
-import { Loader2, Printer } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Eye, Loader2, Printer, Save } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   DEFAULT_SUBJECT_OPTIONS,
@@ -25,6 +25,15 @@ export const Route = createFileRoute("/app/exams")({
 });
 
 type ExamClass = { id: string; name: string; isSynthetic?: boolean };
+type ExamRow = {
+  id: string;
+  class_id: string | null;
+  name: string;
+  exam_type: string;
+  exam_date: string | null;
+  max_score: number;
+  classes: { name: string; subject_code: string | null } | null;
+};
 type ExamStudentRow = {
   student_id: string;
   students: {
@@ -132,6 +141,36 @@ function escapeHtml(value: string | number | null | undefined) {
 
 function formatScoreValue(value: number | null | undefined) {
   return value == null ? "" : value.toFixed(2);
+}
+
+function subjectScoreValue(score: SubjectScoreRow | undefined) {
+  if (!score) return null;
+
+  const hasManualScoreColumns = ["assignment_score", "midterm_score", "final_score"].some((key) =>
+    Object.prototype.hasOwnProperty.call(score, key),
+  );
+  const hasManualScoreInput = [score.assignment_score, score.midterm_score, score.final_score].some(
+    (value) => value != null,
+  );
+
+  if (hasManualScoreColumns && !hasManualScoreInput) return null;
+  if (score.score != null) return score.score;
+  if (!hasManualScoreInput) return null;
+
+  const hasComponent = [
+    score.attendance_score,
+    score.assignment_score,
+    score.midterm_score,
+    score.final_score,
+  ].some((value) => value != null);
+  if (!hasComponent) return null;
+
+  return totalSubjectScore({
+    attendance: score.attendance_score ?? 0,
+    assignment: score.assignment_score,
+    midterm: score.midterm_score,
+    final: score.final_score,
+  });
 }
 
 function splitStudentName(fullName: string) {
@@ -316,9 +355,11 @@ function ExamsPage() {
   const { t } = useI18n();
   const { user, primaryRole, isDemo } = useAuth();
   const qc = useQueryClient();
+  const resultListRef = useRef<HTMLDivElement | null>(null);
   const [classId, setClassId] = useState("");
   const [semester, setSemester] = useState(SEMESTER_OPTIONS[0]);
   const [scoreSubjectCode, setScoreSubjectCode] = useState("");
+  const [showScoredOnly, setShowScoredOnly] = useState(false);
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({});
   const weekNumber = 1;
   const isStudent = primaryRole === "student";
@@ -407,18 +448,11 @@ function ExamsPage() {
 
       let query = supabase
         .from("exams")
-        .select("id,name,exam_type,exam_date,max_score,classes(name,subject_code)")
+        .select("id,class_id,name,exam_type,exam_date,max_score,classes(name,subject_code)")
         .order("exam_date", { ascending: false });
       if (classIds) query = query.in("class_id", classIds);
       const { data } = await query;
-      return (data ?? []) as unknown as Array<{
-        id: string;
-        name: string;
-        exam_type: string;
-        exam_date: string | null;
-        max_score: number;
-        classes: { name: string; subject_code: string } | null;
-      }>;
+      return (data ?? []) as unknown as ExamRow[];
     },
   });
   const { data: classes = [] } = useQuery({
@@ -587,7 +621,7 @@ function ExamsPage() {
         const demoOwnStudent = demoStudents[0];
         const visibleDemoStudents =
           isStudent && demoOwnStudent
-            ? demoStudents.filter((student) => student.id === demoOwnStudent.id)
+            ? demoStudents.filter((student) => student.class_name === demoOwnStudent.class_name)
             : demoStudents;
         return visibleDemoStudents
           .filter((student) => student.class_name === selectedClassName)
@@ -609,22 +643,27 @@ function ExamsPage() {
       }
 
       if (isStudent) {
-        const { data, error } = await supabase
-          .from("students")
-          .select(
-            "id,student_code,full_name,full_name_km,gender,date_of_birth,address,class_name,major,study_year",
-          )
-          .eq("user_id", user?.id ?? "")
-          .eq("status", "active")
-          .maybeSingle();
+        const { data, error } = await supabase.rpc("list_student_classmates");
         if (error) throw error;
-        if (!data || data.class_name !== selectedClassName) return [];
-        return [
-          {
-            student_id: data.id,
-            students: data,
-          },
-        ] as ExamStudentRow[];
+        return (data ?? [])
+          .filter(
+            (student) => student.class_name === selectedClassName && student.status === "active",
+          )
+          .map((student) => ({
+            student_id: student.id,
+            students: {
+              id: student.id,
+              student_code: student.student_code,
+              full_name: student.full_name,
+              full_name_km: student.full_name_km,
+              gender: student.gender,
+              date_of_birth: student.date_of_birth,
+              address: student.address,
+              class_name: student.class_name,
+              major: student.major,
+              study_year: student.study_year,
+            },
+          })) as ExamStudentRow[];
       }
 
       const selectedClass = classes.find((c) => c.id === classId);
@@ -870,6 +909,24 @@ function ExamsPage() {
     };
   };
   const selectedClassLabel = classId ? classNameFromId(classId, classes) : "-";
+  const viewSelectedResult = () => {
+    setShowScoredOnly(true);
+    resultListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const viewExamResult = (exam: ExamRow) => {
+    const nextClassId =
+      exam.class_id ?? classes.find((classRow) => classRow.name === exam.classes?.name)?.id ?? "";
+
+    if (!nextClassId) {
+      toast.error("Class is not available for this exam.");
+      return;
+    }
+
+    setClassId(nextClassId);
+    setScoreSubjectCode(exam.classes?.subject_code?.trim() ?? "");
+    setShowScoredOnly(true);
+    resultListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const scoreTableRows =
     selectedScoreSubject == null
       ? []
@@ -881,6 +938,155 @@ function ExamsPage() {
           .sort((a, b) =>
             a.student.students.student_code.localeCompare(b.student.students.student_code),
           );
+  const classResultSubjects = useMemo(() => {
+    const savedSubjectCodes = new Set(
+      subjectScores
+        .filter((score) => subjectScoreValue(score) != null)
+        .map((score) => score.subject_code?.trim())
+        .filter((code): code is string => !!code),
+    );
+    const optionMap = new Map(scoreSheetSubjectOptions.map((subject) => [subject.code, subject]));
+    return Array.from(savedSubjectCodes)
+      .map((code) => optionMap.get(code) ?? { code, label: code })
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }, [scoreSheetSubjectOptions, subjectScores]);
+  const classResultRows = useMemo(() => {
+    return enrolled
+      .map((student) => {
+        const scores = classResultSubjects.map((subject) => {
+          const saved = subjectScores.find(
+            (score) =>
+              score.student_id === student.student_id && score.subject_code === subject.code,
+          );
+          return subjectScoreValue(saved);
+        });
+        const completedScores = scores.filter((score): score is number => score != null);
+        return {
+          student,
+          scores,
+          total: completedScores.reduce((sum, score) => sum + score, 0),
+          average:
+            completedScores.length === 0
+              ? null
+              : completedScores.reduce((sum, score) => sum + score, 0) / completedScores.length,
+        };
+      })
+      .filter((row) => row.scores.some((score) => score != null))
+      .sort((a, b) =>
+        a.student.students.student_code.localeCompare(b.student.students.student_code),
+      );
+  }, [classResultSubjects, enrolled, subjectScores]);
+
+  const saveScoresMut = useMutation({
+    mutationFn: async () => {
+      if (!canManageScores) throw new Error("Only teachers and admins can save scores.");
+      if (!classId || !selectedScoreSubject) throw new Error("Select a class and subject first.");
+      if (scoreTableRows.length === 0) throw new Error("No students available to save.");
+      if (
+        isTeacher &&
+        !classScoreSubjectOptions.some((option) => option.code === selectedScoreSubject.code)
+      ) {
+        throw new Error("Teachers can only save scores for their assigned subjects.");
+      }
+
+      const subject = selectedScoreSubject.code;
+      scoreTableRows.forEach(({ student, score }) => {
+        SCORE_COMPONENTS.forEach((component) => {
+          const componentScore =
+            component.key === "assignment_score"
+              ? score.assignment
+              : component.key === "midterm_score"
+                ? score.midterm
+                : score.final;
+          if (
+            componentScore !== null &&
+            componentScore !== undefined &&
+            (componentScore < 0 || componentScore > component.max)
+          ) {
+            throw new Error(
+              `${student.students.student_code} ${component.label} must be between 0 and ${component.max}`,
+            );
+          }
+        });
+      });
+      const scoreRows = scoreTableRows.map(({ student, score }) => ({
+        student_id: student.student_id,
+        class_id: classId,
+        semester,
+        week_number: weekNumber,
+        subject_code: subject,
+        attendance_score: score.attendance,
+        assignment_score: score.assignment,
+        midterm_score: score.midterm,
+        final_score: score.final,
+        score: score.total,
+      }));
+
+      if (isDemo) {
+        const studentIds = new Set(scoreRows.map((row) => row.student_id));
+        const rows = readDemoList<DemoSubjectScoreRow>(DEMO_SUBJECT_SCORES_KEY);
+        const next = rows.filter(
+          (row) =>
+            !(
+              row.class_id === classId &&
+              row.semester === semester &&
+              row.week_number === weekNumber &&
+              row.subject_code === subject &&
+              studentIds.has(row.student_id)
+            ),
+        );
+        writeDemoSubjectScores([...next, ...scoreRows]);
+        return;
+      }
+
+      const rowsWithMeta = scoreRows.map((row) => ({
+        ...row,
+        max_score: SCORE_MAX,
+        recorded_by: user?.id ?? null,
+      }));
+      const { error } = await supabase.from("subject_scores").upsert(rowsWithMeta, {
+        onConflict: "student_id,class_id,semester,week_number,subject_code",
+      });
+      if (
+        error &&
+        (error.message.includes("schema cache") ||
+          error.message.includes("column") ||
+          error.message.includes("Could not find"))
+      ) {
+        const fallbackRows = scoreRows.map((row) => ({
+          student_id: row.student_id,
+          class_id: row.class_id,
+          semester: row.semester,
+          week_number: row.week_number,
+          subject_code: row.subject_code,
+          score: row.score,
+          max_score: SCORE_MAX,
+          recorded_by: user?.id ?? null,
+        }));
+        const { error: fallbackError } = await supabase
+          .from("subject_scores")
+          .upsert(fallbackRows, {
+            onConflict: "student_id,class_id,semester,week_number,subject_code",
+          });
+        if (fallbackError) throw fallbackError;
+        return;
+      }
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      const savedSubject = selectedScoreSubject?.code;
+      if (savedSubject) {
+        setScoreDrafts((current) =>
+          Object.fromEntries(
+            Object.entries(current).filter(([key]) => key.split(":")[1] !== savedSubject),
+          ),
+        );
+      }
+      qc.invalidateQueries({ queryKey: ["exam-result-scores"] });
+      toast.success("Scores saved");
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const setSubjectScoreComponent = (
     studentId: string,
@@ -954,7 +1160,7 @@ function ExamsPage() {
       });
       writeDemoSubjectScores(next);
       qc.invalidateQueries({
-        queryKey: ["exam-result-scores", classId, semester, weekNumber, isDemo ? "demo" : "remote"],
+        queryKey: ["exam-result-scores"],
       });
       return;
     }
@@ -1002,13 +1208,7 @@ function ExamsPage() {
           toast.error(error.message);
         }
         qc.invalidateQueries({
-          queryKey: [
-            "exam-result-scores",
-            classId,
-            semester,
-            weekNumber,
-            isDemo ? "demo" : "remote",
-          ],
+          queryKey: ["exam-result-scores"],
         });
       });
   };
@@ -1123,291 +1323,415 @@ function ExamsPage() {
   return (
     <div>
       <PageHeader title={t("exams")} subtitle={t("exams_subtitle")} />
-      <SectionCard title={t("result_list")} className="mb-6">
-        <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_minmax(220px,1fr)_auto] lg:items-end">
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-muted-foreground">
-              {t("class")}
-            </span>
-            <select
-              value={classId}
-              onChange={(event) => setClassId(event.currentTarget.value)}
-              className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-            >
-              <option value="">{t("select_class")}</option>
-              {classes.map((classRow) => (
-                <option key={classRow.id} value={classRow.id}>
-                  {classRow.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-muted-foreground">
-              {t("semester")}
-            </span>
-            <select
-              value={semester}
-              onChange={(event) => setSemester(event.currentTarget.value)}
-              className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-            >
-              {SEMESTER_OPTIONS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-muted-foreground">Subject</span>
-            <select
-              value={selectedScoreSubject?.code ?? ""}
-              onChange={(event) => setScoreSubjectCode(event.currentTarget.value)}
-              disabled={!classId || scoreSheetSubjectOptions.length === 0}
-              className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <option value="">Select subject</option>
-              {scoreSheetSubjectOptions.map((subject) => (
-                <option key={subject.code} value={subject.code}>
-                  {subject.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            onClick={() => printDocument("Student Score Table", scoreReportHtml())}
-            disabled={!classId || !selectedScoreSubject || studentsLoading || enrolled.length === 0}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {studentsLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Printer className="h-4 w-4" />
-            )}
-            Print Score Table
-          </button>
-        </div>
-        {classId && (
-          <p className="mt-3 text-xs font-medium text-muted-foreground">
-            {enrolled.length} students · {selectedScoreSubject?.label ?? "No subject selected"} ·{" "}
-            {subjectScores.length} saved score entries
-          </p>
-        )}
-        {!classId ? (
-          <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-            Select a class to show results.
-          </p>
-        ) : studentsLoading ? (
-          <div className="mt-6 flex h-32 items-center justify-center rounded-xl border border-border">
-            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+      <div ref={resultListRef}>
+        <SectionCard title={t("result_list")} className="mb-6">
+          <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_minmax(220px,1fr)_auto] lg:items-end">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                {t("class")}
+              </span>
+              <select
+                value={classId}
+                onChange={(event) => {
+                  setClassId(event.currentTarget.value);
+                  setShowScoredOnly(false);
+                }}
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+              >
+                <option value="">{t("select_class")}</option>
+                {classes.map((classRow) => (
+                  <option key={classRow.id} value={classRow.id}>
+                    {classRow.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                {t("semester")}
+              </span>
+              <select
+                value={semester}
+                onChange={(event) => {
+                  setSemester(event.currentTarget.value);
+                  setShowScoredOnly(false);
+                }}
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+              >
+                {SEMESTER_OPTIONS.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                Subject
+              </span>
+              <select
+                value={selectedScoreSubject?.code ?? ""}
+                onChange={(event) => {
+                  setScoreSubjectCode(event.currentTarget.value);
+                  setShowScoredOnly(false);
+                }}
+                disabled={!classId || scoreSheetSubjectOptions.length === 0}
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">Select subject</option>
+                {scoreSheetSubjectOptions.map((subject) => (
+                  <option key={subject.code} value={subject.code}>
+                    {subject.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={viewSelectedResult}
+                disabled={!classId || studentsLoading || enrolled.length === 0}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {studentsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+                {t("view_result")}
+              </button>
+              {showScoredOnly && (
+                <button
+                  onClick={() => setShowScoredOnly(false)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-background px-4 text-sm font-semibold hover:bg-muted"
+                >
+                  {t("all_students")}
+                </button>
+              )}
+              {canManageScores && !showScoredOnly && (
+                <button
+                  onClick={() => saveScoresMut.mutate()}
+                  disabled={
+                    !classId ||
+                    !selectedScoreSubject ||
+                    studentsLoading ||
+                    enrolled.length === 0 ||
+                    saveScoresMut.isPending
+                  }
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saveScoresMut.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  Save Scores
+                </button>
+              )}
+              <button
+                onClick={() => printDocument("Student Score Table", scoreReportHtml())}
+                disabled={
+                  !classId || !selectedScoreSubject || studentsLoading || enrolled.length === 0
+                }
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {studentsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Printer className="h-4 w-4" />
+                )}
+                Print Score Table
+              </button>
+            </div>
           </div>
-        ) : enrolled.length === 0 ? (
-          <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-            No students found for this class.
-          </p>
-        ) : !selectedScoreSubject ? (
-          <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-            No assigned subject available for this class.
-          </p>
-        ) : (
-          <div className="mt-6 overflow-x-auto rounded-xl border border-border bg-white">
-            <table className="w-full min-w-[1180px] border-collapse text-sm text-slate-950">
-              <thead>
-                <tr className="border-b border-border bg-muted/35 text-center text-xs font-semibold text-muted-foreground">
-                  <th rowSpan={3} className="w-12 px-3 py-3">
-                    No
-                  </th>
-                  <th rowSpan={3} className="w-28 px-3 py-3 text-left">
-                    Student ID
-                  </th>
-                  <th colSpan={2} className="px-3 py-2">
-                    Student name
-                  </th>
-                  <th rowSpan={3} className="w-20 px-3 py-3">
-                    Gender
-                  </th>
-                  <th rowSpan={3} className="w-28 px-3 py-3">
-                    Date of birth
-                  </th>
-                  <th colSpan={6} className="px-3 py-2">
-                    Score
-                  </th>
-                  <th rowSpan={3} className="w-24 px-3 py-3">
-                    Remark
-                  </th>
-                </tr>
-                <tr className="border-b border-border bg-muted/35 text-center text-xs font-semibold text-muted-foreground">
-                  <th rowSpan={2} className="w-36 px-3 py-2 text-left">
-                    Family name
-                  </th>
-                  <th rowSpan={2} className="w-40 px-3 py-2 text-left">
-                    Given name
-                  </th>
-                  <th className="w-28 px-3 py-2">Attendance</th>
-                  <th className="w-28 px-3 py-2">Assignment</th>
-                  <th className="w-28 px-3 py-2">Midterm</th>
-                  <th className="w-28 px-3 py-2">Final</th>
-                  <th className="w-28 px-3 py-2">Total score</th>
-                  <th className="w-28 px-3 py-2">Average</th>
-                </tr>
-                <tr className="border-b border-border bg-muted/35 text-center text-xs font-semibold text-muted-foreground">
-                  <th className="px-3 py-2">{ATTENDANCE_SCORE_MAX}%</th>
-                  <th className="px-3 py-2">{ASSIGNMENT_SCORE_MAX}%</th>
-                  <th className="px-3 py-2">{MIDTERM_SCORE_MAX}%</th>
-                  <th className="px-3 py-2">{FINAL_SCORE_MAX}%</th>
-                  <th className="px-3 py-2">{SCORE_MAX}%</th>
-                  <th className="px-3 py-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {scoreTableRows.map(({ student, score }, index) => {
-                  const editable = canManageScores;
-                  const displayName = student.students.full_name_km || student.students.full_name;
-                  const studentName = splitStudentName(displayName);
-                  const inputClass =
-                    "h-9 w-full rounded-lg border border-border bg-background px-2 text-center text-sm font-semibold outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-muted";
-                  return (
-                    <tr
-                      key={student.student_id}
-                      className="border-b border-border/60 last:border-0"
-                    >
-                      <td className="px-3 py-3 text-center font-semibold">{index + 1}</td>
-                      <td className="px-3 py-3 font-mono text-xs">
-                        {student.students.student_code}
+          {classId && (
+            <p className="mt-3 text-xs font-medium text-muted-foreground">
+              {showScoredOnly
+                ? `${classResultRows.length} students with scores`
+                : `${enrolled.length} students`}{" "}
+              ·{" "}
+              {showScoredOnly
+                ? selectedClassLabel
+                : (selectedScoreSubject?.label ?? "No subject selected")}{" "}
+              · {subjectScores.length} saved score entries
+            </p>
+          )}
+          {!classId ? (
+            <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+              Select a class to show results.
+            </p>
+          ) : studentsLoading ? (
+            <div className="mt-6 flex h-32 items-center justify-center rounded-xl border border-border">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
+          ) : enrolled.length === 0 ? (
+            <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+              No students found for this class.
+            </p>
+          ) : showScoredOnly && classResultRows.length === 0 ? (
+            <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+              No students have scores entered for this class yet.
+            </p>
+          ) : showScoredOnly ? (
+            <div className="mt-6 overflow-x-auto rounded-xl border border-border bg-white">
+              <table className="w-full min-w-[920px] border-collapse text-sm text-slate-950">
+                <thead>
+                  <tr className="border-b border-border bg-muted/35 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <th className="border-r border-border px-3 py-3 text-center">No</th>
+                    <th className="border-r border-border px-3 py-3">Student ID</th>
+                    <th className="border-r border-border px-3 py-3">Student Name</th>
+                    <th className="border-r border-border px-3 py-3 text-center">Gender</th>
+                    {classResultSubjects.map((subject) => (
+                      <th
+                        key={subject.code}
+                        className="border-r border-border px-3 py-3 text-center"
+                      >
+                        {subject.label}
+                      </th>
+                    ))}
+                    <th className="border-r border-border px-3 py-3 text-center">Total</th>
+                    <th className="px-3 py-3 text-center">Average</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classResultRows.map((row, index) => (
+                    <tr key={row.student.student_id} className="border-b border-border/60">
+                      <td className="border-r border-border/60 px-3 py-3 text-center font-semibold">
+                        {index + 1}
                       </td>
-                      <td className="px-3 py-3 font-semibold">{studentName.familyName}</td>
-                      <td className="px-3 py-3 font-semibold">{studentName.givenName}</td>
-                      <td className="px-3 py-3 text-center">
-                        {khmerGenderLabel(student.students.gender)}
+                      <td className="border-r border-border/60 px-3 py-3 font-mono text-xs">
+                        {row.student.students.student_code}
                       </td>
-                      <td className="px-3 py-3 text-center text-xs">
-                        {formatDateDisplay(student.students.date_of_birth)}
+                      <td className="border-r border-border/60 px-3 py-3 font-semibold">
+                        {row.student.students.full_name_km || row.student.students.full_name}
                       </td>
-                      <td className="px-2 py-3 text-center">
-                        <div
-                          title={`${score.attendanceCount} attendance records, ${score.absenceCount} absences`}
-                          className="flex min-h-12 flex-col items-center justify-center rounded-lg border border-border bg-muted px-2 py-1"
+                      <td className="border-r border-border/60 px-3 py-3 text-center">
+                        {khmerGenderLabel(row.student.students.gender) || "-"}
+                      </td>
+                      {row.scores.map((score, scoreIndex) => (
+                        <td
+                          key={`${row.student.student_id}-${classResultSubjects[scoreIndex]?.code}`}
+                          className="border-r border-border/60 px-3 py-3 text-center font-semibold tabular-nums"
                         >
-                          <span className="text-sm font-semibold">
-                            {score.attendance.toFixed(2)}
-                          </span>
-                          <span className="text-[11px] font-medium text-muted-foreground">
-                            Absent: {score.absenceCount}
-                          </span>
-                        </div>
+                          {formatScoreValue(score) || "-"}
+                        </td>
+                      ))}
+                      <td className="border-r border-border/60 px-3 py-3 text-center font-black tabular-nums">
+                        {formatScoreValue(row.total)}
                       </td>
-                      <td className="px-2 py-3">
-                        <input
-                          key={`${student.student_id}-${selectedScoreSubject.code}-assignment`}
-                          type="number"
-                          min={0}
-                          max={ASSIGNMENT_SCORE_MAX}
-                          step="0.01"
-                          value={scoreComponentInputValue(
-                            student.student_id,
-                            selectedScoreSubject.code,
-                            "assignment_score",
-                            score.assignment,
-                          )}
-                          disabled={!editable}
-                          onChange={(event) =>
-                            setScoreDraft(
-                              student.student_id,
-                              selectedScoreSubject.code,
-                              "assignment_score",
-                              event.currentTarget.value,
-                            )
-                          }
-                          onBlur={(event) =>
-                            setSubjectScoreComponent(
-                              student.student_id,
-                              selectedScoreSubject.code,
-                              "assignment_score",
-                              event.currentTarget.value,
-                            )
-                          }
-                          className={inputClass}
-                        />
+                      <td className="px-3 py-3 text-center font-black tabular-nums">
+                        {formatScoreValue(row.average) || "-"}
                       </td>
-                      <td className="px-2 py-3">
-                        <input
-                          key={`${student.student_id}-${selectedScoreSubject.code}-midterm`}
-                          type="number"
-                          min={0}
-                          max={MIDTERM_SCORE_MAX}
-                          step="0.01"
-                          value={scoreComponentInputValue(
-                            student.student_id,
-                            selectedScoreSubject.code,
-                            "midterm_score",
-                            score.midterm,
-                          )}
-                          disabled={!editable}
-                          onChange={(event) =>
-                            setScoreDraft(
-                              student.student_id,
-                              selectedScoreSubject.code,
-                              "midterm_score",
-                              event.currentTarget.value,
-                            )
-                          }
-                          onBlur={(event) =>
-                            setSubjectScoreComponent(
-                              student.student_id,
-                              selectedScoreSubject.code,
-                              "midterm_score",
-                              event.currentTarget.value,
-                            )
-                          }
-                          className={inputClass}
-                        />
-                      </td>
-                      <td className="px-2 py-3">
-                        <input
-                          key={`${student.student_id}-${selectedScoreSubject.code}-final`}
-                          type="number"
-                          min={0}
-                          max={FINAL_SCORE_MAX}
-                          step="0.01"
-                          value={scoreComponentInputValue(
-                            student.student_id,
-                            selectedScoreSubject.code,
-                            "final_score",
-                            score.final,
-                          )}
-                          disabled={!editable}
-                          onChange={(event) =>
-                            setScoreDraft(
-                              student.student_id,
-                              selectedScoreSubject.code,
-                              "final_score",
-                              event.currentTarget.value,
-                            )
-                          }
-                          onBlur={(event) =>
-                            setSubjectScoreComponent(
-                              student.student_id,
-                              selectedScoreSubject.code,
-                              "final_score",
-                              event.currentTarget.value,
-                            )
-                          }
-                          className={inputClass}
-                        />
-                      </td>
-                      <td className="px-3 py-3 text-center font-black">{score.total.toFixed(2)}</td>
-                      <td className="px-3 py-3 text-center font-black">
-                        {score.average.toFixed(2)}
-                      </td>
-                      <td className="px-3 py-3"></td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : !selectedScoreSubject ? (
+            <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+              No assigned subject available for this class.
+            </p>
+          ) : (
+            <div className="mt-6 overflow-x-auto rounded-xl border border-border bg-white">
+              <table className="w-full min-w-[1180px] border-collapse text-sm text-slate-950">
+                <thead>
+                  <tr className="border-b border-border bg-muted/35 text-center text-xs font-semibold text-muted-foreground">
+                    <th rowSpan={3} className="w-12 px-3 py-3">
+                      No
+                    </th>
+                    <th rowSpan={3} className="w-28 px-3 py-3 text-left">
+                      Student ID
+                    </th>
+                    <th colSpan={2} className="px-3 py-2">
+                      Student name
+                    </th>
+                    <th rowSpan={3} className="w-20 px-3 py-3">
+                      Gender
+                    </th>
+                    <th rowSpan={3} className="w-28 px-3 py-3">
+                      Date of birth
+                    </th>
+                    <th colSpan={6} className="px-3 py-2">
+                      Score
+                    </th>
+                    <th rowSpan={3} className="w-24 px-3 py-3">
+                      Remark
+                    </th>
+                  </tr>
+                  <tr className="border-b border-border bg-muted/35 text-center text-xs font-semibold text-muted-foreground">
+                    <th rowSpan={2} className="w-36 px-3 py-2 text-left">
+                      Family name
+                    </th>
+                    <th rowSpan={2} className="w-40 px-3 py-2 text-left">
+                      Given name
+                    </th>
+                    <th className="w-28 px-3 py-2">Attendance</th>
+                    <th className="w-28 px-3 py-2">Assignment</th>
+                    <th className="w-28 px-3 py-2">Midterm</th>
+                    <th className="w-28 px-3 py-2">Final</th>
+                    <th className="w-28 px-3 py-2">Total score</th>
+                    <th className="w-28 px-3 py-2">Average</th>
+                  </tr>
+                  <tr className="border-b border-border bg-muted/35 text-center text-xs font-semibold text-muted-foreground">
+                    <th className="px-3 py-2">{ATTENDANCE_SCORE_MAX}%</th>
+                    <th className="px-3 py-2">{ASSIGNMENT_SCORE_MAX}%</th>
+                    <th className="px-3 py-2">{MIDTERM_SCORE_MAX}%</th>
+                    <th className="px-3 py-2">{FINAL_SCORE_MAX}%</th>
+                    <th className="px-3 py-2">{SCORE_MAX}%</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scoreTableRows.map(({ student, score }, index) => {
+                    const editable = canManageScores;
+                    const displayName = student.students.full_name_km || student.students.full_name;
+                    const studentName = splitStudentName(displayName);
+                    const inputClass =
+                      "h-9 w-full rounded-lg border border-border bg-background px-2 text-center text-sm font-semibold outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-muted";
+                    return (
+                      <tr
+                        key={student.student_id}
+                        className="border-b border-border/60 last:border-0"
+                      >
+                        <td className="px-3 py-3 text-center font-semibold">{index + 1}</td>
+                        <td className="px-3 py-3 font-mono text-xs">
+                          {student.students.student_code}
+                        </td>
+                        <td className="px-3 py-3 font-semibold">{studentName.familyName}</td>
+                        <td className="px-3 py-3 font-semibold">{studentName.givenName}</td>
+                        <td className="px-3 py-3 text-center">
+                          {khmerGenderLabel(student.students.gender)}
+                        </td>
+                        <td className="px-3 py-3 text-center text-xs">
+                          {formatDateDisplay(student.students.date_of_birth)}
+                        </td>
+                        <td className="px-2 py-3 text-center">
+                          <div
+                            title={`${score.attendanceCount} attendance records, ${score.absenceCount} absences`}
+                            className="flex min-h-12 flex-col items-center justify-center rounded-lg border border-border bg-muted px-2 py-1"
+                          >
+                            <span className="text-sm font-semibold">
+                              {score.attendance.toFixed(2)}
+                            </span>
+                            <span className="text-[11px] font-medium text-muted-foreground">
+                              Absent: {score.absenceCount}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-2 py-3">
+                          <input
+                            key={`${student.student_id}-${selectedScoreSubject.code}-assignment`}
+                            type="number"
+                            min={0}
+                            max={ASSIGNMENT_SCORE_MAX}
+                            step="0.01"
+                            value={scoreComponentInputValue(
+                              student.student_id,
+                              selectedScoreSubject.code,
+                              "assignment_score",
+                              score.assignment,
+                            )}
+                            disabled={!editable}
+                            onChange={(event) =>
+                              setScoreDraft(
+                                student.student_id,
+                                selectedScoreSubject.code,
+                                "assignment_score",
+                                event.currentTarget.value,
+                              )
+                            }
+                            onBlur={(event) =>
+                              setSubjectScoreComponent(
+                                student.student_id,
+                                selectedScoreSubject.code,
+                                "assignment_score",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className={inputClass}
+                          />
+                        </td>
+                        <td className="px-2 py-3">
+                          <input
+                            key={`${student.student_id}-${selectedScoreSubject.code}-midterm`}
+                            type="number"
+                            min={0}
+                            max={MIDTERM_SCORE_MAX}
+                            step="0.01"
+                            value={scoreComponentInputValue(
+                              student.student_id,
+                              selectedScoreSubject.code,
+                              "midterm_score",
+                              score.midterm,
+                            )}
+                            disabled={!editable}
+                            onChange={(event) =>
+                              setScoreDraft(
+                                student.student_id,
+                                selectedScoreSubject.code,
+                                "midterm_score",
+                                event.currentTarget.value,
+                              )
+                            }
+                            onBlur={(event) =>
+                              setSubjectScoreComponent(
+                                student.student_id,
+                                selectedScoreSubject.code,
+                                "midterm_score",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className={inputClass}
+                          />
+                        </td>
+                        <td className="px-2 py-3">
+                          <input
+                            key={`${student.student_id}-${selectedScoreSubject.code}-final`}
+                            type="number"
+                            min={0}
+                            max={FINAL_SCORE_MAX}
+                            step="0.01"
+                            value={scoreComponentInputValue(
+                              student.student_id,
+                              selectedScoreSubject.code,
+                              "final_score",
+                              score.final,
+                            )}
+                            disabled={!editable}
+                            onChange={(event) =>
+                              setScoreDraft(
+                                student.student_id,
+                                selectedScoreSubject.code,
+                                "final_score",
+                                event.currentTarget.value,
+                              )
+                            }
+                            onBlur={(event) =>
+                              setSubjectScoreComponent(
+                                student.student_id,
+                                selectedScoreSubject.code,
+                                "final_score",
+                                event.currentTarget.value,
+                              )
+                            }
+                            className={inputClass}
+                          />
+                        </td>
+                        <td className="px-3 py-3 text-center font-black">
+                          {score.total.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-3 text-center font-black">
+                          {score.average.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-3"></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
+      </div>
       <SectionCard>
         {isLoading ? (
           <div className="flex h-40 items-center justify-center">
@@ -1426,6 +1750,7 @@ function ExamsPage() {
                 <th className="py-3 pr-4">{t("exam_type")}</th>
                 <th className="py-3 pr-4">{t("date")}</th>
                 <th className="py-3">{t("max_score")}</th>
+                <th className="py-3 text-right">{t("action")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1436,6 +1761,15 @@ function ExamsPage() {
                   <td className="py-3 pr-4 capitalize">{e.exam_type}</td>
                   <td className="py-3 pr-4 text-xs text-muted-foreground">{e.exam_date ?? "—"}</td>
                   <td className="py-3">{e.max_score}</td>
+                  <td className="py-3 text-right">
+                    <button
+                      onClick={() => viewExamResult(e)}
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-3 text-xs font-semibold hover:bg-muted"
+                    >
+                      <Eye className="h-4 w-4" />
+                      {t("view_result")}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

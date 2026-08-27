@@ -144,6 +144,32 @@ function attendanceClassIds(classId: string, className: string) {
   return Array.from(new Set([classId, syntheticClassId(className), className].filter(Boolean)));
 }
 
+function isUuid(value: string | null | undefined) {
+  return !!value?.match(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+}
+
+function realClassIdsForAttendance(classId: string, className: string, classes: AttendanceClass[]) {
+  const ids = attendanceClassIds(classId, className).filter(isUuid);
+  const matchingStoredClass = classes.find(
+    (classRow) =>
+      !classRow.isSynthetic && isUuid(classRow.id) && classNamesMatch(classRow.name, className),
+  );
+  if (matchingStoredClass) ids.push(matchingStoredClass.id);
+  return Array.from(new Set(ids));
+}
+
+function realClassIdForAttendance(classId: string, className: string, classes: AttendanceClass[]) {
+  if (isUuid(classId)) return classId;
+  return (
+    classes.find(
+      (classRow) =>
+        !classRow.isSynthetic && isUuid(classRow.id) && classNamesMatch(classRow.name, className),
+    )?.id ?? ""
+  );
+}
+
 function uniqueAttendanceClasses(classes: AttendanceClass[]) {
   const byId = new Map<string, AttendanceClass>();
   classes.forEach((classRow) => {
@@ -853,7 +879,7 @@ function AttendancePage() {
         if (enrolledRows.length > 0) return enrolledRows;
       }
 
-      let query = supabase
+      const query = supabase
         .from("students")
         .select(
           "id,full_name,full_name_km,student_code,gender,date_of_birth,address,major,class_name",
@@ -918,14 +944,18 @@ function AttendancePage() {
           }));
       }
 
-      const { data } = await supabase
+      const remoteClassIds = realClassIdsForAttendance(classId, selectedClassName, classes);
+      if (remoteClassIds.length === 0) return [];
+
+      const { data, error } = await supabase
         .from("attendance")
         .select("student_id,status,week_number,day_of_week")
-        .in("class_id", matchingClassIds)
+        .in("class_id", remoteClassIds)
         .eq("semester", semester)
         .gte("week_number", weekNumber)
         .lte("week_number", visibleWeeks.at(-1) ?? weekNumber)
         .eq("subject_code", subjectCode);
+      if (error) throw error;
       return data ?? [];
     },
   });
@@ -982,22 +1012,29 @@ function AttendancePage() {
       }
 
       const selectedClassName = classNameFromId(classId, classes);
-      const matchingClassIds = attendanceClassIds(classId, selectedClassName);
-      const deleteResult = await supabase
-        .from("attendance")
-        .delete()
-        .eq("student_id", sid)
-        .in("class_id", matchingClassIds)
-        .eq("semester", semester)
-        .eq("week_number", week)
-        .eq("day_of_week", day)
-        .eq("subject_code", subjectCode);
-      if (deleteResult.error) throw deleteResult.error;
+      const matchingClassIds = realClassIdsForAttendance(classId, selectedClassName, classes);
+      if (matchingClassIds.length > 0) {
+        const deleteResult = await supabase
+          .from("attendance")
+          .delete()
+          .eq("student_id", sid)
+          .in("class_id", matchingClassIds)
+          .eq("semester", semester)
+          .eq("week_number", week)
+          .eq("day_of_week", day)
+          .eq("subject_code", subjectCode);
+        if (deleteResult.error) throw deleteResult.error;
+      }
+
+      const attendanceClassId = realClassIdForAttendance(classId, selectedClassName, classes);
+      if (!attendanceClassId) {
+        throw new Error(`Create class "${selectedClassName}" before recording attendance.`);
+      }
 
       const { error } = await supabase.from("attendance").upsert(
         {
           student_id: sid,
-          class_id: classId,
+          class_id: attendanceClassId,
           date: recordDate,
           semester,
           week_number: week,
@@ -1063,7 +1100,22 @@ function AttendancePage() {
       }
 
       const selectedClassName = classNameFromId(classId, classes);
-      const matchingClassIds = attendanceClassIds(classId, selectedClassName);
+      const matchingClassIds = realClassIdsForAttendance(classId, selectedClassName, classes);
+      if (matchingClassIds.length === 0) {
+        qc.invalidateQueries({
+          queryKey: [
+            "attendance-day",
+            classId,
+            semester,
+            weekNumber,
+            subjectCode,
+            date,
+            isDemo ? "demo" : "remote",
+          ],
+        });
+        return;
+      }
+
       supabase
         .from("attendance")
         .delete()
