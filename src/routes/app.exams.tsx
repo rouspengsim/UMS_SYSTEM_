@@ -976,6 +976,15 @@ function ExamsPage() {
         a.student.students.student_code.localeCompare(b.student.students.student_code),
       );
   }, [classResultSubjects, enrolled, subjectScores]);
+  const visibleExams = useMemo(() => {
+    if (!isStudent) return exams;
+    return exams.filter((exam) =>
+      classes.some(
+        (classRow) => classRow.id === exam.class_id || classRow.name === exam.classes?.name,
+      ),
+    );
+  }, [classes, exams, isStudent]);
+  const showResultList = isStudent || showScoredOnly;
 
   const saveScoresMut = useMutation({
     mutationFn: async () => {
@@ -1213,6 +1222,74 @@ function ExamsPage() {
       });
   };
 
+  const resultListReportHtml = () => {
+    const today = formatDateDisplay(new Date());
+    const subjectHeaders = classResultSubjects
+      .map((subject) => `<th>${escapeHtml(subject.label)}</th>`)
+      .join("");
+    const rows = classResultRows
+      .map((row, index) => {
+        const subjectScoresHtml = row.scores
+          .map((score) => `<td>${escapeHtml(formatScoreValue(score) || "-")}</td>`)
+          .join("");
+        return `
+          <tr>
+            <td style="width: 28px">${index + 1}</td>
+            <td style="width: 82px">${escapeHtml(row.student.students.student_code)}</td>
+            <td class="name">${escapeHtml(
+              row.student.students.full_name_km || row.student.students.full_name,
+            )}</td>
+            <td style="width: 42px">${escapeHtml(khmerGenderLabel(row.student.students.gender) || "-")}</td>
+            ${subjectScoresHtml}
+            <td style="width: 50px">${escapeHtml(formatScoreValue(row.total))}</td>
+            <td style="width: 50px">${escapeHtml(formatScoreValue(row.average) || "-")}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    return `
+      <main>
+        <section class="report-top">
+          <div class="left-note">
+            សាកលវិទ្យាល័យភូមិន្ទនីតិសាស្ត្រ<br />
+            និងវិទ្យាសាស្ត្រសេដ្ឋកិច្ច<br />
+            ការិយាល័យសិក្សា
+          </div>
+          <div class="title">
+            <h1>ព្រះរាជាណាចក្រកម្ពុជា</h1>
+            <h2>ជាតិ សាសនា ព្រះមហាក្សត្រ</h2>
+            <h3>បញ្ជីលទ្ធផលពិន្ទុនិស្សិត</h3>
+          </div>
+          <div></div>
+        </section>
+        <div class="meta">
+          ក្រុម ${escapeHtml(selectedClassLabel)} · ${escapeHtml(semester)}<br />
+          ចំនួននិស្សិតមានពិន្ទុ ${classResultRows.length} · កាលបរិច្ឆេទ ${escapeHtml(today)}
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 28px">ល.រ</th>
+              <th style="width: 82px">អត្តលេខ</th>
+              <th class="name">គោត្តនាម និង នាម</th>
+              <th style="width: 42px">ភេទ</th>
+              ${subjectHeaders}
+              <th style="width: 50px">សរុប</th>
+              <th style="width: 50px">មធ្យម</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="page-foot">
+          <div>${escapeHtml(selectedClassLabel)}</div>
+          <div>Page 1</div>
+          <div>ទំព័រ ១</div>
+        </div>
+      </main>
+    `;
+  };
+
   const scoreReportHtml = () => {
     const today = formatDateDisplay(new Date());
     if (!selectedScoreSubject) {
@@ -1320,12 +1397,26 @@ function ExamsPage() {
       </main>
     `;
   };
+  const printScoreReport = () => {
+    if (showResultList) {
+      printDocument("Student Result List", resultListReportHtml());
+      return;
+    }
+
+    printDocument("Student Score Table", scoreReportHtml());
+  };
   return (
     <div>
       <PageHeader title={t("exams")} subtitle={t("exams_subtitle")} />
       <div ref={resultListRef}>
         <SectionCard title={t("result_list")} className="mb-6">
-          <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_minmax(220px,1fr)_auto] lg:items-end">
+          <div
+            className={
+              isStudent
+                ? "grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_auto] lg:items-end"
+                : "grid gap-3 lg:grid-cols-[minmax(220px,1fr)_160px_minmax(220px,1fr)_auto] lg:items-end"
+            }
+          >
             <label className="block">
               <span className="mb-1 block text-xs font-semibold text-muted-foreground">
                 {t("class")}
@@ -1365,41 +1456,45 @@ function ExamsPage() {
                 ))}
               </select>
             </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-muted-foreground">
-                Subject
-              </span>
-              <select
-                value={selectedScoreSubject?.code ?? ""}
-                onChange={(event) => {
-                  setScoreSubjectCode(event.currentTarget.value);
-                  setShowScoredOnly(false);
-                }}
-                disabled={!classId || scoreSheetSubjectOptions.length === 0}
-                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <option value="">Select subject</option>
-                {scoreSheetSubjectOptions.map((subject) => (
-                  <option key={subject.code} value={subject.code}>
-                    {subject.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!isStudent && (
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                  Subject
+                </span>
+                <select
+                  value={selectedScoreSubject?.code ?? ""}
+                  onChange={(event) => {
+                    setScoreSubjectCode(event.currentTarget.value);
+                    setShowScoredOnly(false);
+                  }}
+                  disabled={!classId || scoreSheetSubjectOptions.length === 0}
+                  className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="">Select subject</option>
+                  {scoreSheetSubjectOptions.map((subject) => (
+                    <option key={subject.code} value={subject.code}>
+                      {subject.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={viewSelectedResult}
-                disabled={!classId || studentsLoading || enrolled.length === 0}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {studentsLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-                {t("view_result")}
-              </button>
-              {showScoredOnly && (
+              {!isStudent && (
+                <button
+                  onClick={viewSelectedResult}
+                  disabled={!classId || studentsLoading || enrolled.length === 0}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {studentsLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                  {t("view_result")}
+                </button>
+              )}
+              {!isStudent && showScoredOnly && (
                 <button
                   onClick={() => setShowScoredOnly(false)}
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-background px-4 text-sm font-semibold hover:bg-muted"
@@ -1407,7 +1502,7 @@ function ExamsPage() {
                   {t("all_students")}
                 </button>
               )}
-              {canManageScores && !showScoredOnly && (
+              {canManageScores && !showResultList && (
                 <button
                   onClick={() => saveScoresMut.mutate()}
                   disabled={
@@ -1428,9 +1523,12 @@ function ExamsPage() {
                 </button>
               )}
               <button
-                onClick={() => printDocument("Student Score Table", scoreReportHtml())}
+                onClick={printScoreReport}
                 disabled={
-                  !classId || !selectedScoreSubject || studentsLoading || enrolled.length === 0
+                  !classId ||
+                  studentsLoading ||
+                  enrolled.length === 0 ||
+                  (showResultList ? classResultRows.length === 0 : !selectedScoreSubject)
                 }
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -1445,11 +1543,11 @@ function ExamsPage() {
           </div>
           {classId && (
             <p className="mt-3 text-xs font-medium text-muted-foreground">
-              {showScoredOnly
+              {showResultList
                 ? `${classResultRows.length} students with scores`
                 : `${enrolled.length} students`}{" "}
               ·{" "}
-              {showScoredOnly
+              {showResultList
                 ? selectedClassLabel
                 : (selectedScoreSubject?.label ?? "No subject selected")}{" "}
               · {subjectScores.length} saved score entries
@@ -1467,11 +1565,11 @@ function ExamsPage() {
             <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
               No students found for this class.
             </p>
-          ) : showScoredOnly && classResultRows.length === 0 ? (
+          ) : showResultList && classResultRows.length === 0 ? (
             <p className="mt-6 rounded-xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
               No students have scores entered for this class yet.
             </p>
-          ) : showScoredOnly ? (
+          ) : showResultList ? (
             <div className="mt-6 overflow-x-auto rounded-xl border border-border bg-white">
               <table className="w-full min-w-[920px] border-collapse text-sm text-slate-950">
                 <thead>
@@ -1737,7 +1835,7 @@ function ExamsPage() {
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
-        ) : exams.length === 0 ? (
+        ) : visibleExams.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
             No exams scheduled yet. Create classes first, then add exams from the database.
           </p>
@@ -1754,7 +1852,7 @@ function ExamsPage() {
               </tr>
             </thead>
             <tbody>
-              {exams.map((e) => (
+              {visibleExams.map((e) => (
                 <tr key={e.id} className="border-b border-border/60">
                   <td className="py-3 pr-4 font-semibold">{e.name}</td>
                   <td className="py-3 pr-4">{e.classes?.name ?? "—"}</td>
